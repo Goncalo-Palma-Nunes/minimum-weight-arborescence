@@ -208,7 +208,7 @@
                     </mxGeometry>
                 </mxCell>
                 <mxCell id="71" value="Inference" style="shape=folder;fontStyle=1;tabWidth=110;tabHeight=30;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=1;collapsible=0;whiteSpace=wrap;" parent="1" vertex="1">
-                    <mxGeometry x="40" y="-670" width="680" height="560" as="geometry"/>
+                    <mxGeometry x="50" y="-670" width="680" height="560" as="geometry"/>
                 </mxCell>
                 <mxCell id="72" value="" style="html=1;strokeColor=none;resizeWidth=1;resizeHeight=1;fillColor=none;part=1;connectable=0;allowArrows=0;deletable=0;whiteSpace=wrap;" parent="71" vertex="1">
                     <mxGeometry width="618.8509999999999" height="481.5999999999999" relative="1" as="geometry">
@@ -332,13 +332,18 @@
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="122" value="&lt;p style=&quot;margin:0px;margin-top:4px;text-align:center;&quot;&gt;&lt;b&gt;Action&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:4px;&quot;&gt;+ ActionType type&lt;br&gt;+ int: weight&lt;br&gt;+ Node u&lt;br&gt;+ Node v&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:4px;&quot;&gt;&lt;br&gt;&lt;/p&gt;" style="verticalAlign=top;align=left;overflow=fill;html=1;whiteSpace=wrap;" vertex="1" parent="123">
-                    <mxGeometry x="14.36" y="57.27" width="105.64" height="102.73" as="geometry"/>
+                    <mxGeometry x="14.36" y="44.190000000000005" width="105.64" height="102.73" as="geometry"/>
                 </mxCell>
                 <mxCell id="131" value="&amp;lt;&amp;lt;enumeration&amp;gt;&amp;gt;&lt;br&gt;ActionType" style="swimlane;fontStyle=0;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;whiteSpace=wrap;" vertex="1" parent="123">
-                    <mxGeometry x="159.00449999999998" y="48.63444444444444" width="110.5" height="119.99999999999999" as="geometry"/>
+                    <mxGeometry x="159.00449999999998" y="35.55444444444444" width="110.5" height="119.99999999999999" as="geometry"/>
                 </mxCell>
                 <mxCell id="132" value="Add&lt;br&gt;Remove&lt;br&gt;Update" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;" vertex="1" parent="131">
                     <mxGeometry y="40" width="110.5" height="79.99999999999999" as="geometry"/>
+                </mxCell>
+                <mxCell id="136" value="" style="edgeStyle=none;html=1;endArrow=none;endFill=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="71" source="122" target="78">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="330" y="230" as="targetPoint"/>
+                    </mxGeometry>
                 </mxCell>
                 <mxCell id="107" value="Indexar os nós no grafo com o ID do nó" style="shape=note2;boundedLbl=1;whiteSpace=wrap;html=1;size=25;verticalAlign=top;align=center;" parent="1" vertex="1">
                     <mxGeometry x="20" y="-60" width="170" height="100" as="geometry"/>
