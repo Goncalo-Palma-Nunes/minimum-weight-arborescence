@@ -1,11 +1,11 @@
 <mxfile host="65bd71144e">
     <diagram id="oKoYxK7dCddxvXPvrhxu" name="Page-1">
-        <mxGraphModel dx="1543" dy="1663" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+        <mxGraphModel dx="693" dy="1663" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
                 <mxCell id="15" value="Graph" style="shape=folder;fontStyle=1;tabWidth=110;tabHeight=30;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=1;collapsible=0;whiteSpace=wrap;" parent="1" vertex="1">
-                    <mxGeometry x="-200" y="-40" width="610" height="650" as="geometry"/>
+                    <mxGeometry x="230" y="-80" width="610" height="650" as="geometry"/>
                 </mxCell>
                 <mxCell id="16" value="" style="html=1;strokeColor=none;resizeWidth=1;resizeHeight=1;fillColor=none;part=1;connectable=0;allowArrows=0;deletable=0;whiteSpace=wrap;" parent="15" vertex="1">
                     <mxGeometry width="610" height="455" relative="1" as="geometry">
@@ -59,23 +59,22 @@
                     <mxGeometry y="69.33333333333334" width="199.18367346938777" height="13.333333333333334" as="geometry"/>
                 </mxCell>
                 <mxCell id="28" value="Node" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" parent="15" vertex="1">
-                    <mxGeometry x="383.7096774193548" y="50.003333333333345" width="167.26" height="130.00333333333333" as="geometry"/>
+                    <mxGeometry x="370" y="50" width="230" height="130.00333333333333" as="geometry"/>
                 </mxCell>
-                <mxCell id="29" value="- neighbors: List&amp;lt;Node&amp;gt;&lt;div&gt;- id: int&lt;/div&gt;&lt;div&gt;- MLSTData: string&lt;/div&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" parent="28" vertex="1">
-                    <mxGeometry y="26" width="167.26" height="64" as="geometry"/>
+                <mxCell id="29" value="- neighbors: TreeMap&amp;lt;int, Node&amp;gt;&lt;div&gt;- id: int&lt;/div&gt;&lt;div&gt;- MLSTData: string&lt;/div&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" parent="28" vertex="1">
+                    <mxGeometry y="26" width="230" height="64" as="geometry"/>
                 </mxCell>
                 <mxCell id="30" value="" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;strokeColor=inherit;" parent="28" vertex="1">
-                    <mxGeometry y="90" width="167.26" height="13.333333333333334" as="geometry"/>
+                    <mxGeometry y="90" width="230" height="13.333333333333334" as="geometry"/>
                 </mxCell>
                 <mxCell id="31" value="+ addNeighbor(Node n): void" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" parent="28" vertex="1">
-                    <mxGeometry y="103.33333333333333" width="167.26" height="26.67" as="geometry"/>
+                    <mxGeometry y="103.33333333333333" width="230" height="26.67" as="geometry"/>
                 </mxCell>
-                <mxCell id="50" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.511;entryY=0.988;entryDx=0;entryDy=0;entryPerimeter=0;" parent="28" source="29" target="31" edge="1">
+                <mxCell id="50" style="edgeStyle=none;html=1;exitX=0.802;exitY=1.03;exitDx=0;exitDy=0;entryX=0.511;entryY=0.988;entryDx=0;entryDy=0;entryPerimeter=0;exitPerimeter=0;" parent="28" source="31" target="31" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
-                            <mxPoint x="206.29032258064518" y="59.996666666666655"/>
-                            <mxPoint x="206.29032258064518" y="159.99666666666667"/>
-                            <mxPoint x="85.29032258064518" y="159.99666666666667"/>
+                            <mxPoint x="184" y="160"/>
+                            <mxPoint x="118" y="160"/>
                         </Array>
                     </mxGeometry>
                 </mxCell>
@@ -115,7 +114,7 @@
                     <mxGeometry x="9.84" y="390" width="250.16" height="140" as="geometry"/>
                 </mxCell>
                 <mxCell id="117" value="DephFirstSearch" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" parent="115" vertex="1">
-                    <mxGeometry x="10.156537195523356" y="39.99833333333339" width="200" height="69.33" as="geometry"/>
+                    <mxGeometry x="10.16" y="40" width="200" height="69.33" as="geometry"/>
                 </mxCell>
                 <mxCell id="118" value="- Graph g" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" parent="117" vertex="1">
                     <mxGeometry y="26" width="200" height="24" as="geometry"/>
@@ -130,7 +129,7 @@
                     <mxGeometry x="299.99806451612903" y="520.0005706521739" width="118.06451612903226" height="100.00000000000001" as="geometry"/>
                 </mxCell>
                 <mxCell id="41" value="Distance" style="shape=folder;fontStyle=1;tabWidth=110;tabHeight=30;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=1;collapsible=0;whiteSpace=wrap;" parent="1" vertex="1">
-                    <mxGeometry x="-480" y="-120" width="220" height="210" as="geometry"/>
+                    <mxGeometry y="330" width="220" height="210" as="geometry"/>
                 </mxCell>
                 <mxCell id="42" value="" style="html=1;strokeColor=none;resizeWidth=1;resizeHeight=1;fillColor=none;part=1;connectable=0;allowArrows=0;deletable=0;whiteSpace=wrap;" parent="41" vertex="1">
                     <mxGeometry width="219.99999999999997" height="147" relative="1" as="geometry">
@@ -152,7 +151,7 @@
                     <mxGeometry x="49.79" y="160" width="110.21" height="30" as="geometry"/>
                 </mxCell>
                 <mxCell id="52" value="Nearest Neighbor" style="shape=folder;fontStyle=1;tabWidth=110;tabHeight=30;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=1;collapsible=0;whiteSpace=wrap;" parent="1" vertex="1">
-                    <mxGeometry x="-480" y="-480" width="480" height="320" as="geometry"/>
+                    <mxGeometry x="10" y="590" width="480" height="320" as="geometry"/>
                 </mxCell>
                 <mxCell id="53" value="" style="html=1;strokeColor=none;resizeWidth=1;resizeHeight=1;fillColor=none;part=1;connectable=0;allowArrows=0;deletable=0;whiteSpace=wrap;" parent="52" vertex="1">
                     <mxGeometry width="479.9999999999999" height="212.12121212121215" relative="1" as="geometry">
@@ -341,14 +340,14 @@
                 <mxCell id="132" value="Add&lt;br&gt;Remove&lt;br&gt;Update" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;" vertex="1" parent="131">
                     <mxGeometry y="40" width="110.5" height="79.99999999999999" as="geometry"/>
                 </mxCell>
-                <mxCell id="107" value="Ideia: Passar os algoritmos de árvores para uma package à parte?" style="shape=note2;boundedLbl=1;whiteSpace=wrap;html=1;size=25;verticalAlign=top;align=center;" parent="1" vertex="1">
-                    <mxGeometry x="480" y="120" width="170" height="100" as="geometry"/>
+                <mxCell id="107" value="Indexar os nós no grafo com o ID do nó" style="shape=note2;boundedLbl=1;whiteSpace=wrap;html=1;size=25;verticalAlign=top;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="-60" width="170" height="100" as="geometry"/>
                 </mxCell>
-                <mxCell id="113" value="Ordenar arestas/adjacências?" style="shape=note2;boundedLbl=1;whiteSpace=wrap;html=1;size=25;verticalAlign=top;align=center;" parent="1" vertex="1">
-                    <mxGeometry x="480" y="240" width="170" height="100" as="geometry"/>
+                <mxCell id="113" value="Manter a vizinhança de um nó ordenada com um array ordenado ou uma árvore em que a chave é a distância e o valor é o nó vizinho" style="shape=note2;boundedLbl=1;whiteSpace=wrap;html=1;size=25;verticalAlign=top;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="60" width="180" height="120" as="geometry"/>
                 </mxCell>
                 <mxCell id="125" value="DataStructure" style="shape=folder;fontStyle=1;tabWidth=110;tabHeight=30;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=1;collapsible=0;recursiveResize=0;whiteSpace=wrap;" vertex="1" parent="1">
-                    <mxGeometry x="440" y="370" width="320" height="240" as="geometry"/>
+                    <mxGeometry x="520" y="590" width="320" height="240" as="geometry"/>
                 </mxCell>
                 <mxCell id="127" value="&lt;p style=&quot;margin:0px;margin-top:4px;text-align:center;&quot;&gt;&lt;i&gt;&amp;lt;&amp;lt;Interface&amp;gt;&amp;gt;&lt;/i&gt;&lt;br&gt;&lt;b&gt;OnlineStruct&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:4px;&quot;&gt;+ Add(Node x, y): List&amp;lt;Action&amp;gt;&lt;br&gt;+ Remove(Node x, y): List&amp;lt;Action&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:4px;&quot;&gt;+ Update(Node x, y): List&amp;lt;Action&amp;gt;&lt;/p&gt;" style="verticalAlign=top;align=left;overflow=fill;html=1;whiteSpace=wrap;" vertex="1" parent="125">
                     <mxGeometry x="20" y="50" width="200" height="100" as="geometry"/>
