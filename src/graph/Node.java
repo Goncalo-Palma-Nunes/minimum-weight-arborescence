@@ -1,13 +1,13 @@
 package src.graph;
 
 import java.io.Serializable;
-import java.util.List;
-import java.util.ArrayList;
+import java.util.Map;
+import java.util.TreeMap;
 
 public class Node {
 
     private String MLSTdata;
-    private List<Node> neighbors = new ArrayList<>();
+    private Map<Node, Integer> neighbors = new TreeMap<>();
     private static final long serialVersionUID = 1L;
 
     public Node(String MLSTdata) {
@@ -22,13 +22,18 @@ public class Node {
         return MLSTdata;
     }
 
-    public List<Node> getNeighbors() {
+    public Map<Node, Integer> getNeighbors() {
         return neighbors;
     }
 
+    public void addNeighbor(Node neighbor, int weight) {
+        if (neighbor != null && !neighbors.containsKey(neighbor)) {
+            neighbors.put(neighbor, weight);
+        }
+    }
     public void addNeighbor(Node neighbor) {
-        if (neighbor != null && !neighbors.contains(neighbor)) {
-            neighbors.add(neighbor);
+        if (neighbor != null && !neighbors.containsKey(neighbor)) {
+            neighbors.put(neighbor, 0);
         }
     }
 
