@@ -31,3 +31,7 @@ replay_pid*
 
 # target directory
 target/
+
+# Memory Mapped files
+*.mmap
+*.dat
