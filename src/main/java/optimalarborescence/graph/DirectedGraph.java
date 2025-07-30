@@ -1,6 +1,6 @@
-package src.graph;
+package optimalarborescence.graph;
 
-import src.exception.NotImplementedException;
+import optimalarborescence.exception.NotImplementedException;
 
 public class DirectedGraph extends Graph {
 

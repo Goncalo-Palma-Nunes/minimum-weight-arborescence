@@ -1,10 +1,10 @@
-package src.graph;
+package optimalarborescence.graph;
 
 import java.io.Serializable;
 import java.util.List;
 import java.util.ArrayList;
 
-abstract class Graph {
+public abstract class Graph implements Serializable{
     
     private List<Node> nodes;
     private int numNodes;

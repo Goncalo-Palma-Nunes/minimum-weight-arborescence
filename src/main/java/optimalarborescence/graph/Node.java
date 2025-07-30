@@ -1,10 +1,10 @@
-package src.graph;
+package optimalarborescence.graph;
 
 import java.io.Serializable;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class Node {
+public class Node implements Serializable {
 
     private String MLSTdata;
     private Map<Node, Integer> neighbors = new TreeMap<>();

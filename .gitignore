@@ -28,3 +28,6 @@ replay_pid*
 *.png
 *.jpg
 *.jpeg
+
+# target directory
+target/

@@ -1,4 +1,4 @@
-package src.graph;
+package optimalarborescence.graph;
 
 public class CompleteGraph extends Graph {
 

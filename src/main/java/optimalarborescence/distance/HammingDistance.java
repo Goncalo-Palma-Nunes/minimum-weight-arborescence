@@ -1,4 +1,4 @@
-package src.distance;
+package optimalarborescence.distance;
 
 public class HammingDistance implements DistanceFunction {
 

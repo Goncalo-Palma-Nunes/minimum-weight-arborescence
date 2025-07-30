@@ -1,4 +1,4 @@
-package src.exception;
+package optimalarborescence.exception;
 
 public class NotImplementedException extends RuntimeException {
 

@@ -1,6 +1,8 @@
-package src.graph;
+package optimalarborescence.graph;
 
-public class Edge {
+import java.io.Serializable;
+
+public class Edge implements Serializable {
     
     Node source;
     Node destination;
