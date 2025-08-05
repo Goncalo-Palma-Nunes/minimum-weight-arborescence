@@ -11,9 +11,13 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
 
     HeapNode root;
 
+    public PairingHeap() {
+        this.root = null;
+    }
+
     @Override
     public boolean isEmpty() {
-        throw new NotImplementedException("IsEmpty operation is not implemented yet.");
+        return root == null;
     }
 
     @Override
@@ -23,6 +27,9 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         }
 
         PairingHeap otherHeap = (PairingHeap) other;
+        if (this.isEmpty() || otherHeap.isEmpty()) {
+            throw new IllegalArgumentException("Neither heap should be empty")
+        }
 
         HeapNode rootA = this.root;
         HeapNode rootB = otherHeap.root;
@@ -38,11 +45,16 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
     }
 
     @Override
-    public void insert(HeapNode value) {
-        throw new NotImplementedException("insert operation is not implemented yet.");
+    public void insert(HeapNode node) {
+        if (this.isEmpty()) {
+            this.root = node;
+        } else {
+            this.root = meld(this.root, node);
+        }
     }
 
     private void link(HeapNode parent, HeapNode child) {
+        // TODO - passar este método para o HeapNode
         if (parent.child == null) {
             child.brother = parent;
         } else {
@@ -53,7 +65,7 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
     }
 
 
-    // Acho que este meld está mal. Devia receber heaps e não heap nodes (ver especificação de aava)
+    // Deveria receber HeapNodes ou PairingHeaps?
     private HeapNode meld(HeapNode p, HeapNode q) {
         if (p.val <= q.val) {
             link(p, q);
@@ -104,14 +116,15 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         node.brother = null;
     }
 
-    public HeapNode decreaseKey(HeapNode root, HeapNode node, int newValue) {
-        if (root == node) {
+    @Override
+    public HeapNode decreaseKey(HeapNode node, int newValue) {
+        if (this.root == node) {
             node.val = -newValue;
-            return root;
+            return this.root;
         } else {
             extractNode(node);
             node.val = -newValue;
-            return meld(root, node);
+            return meld(this.root, node);
         }
     }
 

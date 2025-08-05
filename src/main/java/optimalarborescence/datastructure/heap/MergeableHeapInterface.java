@@ -27,9 +27,9 @@ public interface MergeableHeapInterface<T> {
      * Decreases the key of a specific element in the heap.
      *
      * @param value the value to decrease
-     * @param newValue the new value to set
+     * @param node the node to update
      */
-    void decreaseKey(T value, T newValue);
+    T decreaseKey(T node, int value);
 
     /**
      * Returns the minimum element without removing it.
