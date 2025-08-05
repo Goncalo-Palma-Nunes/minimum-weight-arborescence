@@ -5,7 +5,7 @@ public interface MergeableHeapInterface<T> {
      * Merges this heap with another heap.
      *
      * @param other the other heap to merge with
-     * @return a new merged heap
+     * @return the tree formed by linking the two
      */
     MergeableHeapInterface<T> merge(MergeableHeapInterface<T> other);
 
@@ -21,7 +21,7 @@ public interface MergeableHeapInterface<T> {
      *
      * @return the minimum element
      */
-    T removeMin();
+    T exctractMin();
 
     /**
      * Decreases the key of a specific element in the heap.
