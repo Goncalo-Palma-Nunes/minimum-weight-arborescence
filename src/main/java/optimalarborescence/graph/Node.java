@@ -9,9 +9,11 @@ public class Node implements Serializable {
     private String MLSTdata;
     private Map<Node, Integer> neighbors = new TreeMap<>();
     private static final long serialVersionUID = 1L;
+    private int id; // Unique identifier for the node
 
-    public Node(String MLSTdata) {
+    public Node(String MLSTdata, int id) {
         this.MLSTdata = MLSTdata;
+        this.id = id;
     }
 
     public long getID() {
@@ -37,11 +39,16 @@ public class Node implements Serializable {
         }
     }
 
+    public int getId() {
+        return id;
+    }
+
     @Override
     public String toString() {
         return "Node {" +
                 "MLSTdata='" + MLSTdata + '\'' +
                 ", neighbors=" + neighbors +
+                ", id=" + id +
                 " }";
     }
 }

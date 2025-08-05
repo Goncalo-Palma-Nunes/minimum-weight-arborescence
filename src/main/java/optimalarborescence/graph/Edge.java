@@ -2,12 +2,14 @@ package optimalarborescence.graph;
 
 import java.io.Serializable;
 
-public class Edge implements Serializable {
+public class Edge implements Serializable, Comparable<Edge> {
     
     Node source;
     Node destination;
     int weight;
     private static final long serialVersionUID = 1L;
+
+
 
     public Edge(Node source, Node destination, int weight) {
         this.source = source;
@@ -64,4 +66,20 @@ public class Edge implements Serializable {
                 ", weight=" + weight +
                 " }";
     }
+
+    @Override
+    public int compareTo(Edge other) {
+        return Integer.compare(this.weight, other.weight);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof Edge)) return false;
+        Edge other = (Edge) obj;
+        return this.source.equals(other.source) &&
+               this.destination.equals(other.destination) &&
+               this.weight == other.weight;
+    
+            }
 }

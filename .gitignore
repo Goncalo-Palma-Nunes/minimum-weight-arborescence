@@ -35,3 +35,7 @@ target/
 # Memory Mapped files
 *.mmap
 *.dat
+graph.dat
+
+# text files
+*.txt

@@ -9,8 +9,9 @@ public class Main {
     public static void main(String[] args) {
         // Create a CompleteGraph and add a node
         CompleteGraph graph = new CompleteGraph();
-        Node node = new Node("ACTG");
+        Node node = new Node("ACTG",1);
         graph.addNode(node);
+        System.out.println(graph);
 
         RandomAccessFile file = null;
         try {
@@ -43,6 +44,7 @@ public class Main {
 
             System.out.println("Graph data written and read successfully.");
             System.out.println("Deserialized graph has " + deserializedGraph.getNumNodes() + " node(s).");
+            System.out.println(deserializedGraph);
         } catch (FileNotFoundException e) {
             System.err.println("(Main.java) File not found: " + e.getMessage());
         } catch (IOException e) {

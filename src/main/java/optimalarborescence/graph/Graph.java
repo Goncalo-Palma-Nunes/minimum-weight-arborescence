@@ -47,4 +47,14 @@ public abstract class Graph implements Serializable{
      * 
      * ******************************************/
 
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Graph with ").append(numNodes).append(" nodes:\n");
+        for (Node node : nodes) {
+            sb.append(node.toString()).append("\n");
+        }
+        return sb.toString();
+    }
 }
