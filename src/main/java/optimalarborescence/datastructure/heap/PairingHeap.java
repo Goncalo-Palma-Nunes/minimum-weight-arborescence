@@ -22,6 +22,7 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
 
     @Override
     public MergeableHeapInterface<HeapNode> merge(MergeableHeapInterface<HeapNode> other) {
+        // TODO - acho que posso substituir o merge e usar só o meld
         if (!(other instanceof PairingHeap)) {
             throw new IllegalArgumentException("Expected an argument of type PairingHeap");
         }
@@ -45,6 +46,9 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
     }
 
     @Override
+    // public HeapNode insert(HeapNode node, int key) {
+    //     return meld(node, new HeapNode(key, null, null));
+    // }
     public void insert(HeapNode node) {
         if (this.isEmpty()) {
             this.root = node;

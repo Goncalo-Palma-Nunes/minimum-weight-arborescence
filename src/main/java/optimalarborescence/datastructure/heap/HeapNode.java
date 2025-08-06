@@ -6,8 +6,8 @@ public class HeapNode {
     HeapNode child;
     HeapNode brother; // brother (or father if at the end of the list)
 
-    public HeapNode(HeapNode c, HeapNode b) {
-        this.val = 1;
+    public HeapNode(int v, HeapNode c, HeapNode b) {
+        this.val = v;
         this.child = c;
         this.brother = b;
     }

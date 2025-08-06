@@ -16,12 +16,14 @@ public interface MergeableHeapInterface<T> {
      */
     void insert(T value);
 
+    // T insert(T node, int value);
+
     /**
      * Removes and returns the minimum element from the heap.
      *
      * @return the minimum element
      */
-    T exctractMin();
+    T extractMin();
 
     /**
      * Decreases the key of a specific element in the heap.
