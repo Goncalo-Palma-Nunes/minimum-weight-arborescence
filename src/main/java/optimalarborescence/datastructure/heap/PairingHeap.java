@@ -1,10 +1,6 @@
 package optimalarborescence.datastructure.heap;
 
 import optimalarborescence.exception.NotImplementedException;
-import java.util.List;
-import java.util.ArrayList;
-
-
 
 // TODO - a interface deve ser do tipo <HeapNode> ou outra coisa?
 public class PairingHeap implements MergeableHeapInterface<HeapNode> {
@@ -29,7 +25,7 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
 
         PairingHeap otherHeap = (PairingHeap) other;
         if (this.isEmpty() || otherHeap.isEmpty()) {
-            throw new IllegalArgumentException("Neither heap should be empty")
+            throw new IllegalArgumentException("Neither heap should be empty");
         }
 
         HeapNode rootA = this.root;
@@ -71,7 +67,7 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
 
     // Deveria receber HeapNodes ou PairingHeaps?
     private HeapNode meld(HeapNode p, HeapNode q) {
-        if (p.val <= q.val) {
+        if (Math.abs(p.val) <= Math.abs(q.val)) {
             link(p, q);
             return p;
         } else {
@@ -132,8 +128,65 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         }
     }
 
-    public HeapNode extractMin(HeapNode root) {
-        throw new NotImplementedException("ExtractMin operation is not implemented yet.");
+    private HeapNode extractMin(HeapNode r) {
+    if (r.child == null) return r;
+
+    HeapNode prev = null, n1, n2, next;
+    HeapNode head = r.child;
+    n1 = head;
+
+    // Reset the node
+    r.child = null;
+    r.brother = null;
+    r.val = -1;
+
+    // Turn values negative (each child should now be a head of a heap)
+    while (n1 != r) {
+        n1.val = -Math.abs(n1.val);
+        n1 = n1.brother;
+    }
+
+    // First pass left to right, joining two by two
+    n1 = head;
+    if ((n2 = head.brother) != r) {
+        next = n2.brother;
+        head = prev = meld(head, n2);
+        n1 = next;
+    }
+    while (n1 != r) {
+        if ((n2 = n1.brother) != r) {
+            next = n2.brother;
+            n1 = meld(n1, n2);
+            if (prev != null) prev.brother = n1;
+            prev = n1;
+            n1 = next;
+        } else {
+            break;
+        }
+    }
+    if (prev != null) prev.brother = n1;
+
+    // Second pass left to right (foldl)
+    n1 = head;
+    next = n1.brother;
+    while ((n2 = next) != r) {
+        next = n2.brother;
+        n1 = meld(n1, n2);
+        n1.brother = null;
+        n1.val = -Math.abs(n1.val);
+    }
+    n1.brother = null;
+    return n1;
+}
+
+    @Override
+    public HeapNode extractMin() {
+        if (this.root == null) {
+            return null;
+        }
+        HeapNode oldRoot = this.root;
+        this.root = extractMin(this.root);
+        return oldRoot;
     }
 
     @Override
