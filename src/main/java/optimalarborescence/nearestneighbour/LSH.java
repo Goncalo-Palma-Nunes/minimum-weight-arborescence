@@ -5,10 +5,24 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Hashtable;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 import javax.management.RuntimeErrorException;
 
+import optimalarborescence.distance.DistanceFunction;
+import optimalarborescence.distance.HammingDistance;
 import optimalarborescence.exception.NotImplementedException;
+
+// TODO - acho que isto também tem de ser serializável
+
+// TODO - rever como parameterizar a 'capacity' e 'load factor' da HashTable da biblioteca java.util
+//        Se não definir isso, as tabelas podem ter de fazer resize + rehash muitas vezes
+
+/* TODO - perceber se a Hashtable com a List<Hash> como key funciona bem / em O(1) ou se convém ver
+ * - randomized-algorithms-motwani-and-raghavan
+ * - Michael L. Fredman, János Komlós, and Endre Szemerédi. 1984. Storing a Sparse Table with 0(1) Worst Case Access Time. J. ACM 31, 3 (July 1984), 538–544. https://doi.org/10.1145/828.1884
+ * - CLRS intro to algorithms
+ */
 
 public class LSH implements NearestNeighbourSearchAlgorithm {
 
@@ -58,14 +72,17 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
      *              Attributes              *
      ****************************************/
 
+
     private int widthConcatenatedHashes;
-    private int numBuckets;
+    private int numTables;
     private long bucketSize;
-    private List<Hash> hashFunctions = new ArrayList<>();
     private int minHashIndex = 0;
     private int maxHashIndex = 0;
     private List<List<Hash>> concatenatedHashes = new ArrayList<>();
-    private List<Hashtable<Integer, List<Point>>> buckets = new ArrayList<>();
+    private List<Hashtable<List<Integer>, List<Point>>> tables = new ArrayList<>(); // TODO - rename to tables
+    private DistanceFunction distanceFunction;
+    private float radius;
+
     private final static int SEED = 42;
 
     /****************************************
@@ -76,17 +93,21 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
      * Constructs an LSH instance with the specified number of hash functions and buckets.
      * 
      * @param numHashFunctions The number of hash functions to use.
-     * @param numBuckets The number of buckets to use for storing points.
+     * @param numTables The number of buckets to use for storing points.
      */
-    public LSH(int widthConcatenatedHashes, int numBuckets, int minHashIndex,
-                int maxHashIndex, int bucketSize) {
+    public LSH(int widthConcatenatedHashes, int numTables, int minHashIndex,
+                int maxHashIndex, int bucketSize, DistanceFunction distanceFunction,
+                float radius) {
         this.widthConcatenatedHashes = widthConcatenatedHashes;
-        this.numBuckets = numBuckets;
+        this.numTables = numTables;
         this.minHashIndex = minHashIndex;
         this.maxHashIndex = maxHashIndex;
         this.bucketSize = bucketSize;
+        this.radius = radius;
+        this.distanceFunction = distanceFunction;
 
-        if (widthConcatenatedHashes <= 0 || numBuckets <= 0 || bucketSize <= 0) {
+        if (widthConcatenatedHashes <= 0 || numTables <= 0 || bucketSize <= 0 
+            || radius <= 0) {
             throw new IllegalArgumentException("Number of hash functions, buckets, and bucket size must be greater than zero.");
         }
 
@@ -102,14 +123,13 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
         Random r = new Random();
         r.setSeed(SEED);
 
-        /* Generate numBuckets concatenated hashes and the respective buckets */
-        for (int i = 0; i < this.numBuckets; i++) {
+        /* Generate numTables concatenated hashes and the respective buckets */
+        for (int i = 0; i < this.numTables; i++) {
             List<Hash> hashes = new ArrayList<>();
             Hashtable<Integer, Boolean> usedIndices = new Hashtable<>();
 
             /* Each concatenated hash is obtained by concatenating widthConcatenatedHashes
-             * hamming hashes uniformly sampled
-             */
+             * hamming hashes uniformly sampled */
             for (int j = 0; j < this.widthConcatenatedHashes; j++) {
                 int index = r.nextInt(maxHashIndex - minHashIndex + 1) + minHashIndex;
                 while (usedIndices.containsKey(index)) {
@@ -121,39 +141,36 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
             }
             concatenatedHashes.add(hashes);
 
-            /* Initialize the bucket for this concatenated hash */
-            buildHashTable();
+            /* Initialize the Hash table for this concatenated hash */
+            Hashtable<List<Integer>, List<Point>> table = new Hashtable<>();
+            tables.add(table);
         }
     }
 
-    private void buildHashTable() {
-        Hashtable<Integer, List<Point>> bucket = new Hashtable<>();
-        for (int j = 0; j < this.bucketSize; j++) {
-            bucket.put(j, new LinkedList<>());
-        }
-        buckets.add(bucket);
+    private List<Integer> computeHash(List<Hash> concatenatedHash, Point p) {
+        return concatenatedHash.stream()
+                .map(h -> h.hash(p))
+                .collect(Collectors.toList());
     }
-    
+
+    private void storePoint(Point p) { // Guarda-se o ponto em todas as tabelas?
+        if (p.getBitArray() == null) {
+            throw new IllegalArgumentException("Point does not have a bit array.");
+        }
+
+        for (int i = 0; i < this.numTables; i++) {
+            List<Hash> concatenatedHash = concatenatedHashes.get(i);
+            List<Integer> bucketIndices = computeHash(concatenatedHash, p);
+
+            tables.get(i).putIfAbsent(bucketIndices, new ArrayList<>());
+            tables.get(i).get(bucketIndices).add(p);
+        }
+    }
 
     @Override
     public List<Point> neighbourSearch(Point point, int numNeighbours) {
         if (point.getBitArray() == null) {
-            throw new NotImplementedException("Point does not have a bit array.");
+            throw new IllegalArgumentException("Point does not have a bit array.");
         }
-
-        // Calculate the bucket index for the point
-        int bucketIndex = 0;
-        for (Hash hashFunction : hashFunctions) {
-            bucketIndex = (bucketIndex * 2 + hashFunction.hash(point)) % numBuckets;
-        }
-
-        // Retrieve points from the corresponding bucket
-        List<Point> candidates = buckets.get(bucketIndex);
-        if (candidates == null) {
-            return new ArrayList<>(); // No candidates found
-        }
-
-        // Return the candidates as the nearest neighbours
-        return candidates.subList(0, Math.min(numNeighbours, candidates.size()));
     }   
 }
