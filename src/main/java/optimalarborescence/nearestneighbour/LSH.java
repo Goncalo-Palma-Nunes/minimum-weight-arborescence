@@ -90,6 +90,7 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
             throw new IllegalArgumentException("Number of hash functions, buckets, and bucket size must be greater than zero.");
         }
 
+        generateHashes();
     }
 
     /****************************************
