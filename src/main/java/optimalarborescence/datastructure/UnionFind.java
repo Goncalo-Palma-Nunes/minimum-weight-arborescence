@@ -7,7 +7,11 @@ public class UnionFind {
     private int[] parent;
     private int[] size;
 
-    // Constructor to initialize UnionFind with n elements
+    /**
+     * Constructs a UnionFind instance with the specified number of elements.
+     * 
+     * @param n The number of elements in the UnionFind structure.
+     */
     public UnionFind(int n) {
         parent = new int[n];
         size = new int[n];
@@ -17,7 +21,12 @@ public class UnionFind {
         }
     }
 
-    // Find with path compression
+    /**
+     * Recursively finds the root of the set containing the specified node.
+     * 
+     * @param node The node to find the root for.
+     * @return The root of the set containing the specified node.
+     */
     public int recursiveFind(int node) {
         if (parent[node] != node) {
             parent[node] = recursiveFind(parent[node]); // Path compression
@@ -25,6 +34,14 @@ public class UnionFind {
         return parent[node];
     }
 
+
+    /**
+     * Finds the root of the set containing the specified node using path compression.
+     * This method is more efficient than recursiveFind as it flattens the structure of the tree.
+     * 
+     * @param node The node to find the root for.
+     * @return The root of the set containing the specified node.
+     */
     public int find(int node) {
         while (parent[node] != node) {
             parent[node] = parent[parent[node]]; // Path compression
@@ -33,7 +50,13 @@ public class UnionFind {
         return node;
     }
 
-    // Union by size
+    /**
+     * Unites the sets containing the two specified nodes.
+     * This method uses union by size to keep the tree flat.
+     * 
+     * @param a The first node.
+     * @param b The second node.
+     */
     public void union(int a, int b) {
         int rootA = find(a);
         int rootB = find(b);
