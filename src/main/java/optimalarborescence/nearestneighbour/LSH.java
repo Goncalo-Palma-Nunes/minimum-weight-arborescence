@@ -184,6 +184,7 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
 
             if (tables.get(i).containsKey(bucketIndices)) {
                 List<Point> pointsInBucket = tables.get(i).get(bucketIndices);
+                
                 if (pointsInBucket != null && !pointsInBucket.isEmpty()) {
                     result.addAll(pointsInBucket.stream()
                             .filter(p -> distanceFunction.calculate(point.getBitArray(), p.getBitArray()) <= radius)
