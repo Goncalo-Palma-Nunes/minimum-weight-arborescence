@@ -172,5 +172,26 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
         if (point.getBitArray() == null) {
             throw new IllegalArgumentException("Point does not have a bit array.");
         }
-    }   
+        if (numNeighbours <= 0) {
+            throw new IllegalArgumentException("Number of neighbours must be greater than zero.");
+        }
+
+        List<Point> result = new ArrayList<>();
+        int i = 0;
+        while ((i < numTables) && (result.size() < numNeighbours)) {
+            List<Hash> concatenatedHash = concatenatedHashes.get(i);
+            List<Integer> bucketIndices = computeHash(concatenatedHash, point);
+
+            if (tables.get(i).containsKey(bucketIndices)) {
+                List<Point> pointsInBucket = tables.get(i).get(bucketIndices);
+                if (pointsInBucket != null && !pointsInBucket.isEmpty()) {
+                    result.addAll(pointsInBucket.stream()
+                            .filter(p -> distanceFunction.calculate(point.getBitArray(), p.getBitArray()) <= radius)
+                            .limit(numNeighbours)
+                            .collect(Collectors.toList()));
+                }
+            }
+        }
+        return result;
+    }
 }

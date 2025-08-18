@@ -11,6 +11,15 @@ public interface DistanceFunction {
     double calculate(String s1, String s2);
 
     /**
+     * Calculates the distance between two byte arrays.
+     *
+     * @param s1 the first byte array
+     * @param s2 the second byte array
+     * @return the distance between the two
+     */
+    double calculate(byte[] s1, byte[] s2);
+
+    /**
      * Returns a description of the distance function.
      *
      * @return a string description of the distance function
