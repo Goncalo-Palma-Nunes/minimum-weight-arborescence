@@ -61,4 +61,21 @@ public class Point {
         }
         return binary.toString().substring(0, sequence.length() * 2); // Only the relevant bits
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof Point)) return false;
+        Point other = (Point) obj;
+        return id == other.id && sequence.equals(other.sequence);
+    }
+
+    @Override
+    public String toString() {
+        return "Point{" +
+                "id=" + id +
+                ", sequence='" + sequence + '\'' +
+                ", bitArray=" + (bitArray != null ? getBinaryRepresentation() : "null") +
+                '}';
+    }
 }

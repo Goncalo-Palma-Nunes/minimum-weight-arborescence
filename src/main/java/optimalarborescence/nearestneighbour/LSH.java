@@ -58,13 +58,20 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
          * @return The bit at the specified index.
          */
         public int hash(Point point) {
-            if (point.getBitArray() == null || point.getBitArray().length * 8 <= index) {
+            if (point.getBitArray() == null) {
                 throw new NotImplementedException("Hash function not implemented for this point.");
             }
             // Extract the bit at the specified index
             return (point.getBitArray()[index / 8] >> (index % 8)) & 1;
 
             // TODO - basta devolver 1 bit? As bases são representadas por 2 bits
+        }
+
+        @Override
+        public String toString() {
+            return "Hash{" +
+                    "index=" + index +
+                    '}';
         }
     }
 
@@ -75,7 +82,6 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
 
     private int widthConcatenatedHashes;
     private int numTables;
-    private long bucketSize;
     private int minHashIndex = 0;
     private int maxHashIndex = 0;
     private List<List<Hash>> concatenatedHashes = new ArrayList<>();
@@ -96,19 +102,17 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
      * @param numTables The number of buckets to use for storing points.
      */
     public LSH(int widthConcatenatedHashes, int numTables, int minHashIndex,
-                int maxHashIndex, int bucketSize, DistanceFunction distanceFunction,
+                int maxHashIndex, DistanceFunction distanceFunction,
                 float radius) {
         this.widthConcatenatedHashes = widthConcatenatedHashes;
         this.numTables = numTables;
         this.minHashIndex = minHashIndex;
         this.maxHashIndex = maxHashIndex;
-        this.bucketSize = bucketSize;
         this.radius = radius;
         this.distanceFunction = distanceFunction;
 
-        if (widthConcatenatedHashes <= 0 || numTables <= 0 || bucketSize <= 0 
-            || radius <= 0) {
-            throw new IllegalArgumentException("Number of hash functions, buckets, and bucket size must be greater than zero.");
+        if (widthConcatenatedHashes <= 0 || numTables <= 0 || radius <= 0) {
+            throw new IllegalArgumentException("Number of hash functions, buckets, and radius must be greater than zero.");
         }
 
         generateHashes();
@@ -153,7 +157,7 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
                 .collect(Collectors.toList());
     }
 
-    private void storePoint(Point p) { // Guarda-se o ponto em todas as tabelas?
+    public void storePoint(Point p) { // Guarda-se o ponto em todas as tabelas?
         if (p.getBitArray() == null) {
             throw new IllegalArgumentException("Point does not have a bit array.");
         }
@@ -187,12 +191,43 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
                 
                 if (pointsInBucket != null && !pointsInBucket.isEmpty()) {
                     result.addAll(pointsInBucket.stream()
-                            .filter(p -> distanceFunction.calculate(point.getBitArray(), p.getBitArray()) <= radius)
+                            .filter(p -> p != point && distanceFunction.calculate(point.getBitArray(), p.getBitArray()) <= radius)
                             .limit(numNeighbours)
                             .collect(Collectors.toList()));
                 }
             }
+
+            i = i + 1;
         }
+
+        this.storePoint(point);
         return result;
+    }
+
+
+    /****************************************
+     *              Debug                   *
+     ****************************************/
+
+
+    @Override
+    public String toString() {
+
+        String LSHMetaData = "LSH{" +
+                "numTables=" + numTables +
+                ", widthConcatenatedHashes=" + widthConcatenatedHashes +
+                ", minHashIndex=" + minHashIndex +
+                ", maxHashIndex=" + maxHashIndex +
+                ", radius=" + radius +
+                '}';
+        
+
+        String TablesInfo = "TablesInfo{" +
+                 tables.stream()
+                .map(Object::toString)
+                .collect(Collectors.joining(", ")) +
+                '}';
+
+        return LSHMetaData + "\n" + TablesInfo;
     }
 }
