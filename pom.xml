@@ -16,12 +16,20 @@
   </properties>
 
   <dependencies>
-    <dependency>
+    <!-- Junit (Unit Tests) -->
+    <dependency> 
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <version>3.8.1</version>
       <scope>test</scope>
     </dependency>
+
+    <!-- Apache Commons Math -->
+    <dependency>
+    <groupId>org.apache.commons</groupId>
+    <artifactId>commons-math3</artifactId>
+    <version>3.6.1</version>
+</dependency>
   </dependencies>
   <!-- <properties>
     <maven.compiler.source>8</maven.compiler.source>

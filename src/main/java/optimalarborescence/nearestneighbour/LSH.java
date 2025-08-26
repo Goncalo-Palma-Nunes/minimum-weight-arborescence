@@ -2,18 +2,35 @@ package optimalarborescence.nearestneighbour;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Hashtable;
 import java.util.Random;
 import java.util.stream.Collectors;
 
+import java.util.Set;
+import java.util.TreeSet;
+
 import javax.management.RuntimeErrorException;
+
+import org.apache.commons.math3.util.CombinatoricsUtils;
 
 import optimalarborescence.distance.DistanceFunction;
 import optimalarborescence.distance.HammingDistance;
 import optimalarborescence.exception.NotImplementedException;
 
+/* TODO (importante) - Acho que há um bug com o parâmetero widthConcatenatedHashes
+   Com base no LSHTest.java, parece que se widthConcatenatedHashes for > que a hamming distance
+   entre as sequências, ele nunca os encontra como vizinhos, mesmo que estejam dentro de um
+   radius correto.
+
+   Pode ser só uma questão de probabilidades devido ao número de tabelas/hashes, mas não me parece
+*/
+
+
 // TODO - acho que isto também tem de ser serializável
+
+// TODO - as tabelas estão a usar array lists para os baldes. Talvez se poupe memória com linkedlists. Presumo que o ArrayList duplique a memória para amortizar as bounds
 
 // TODO - rever como parameterizar a 'capacity' e 'load factor' da HashTable da biblioteca java.util
 //        Se não definir isso, as tabelas podem ter de fazer resize + rehash muitas vezes
@@ -37,7 +54,7 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
      * Wikipedia contributors. "Locality-sensitive hashing." Wikipedia, The Free Encyclopedia. Wikipedia, The Free Encyclopedia, 9 Aug. 2025. Web. 11 Aug. 2025. 
      */
 
-    private class Hash {
+    public class Hash implements Comparable<Hash> {
 
         private int index;
 
@@ -73,6 +90,24 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
                     "index=" + index +
                     '}';
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (!(obj instanceof Hash)) return false;
+            Hash other = (Hash) obj;
+            return index == other.index;
+        }
+
+        @Override
+        public int compareTo(Hash other) {
+            return Integer.compare(this.index, other.index);
+        }
+
+        @Override
+        public int hashCode() {
+            return Integer.hashCode(index);
+        }
     }
 
     /****************************************
@@ -84,7 +119,7 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
     private int numTables;
     private int minHashIndex = 0;
     private int maxHashIndex = 0;
-    private List<List<Hash>> concatenatedHashes = new ArrayList<>();
+    public List<Set<Hash>> concatenatedHashes = new ArrayList<>();
     private List<Hashtable<List<Integer>, List<Point>>> tables = new ArrayList<>(); // TODO - rename to tables
     private DistanceFunction distanceFunction;
     private float radius;
@@ -111,11 +146,28 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
         this.radius = radius;
         this.distanceFunction = distanceFunction;
 
+        validLSH();
+        generateHashes();
+    }
+
+
+    private void validLSH() {
         if (widthConcatenatedHashes <= 0 || numTables <= 0 || radius <= 0) {
             throw new IllegalArgumentException("Number of hash functions, buckets, and radius must be greater than zero.");
         }
 
-        generateHashes();
+        int sequenceSize = maxHashIndex - minHashIndex + 1;
+        if (sequenceSize <= 0 || minHashIndex >= maxHashIndex) {
+            throw new IllegalArgumentException("Invalid hash index range.");
+        }
+
+        int maxNumTables = (int) (CombinatoricsUtils.factorial(sequenceSize) / 
+                            (CombinatoricsUtils.factorial(widthConcatenatedHashes) * CombinatoricsUtils.factorial(sequenceSize - widthConcatenatedHashes))
+                            );
+
+        if (numTables > Integer.MAX_VALUE || numTables > maxNumTables) {
+            throw new IllegalArgumentException("Too many hash tables.");
+        }
     }
 
     /****************************************
@@ -128,30 +180,33 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
         r.setSeed(SEED);
 
         /* Generate numTables concatenated hashes and the respective buckets */
-        for (int i = 0; i < this.numTables; i++) {
-            List<Hash> hashes = new ArrayList<>();
-            Hashtable<Integer, Boolean> usedIndices = new Hashtable<>();
+        Set<Set<Integer>> uniqueHashes = new HashSet<>(); // Used to prevent repeated concatenated hashes
+        int tablesCreated = 0;
+        while (tablesCreated < this.numTables) {
+            Set<Hash> hashes = new TreeSet<>(); // Used to prevent repeated indices within a concatenated hash
+            Set<Integer> indices = new TreeSet<>();
 
             /* Each concatenated hash is obtained by concatenating widthConcatenatedHashes
              * hamming hashes uniformly sampled */
-            for (int j = 0; j < this.widthConcatenatedHashes; j++) {
+            while (hashes.size() < this.widthConcatenatedHashes) {
                 int index = r.nextInt(maxHashIndex - minHashIndex + 1) + minHashIndex;
-                while (usedIndices.containsKey(index)) {
-                    /* Prevent repeated hashes per concatenation */
-                    index = r.nextInt(maxHashIndex - minHashIndex + 1) + minHashIndex;
-                }
-                usedIndices.put(index, true);
-                hashes.add(new Hash(index));
+                boolean added = hashes.add(new Hash(index)); // TreeSet so it won't add if it is already there
+                if (added) { indices.add(index); }
             }
-            concatenatedHashes.add(hashes);
 
-            /* Initialize the Hash table for this concatenated hash */
-            Hashtable<List<Integer>, List<Point>> table = new Hashtable<>();
-            tables.add(table);
+            if (!uniqueHashes.contains(indices)) {
+                // System.out.println("Created concatenated hash " + (tablesCreated + 1) + ": " + hashes);
+                // System.out.println("Indices used: " + indices);
+                // System.out.println("");
+                uniqueHashes.add(indices);
+                concatenatedHashes.add(hashes);
+                tables.add(new Hashtable<>());
+                tablesCreated++;
+            }
         }
     }
 
-    private List<Integer> computeHash(List<Hash> concatenatedHash, Point p) {
+    private List<Integer> computeHash(Set<Hash> concatenatedHash, Point p) {
         return concatenatedHash.stream()
                 .map(h -> h.hash(p))
                 .collect(Collectors.toList());
@@ -163,7 +218,7 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
         }
 
         for (int i = 0; i < this.numTables; i++) {
-            List<Hash> concatenatedHash = concatenatedHashes.get(i);
+            Set<Hash> concatenatedHash = concatenatedHashes.get(i);
             List<Integer> bucketIndices = computeHash(concatenatedHash, p);
 
             tables.get(i).putIfAbsent(bucketIndices, new ArrayList<>());
@@ -183,7 +238,7 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
         List<Point> result = new ArrayList<>();
         int i = 0;
         while ((i < numTables) && (result.size() < numNeighbours)) {
-            List<Hash> concatenatedHash = concatenatedHashes.get(i);
+            Set<Hash> concatenatedHash = concatenatedHashes.get(i);
             List<Integer> bucketIndices = computeHash(concatenatedHash, point);
 
             if (tables.get(i).containsKey(bucketIndices)) {
@@ -192,7 +247,8 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
                 if (pointsInBucket != null && !pointsInBucket.isEmpty()) {
                     result.addAll(pointsInBucket.stream()
                             .filter(p -> p != point && distanceFunction.calculate(point.getBitArray(), p.getBitArray()) <= radius)
-                            .limit(numNeighbours)
+                            .filter(p -> !result.contains(p))
+                            .limit(numNeighbours - result.size())
                             .collect(Collectors.toList()));
                 }
             }
