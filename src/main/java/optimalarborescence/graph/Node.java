@@ -1,19 +1,22 @@
 package optimalarborescence.graph;
 
+import optimalarborescence.nearestneighbour.Point;
+
 import java.io.Serializable;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class Node implements Serializable {
+public class Node extends Point implements Serializable {
 
     private String MLSTdata;
     private Map<Node, Integer> neighbors = new TreeMap<>();
     private static final long serialVersionUID = 1L;
-    private int id; // Unique identifier for the node
+    private int pointID; // Unique identifier for the node
 
-    public Node(String MLSTdata, int id) {
+    public Node(String MLSTdata, int pointID) {
+        super(pointID, MLSTdata);
         this.MLSTdata = MLSTdata;
-        this.id = id;
+        this.pointID = pointID;
     }
 
     public long getID() {
@@ -39,8 +42,8 @@ public class Node implements Serializable {
         }
     }
 
-    public int getId() {
-        return id;
+    public int getpointID() {
+        return pointID;
     }
 
     @Override
@@ -48,7 +51,7 @@ public class Node implements Serializable {
         return "Node {" +
                 "MLSTdata='" + MLSTdata + '\'' +
                 ", neighbors=" + neighbors +
-                ", id=" + id +
+                ", pointID=" + pointID +
                 " }";
     }
 }
