@@ -278,11 +278,14 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
                 '}';
         
 
-        String TablesInfo = "TablesInfo{" +
-                 tables.stream()
-                .map(Object::toString)
-                .collect(Collectors.joining(", ")) +
-                '}';
+        StringBuilder tableString = new StringBuilder();
+        int tableIndex = 1;
+        for (Hashtable<List<Integer>, List<Point>> table : tables) {
+            tableString.append("Table ").append(tableIndex++).append(" = ").append(table.toString()).append("\n\n");
+            tableIndex = tableIndex + 1;
+        }
+
+        String TablesInfo = "TablesInfo {\n" + tableString.toString() + "\n}";
 
         return LSHMetaData + "\n" + TablesInfo;
     }
