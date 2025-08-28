@@ -6,12 +6,17 @@ import java.io.Serializable;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class Node extends Point implements Serializable {
+public class Node extends Point implements Serializable, Comparable<Node> {
 
     private String MLSTdata;
     private Map<Node, Integer> neighbors = new TreeMap<>();
     private static final long serialVersionUID = 1L;
     private int pointID; // Unique identifier for the node
+
+    @Override
+    public int compareTo(Node other) {
+        return Integer.compare(this.pointID, other.pointID);
+    }
 
     public Node(String MLSTdata, int pointID) {
         super(pointID, MLSTdata);

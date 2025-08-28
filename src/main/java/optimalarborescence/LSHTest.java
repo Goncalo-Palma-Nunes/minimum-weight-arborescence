@@ -22,7 +22,7 @@ public class LSHTest {
         System.out.println("Starting LSH Test with sequences: " + sequences);
 
         LSH lsh = new LSH(2, 4, 0, 3,
-                        new HammingDistance(), 2);
+                        new HammingDistance(), 3);
         
         System.out.println("Storing points in LSH...");
         for (String seq : sequences) {

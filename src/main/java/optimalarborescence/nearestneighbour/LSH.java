@@ -41,7 +41,7 @@ import optimalarborescence.exception.NotImplementedException;
  * - CLRS intro to algorithms
  */
 
-public class LSH implements NearestNeighbourSearchAlgorithm {
+public class LSH extends NearestNeighbourSearchAlgorithm {
 
     /*
      * References:
@@ -121,7 +121,7 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
     private int maxHashIndex = 0;
     public List<Set<Hash>> concatenatedHashes = new ArrayList<>();
     private List<Hashtable<List<Integer>, List<Point>>> tables = new ArrayList<>(); // TODO - rename to tables
-    private DistanceFunction distanceFunction;
+    // private DistanceFunction distanceFunction;
     private float radius;
 
     private final static int SEED = 42;
@@ -139,12 +139,12 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
     public LSH(int widthConcatenatedHashes, int numTables, int minHashIndex,
                 int maxHashIndex, DistanceFunction distanceFunction,
                 float radius) {
+        super(distanceFunction);
         this.widthConcatenatedHashes = widthConcatenatedHashes;
         this.numTables = numTables;
         this.minHashIndex = minHashIndex;
         this.maxHashIndex = maxHashIndex;
         this.radius = radius;
-        this.distanceFunction = distanceFunction;
 
         validLSH();
         generateHashes();
@@ -212,6 +212,7 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
                 .collect(Collectors.toList());
     }
 
+    @Override
     public void storePoint(Point p) { // Guarda-se o ponto em todas as tabelas?
         if (p.getBitArray() == null) {
             throw new IllegalArgumentException("Point does not have a bit array.");
@@ -246,7 +247,7 @@ public class LSH implements NearestNeighbourSearchAlgorithm {
                 
                 if (pointsInBucket != null && !pointsInBucket.isEmpty()) {
                     result.addAll(pointsInBucket.stream()
-                            .filter(p -> p != point && distanceFunction.calculate(point.getBitArray(), p.getBitArray()) <= radius)
+                            .filter(p -> p != point && getDistanceFunction().calculate(point.getBitArray(), p.getBitArray()) <= radius)
                             .filter(p -> !result.contains(p))
                             .limit(numNeighbours - result.size())
                             .collect(Collectors.toList()));

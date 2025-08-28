@@ -1,8 +1,18 @@
 package optimalarborescence.nearestneighbour;
 
+import optimalarborescence.exception.NotImplementedException;
+import optimalarborescence.distance.*;
+
 import java.util.List;
 
-public interface NearestNeighbourSearchAlgorithm {
+public abstract class NearestNeighbourSearchAlgorithm {
+
+    private DistanceFunction distanceFunction;
+
+    public NearestNeighbourSearchAlgorithm(DistanceFunction distanceFunction) {
+        this.distanceFunction = distanceFunction;
+    }
+
     /**
      * Finds the numNeighbours nearest neighbours of a given point in a dataset.
      *
@@ -10,5 +20,24 @@ public interface NearestNeighbourSearchAlgorithm {
      * @param numNeighbours the number of neighbours to search for
      * @return a list of the point's nearest neighbours
      */
-    List<Point> neighbourSearch(Point point, int numNeighbours);
+    public List<Point> neighbourSearch(Point point, int numNeighbours) {
+        throw new NotImplementedException();
+    }
+
+    /**
+     * Gets the distance function used by this algorithm.
+     * @return the distance function
+     */
+    public DistanceFunction getDistanceFunction() {
+        return distanceFunction;
+    }
+
+    /**
+     * Stores a point in the dataset.
+     *
+     * @param point the point to be stored
+     */
+    public void storePoint(Point point) {
+        throw new NotImplementedException();
+    }
 }

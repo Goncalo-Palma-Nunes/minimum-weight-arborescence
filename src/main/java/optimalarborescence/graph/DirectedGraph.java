@@ -3,6 +3,7 @@ package optimalarborescence.graph;
 import optimalarborescence.exception.NotImplementedException;
 import optimalarborescence.nearestneighbour.NearestNeighbourSearchAlgorithm;
 import optimalarborescence.nearestneighbour.Point;
+import optimalarborescence.distance.*;
 
 import java.util.List;
 
@@ -34,7 +35,19 @@ public class DirectedGraph extends Graph {
         super.addNode(node);
 
         List<Point> nearestNeighbors = nnSearch.neighbourSearch(node, this.maxNumNeighbours);
-        // TODO - maybe é preferível fazer store do point aqui, em vez de dentro do neighbourSearch
+        nnSearch.storePoint(node);
+
+        for (Point neighbor : nearestNeighbors) {
+            if (neighbor instanceof Node) {
+                Node neighborNode = (Node) neighbor;
+                // TODO - double ou int para a distância?
+                int distance = (int) nnSearch.getDistanceFunction().calculate(node.getBitArray(), neighborNode.getBitArray());
+                node.addNeighbor(neighborNode, distance);
+            }
+        }
+
+
+        // TODO - devia usar uma lista de arestas no grafo
 
         throw new NotImplementedException("DirectedGraph.addNode(Node node) is not implemented yet.");
     }
