@@ -5,6 +5,7 @@ import optimalarborescence.nearestneighbour.Point;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 public class Node extends Point implements Serializable, Comparable<Node> {
 
@@ -53,9 +54,12 @@ public class Node extends Point implements Serializable, Comparable<Node> {
 
     @Override
     public String toString() {
+        String neighborStr = neighbors.keySet().stream()
+            .map(n -> n.getMLSTdata())
+            .collect(Collectors.joining(", "));
         return "Node {" +
                 "MLSTdata='" + MLSTdata + '\'' +
-                ", neighbors=" + neighbors +
+                ", neighbors=[" + neighborStr + "]" +
                 ", pointID=" + pointID +
                 " }";
     }

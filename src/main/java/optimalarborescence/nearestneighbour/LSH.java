@@ -164,7 +164,6 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
         int maxNumTables = (int) (CombinatoricsUtils.factorial(sequenceSize) / 
                             (CombinatoricsUtils.factorial(widthConcatenatedHashes) * CombinatoricsUtils.factorial(sequenceSize - widthConcatenatedHashes))
                             );
-
         if (numTables > Integer.MAX_VALUE || numTables > maxNumTables) {
             throw new IllegalArgumentException("Too many hash tables.");
         }
@@ -257,7 +256,6 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
             i = i + 1;
         }
 
-        this.storePoint(point);
         return result;
     }
 

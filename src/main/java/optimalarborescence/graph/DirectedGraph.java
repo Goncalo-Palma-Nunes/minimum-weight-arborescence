@@ -43,13 +43,9 @@ public class DirectedGraph extends Graph {
                 // TODO - double ou int para a distância?
                 int distance = (int) nnSearch.getDistanceFunction().calculate(node.getBitArray(), neighborNode.getBitArray());
                 node.addNeighbor(neighborNode, distance);
+                super.addEdge(new Edge(node, neighborNode, distance));
             }
         }
-
-
-        // TODO - devia usar uma lista de arestas no grafo
-
-        throw new NotImplementedException("DirectedGraph.addNode(Node node) is not implemented yet.");
     }
     
 }
