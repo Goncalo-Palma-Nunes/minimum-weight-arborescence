@@ -13,17 +13,17 @@ public class HeapTest {
         List<HeapNode> h2_nodes = new ArrayList<>();
         List<HeapNode> h3_nodes = new ArrayList<>();
 
-        h1_nodes.add(new HeapNode(5, null, null));
-        h1_nodes.add(new HeapNode(3, null, null));
-        h1_nodes.add(new HeapNode(8, null, null));
+        h1_nodes.add(new HeapNode(55, null, null));
+        h1_nodes.add(new HeapNode(33, null, null));
+        h1_nodes.add(new HeapNode(88, null, null));
 
-        h2_nodes.add(new HeapNode(2, null, null));
-        h2_nodes.add(new HeapNode(7, null, null));
-        h2_nodes.add(new HeapNode(6, null, null));
+        h2_nodes.add(new HeapNode(22, null, null));
+        h2_nodes.add(new HeapNode(77, null, null));
+        h2_nodes.add(new HeapNode(66, null, null));
 
-        h3_nodes.add(new HeapNode(4, null, null));
-        h3_nodes.add(new HeapNode(1, null, null));
-        h3_nodes.add(new HeapNode(9, null, null));
+        h3_nodes.add(new HeapNode(44, null, null));
+        h3_nodes.add(new HeapNode(11, null, null));
+        h3_nodes.add(new HeapNode(99, null, null));
 
         MergeableHeapInterface<HeapNode> h1 = new PairingHeap();
         MergeableHeapInterface<HeapNode> h2 = new PairingHeap();
@@ -51,11 +51,10 @@ public class HeapTest {
 
         while (!mergedHeap.isEmpty()) {
             System.out.println("\n <-----------> Removing Min Node <-----------> ");
-            System.out.println("Current Min/Root Node: " + (mergedHeap.isEmpty() ? "Heap is empty" : mergedHeap.findMin().getVal()));
+            System.out.println("Current Min/Root Node: " + (mergedHeap.isEmpty() ? "Heap is empty" : mergedHeap.findMin()));
             HeapNode minNode = mergedHeap.extractMin();
-            System.out.println("Extracted Min: " + minNode.getVal());
-            System.out.println("New Min: " + (mergedHeap.isEmpty() ? "Heap is empty" : mergedHeap.findMin().getVal()));
-            System.out.println("Current Min/Root Node: " + (minNode != null ? minNode : "null"));
+            System.out.println("Extracted Min: " + minNode);
+            System.out.println("New Min/Root Node: " + (mergedHeap.isEmpty() ? "Heap is empty" : mergedHeap.findMin()));
             System.out.println("<-------------------------------------------------->");
         }
 

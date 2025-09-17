@@ -192,16 +192,21 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         if (this.root == null) {
             return null;
         }
+        else if (this.root.child == null) {
+            HeapNode oldRoot = this.root;
+            this.root = null;
+            return oldRoot;
+        }
         // System.out.println("(extract min) current root: " + (this.root != null ? this.root : "null"));
         HeapNode oldRoot = this.root;
         // System.out.println("(extract min) Old root: " + (oldRoot != null ? oldRoot : "null"));
         this.root = extractMin(this.root);
         // System.out.println("(extract min) asdf New root: " + (this.root != null ? this.root : "null"));
 
-        if (this.root == oldRoot) { // Last node in the heap
-            // otherwise it would loop forever
-            this.root = null;
-        }
+        // if (this.root == oldRoot) { // Last node in the heap
+        //     // otherwise it would loop forever
+        //     this.root = null;
+        // }
         // System.out.println("(extract min) final root: " + (this.root != null ? this.root : "null"));
         // System.out.println("(extract min) extracted root: " + (oldRoot != null ? oldRoot : "null"));
 
