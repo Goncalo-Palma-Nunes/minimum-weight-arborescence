@@ -21,14 +21,18 @@ public class HeapNode {
 
         this.val = -v;
     }
+
+    public int getVal() {
+        return Math.abs(this.val);
+    }
         
     @Override
     public String toString() {
         return "HeapNode {" +
-            "id=" + HeapNode.id +
+            //"id=" + HeapNode.id +
             ", value='" + this.val + '\'' +
-             ", child=" + this.child +
-            ", brother=" + this.brother +
-                " }";
+            ", child=" + (this.child != null ? this.child.val : "null") +
+            ", brother=" + (this.brother != null ? this.brother.val : "null") +
+            " }";
     }
 }

@@ -58,7 +58,7 @@ public class Node extends Point implements Serializable, Comparable<Node> {
             .map(n -> n.getMLSTdata())
             .collect(Collectors.joining(", "));
         return "Node {" +
-                "MLSTdata='" + MLSTdata + '\'' +
+                "Sequence='" + MLSTdata + '\'' +
                 ", neighbors=[" + neighborStr + "]" +
                 ", pointID=" + pointID +
                 " }";

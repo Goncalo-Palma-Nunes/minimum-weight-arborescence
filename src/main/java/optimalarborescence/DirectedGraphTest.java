@@ -62,11 +62,12 @@ public class DirectedGraphTest {
             System.out.println();
         }
 
+        int radius = 2;
         LSH lsh = new LSH(2, 6, 0, 3,
-                        new HammingDistance(), 2);
+                        new HammingDistance(), radius);
         int maxNumNeighbours = 4;
         Graph g = new DirectedGraph(lsh, maxNumNeighbours);
-        System.out.println("Graph created with max " + maxNumNeighbours + " neighbors.");
+        System.out.println("Graph created with max " + maxNumNeighbours + " neighbors. Max distance between nodes is " + radius);
 
         for (Node node : nodes) {
             g.addNode(node);
@@ -74,49 +75,50 @@ public class DirectedGraphTest {
 
         System.out.println(g);
 
-        // System.out.println("Saving Graph to binary edge list and index files...");
+        System.out.println("Saving Graph to binary edge list and index files...");
 
-        // // Export to binary edge list and index files
-        // try {
-        //     g.exportEdgeListAndIndex("edges.bin", "index.bin");
-        //     System.out.println("Graph exported to edges.bin and index.bin");
-        // } catch (IOException e) {
-        //     System.err.println("Error exporting graph: " + e.getMessage());
-        // }
+        // Export to binary edge list and index files
+        try {
+            g.exportEdgeListAndIndex("edges.bin", "index.bin");
+            System.out.println("Graph exported to edges.bin and index.bin");
+        } catch (IOException e) {
+            System.err.println("Error exporting graph: " + e.getMessage());
+        }
 
-        // // Read and print the edge list file
-        // try (DataInputStream edgeIn = new DataInputStream(new FileInputStream("edges.bin"))) {
-        //     System.out.println("\nEdges read from edges.bin:");
-        //     while (edgeIn.available() >= 8) { // 2 ints = 8 bytes
-        //         int src = edgeIn.readInt();
-        //         int dst = edgeIn.readInt();
-        //         System.out.println("Edge: " + src + " -> " + dst);
-        //     }
-        // } catch (IOException e) {
-        //     System.err.println("Error reading edge list: " + e.getMessage());
-        // }
+        // Read and print the edge list file
+        try (DataInputStream edgeIn = new DataInputStream(new FileInputStream("edges.bin"))) {
+            System.out.println("\nEdges read from edges.bin:");
+            while (edgeIn.available() >= 8) { // 2 ints = 8 bytes
+                int src = edgeIn.readInt();
+                int dst = edgeIn.readInt();
+                System.out.println("Edge: " + src + " -> " + dst);
+            }
+        } catch (IOException e) {
+            System.err.println("Error reading edge list: " + e.getMessage());
+        }
 
-        // // Read and print the index file
-        // try (DataInputStream indexIn = new DataInputStream(new FileInputStream("index.bin"))) {
-        //     System.out.println("\nIndex read from index.bin:");
-        //     int nodeId = 0;
-        //     while (indexIn.available() >= 8) { // 1 long = 8 bytes
-        //         long offset = indexIn.readLong();
-        //         System.out.println("Node " + nodeId + " offset: " + offset);
-        //         nodeId++;
-        //     }
-        // } catch (IOException e) {
-        //     System.err.println("Error reading index file: " + e.getMessage());
-        // }
+        // Read and print the index file
+        try (DataInputStream indexIn = new DataInputStream(new FileInputStream("index.bin"))) {
+            System.out.println("\nIndex read from index.bin:");
+            int nodeId = 0;
+            while (indexIn.available() >= 8) { // 1 long = 8 bytes
+                long offset = indexIn.readLong();
+                System.out.println("Node " + nodeId + " offset: " + offset);
+                nodeId++;
+            }
+        } catch (IOException e) {
+            System.err.println("Error reading index file: " + e.getMessage());
+        }
 
-        // // Load the graph from the binary files
-        // try {
-        //     Graph loadedGraph = Graph.loadFromEdgeListAndIndex("edges.bin", "index.bin");
-        //     System.out.println("Graph loaded from edges.bin and index.bin");
-        //     System.out.println(loadedGraph);
-        // } catch (IOException e) {
-        //     System.err.println("Error loading graph: " + e.getMessage());
-        // }
+        // Load the graph from the binary files
+        try {
+            System.out.println("Loading graph from binary files...");
+            Graph loadedGraph = Graph.loadFromEdgeListAndIndex("edges.bin", "index.bin");
+            System.out.println("Graph loaded from edges.bin and index.bin");
+            System.out.println(loadedGraph);
+        } catch (IOException e) {
+            System.err.println("Error loading graph: " + e.getMessage());
+        }
     }
 
 }

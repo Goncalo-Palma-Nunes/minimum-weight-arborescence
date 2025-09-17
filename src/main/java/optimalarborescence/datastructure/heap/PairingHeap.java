@@ -1,6 +1,12 @@
 package optimalarborescence.datastructure.heap;
 
+import java.util.Queue;
+
 import optimalarborescence.exception.NotImplementedException;
+
+import java.util.List;
+import java.util.ArrayList;
+import java.util.LinkedList;
 
 // TODO - a interface deve ser do tipo <HeapNode> ou outra coisa?
 public class PairingHeap implements MergeableHeapInterface<HeapNode> {
@@ -38,7 +44,7 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
 
     @Override
     public HeapNode findMin() {
-        throw new NotImplementedException("findMin operation is not implemented yet.");
+        return this.root;
     }
 
     @Override
@@ -129,69 +135,84 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
     }
 
     private HeapNode extractMin(HeapNode r) {
-    if (r.child == null) return r;
+        if (r.child == null) return r;
 
-    HeapNode prev = null, n1, n2, next;
-    HeapNode head = r.child;
-    n1 = head;
+        HeapNode prev = null, n1, n2, next;
+        HeapNode head = r.child;
+        n1 = head;
 
-    // Reset the node
-    r.child = null;
-    r.brother = null;
-    r.val = -1;
+        // Reset the node
+        r.child = null;
+        r.brother = null;
+        r.val = -1;
 
-    // Turn values negative (each child should now be a head of a heap)
-    while (n1 != r) {
-        n1.val = -Math.abs(n1.val);
-        n1 = n1.brother;
-    }
+        // Turn values negative (each child should now be a head of a heap)
+        while (n1 != r) {
+            n1.val = -Math.abs(n1.val);
+            n1 = n1.brother;
+        }
 
-    // First pass left to right, joining two by two
-    n1 = head;
-    if ((n2 = head.brother) != r) {
-        next = n2.brother;
-        head = prev = meld(head, n2);
-        n1 = next;
-    }
-    while (n1 != r) {
-        if ((n2 = n1.brother) != r) {
+        // First pass left to right, joining two by two
+        n1 = head;
+        if ((n2 = head.brother) != r) {
+            next = n2.brother;
+            head = prev = meld(head, n2);
+            n1 = next;
+        }
+        while (n1 != r) {
+            if ((n2 = n1.brother) != r) {
+                next = n2.brother;
+                n1 = meld(n1, n2);
+                if (prev != null) prev.brother = n1;
+                prev = n1;
+                n1 = next;
+            } else {
+                break;
+            }
+        }
+        if (prev != null) prev.brother = n1;
+
+        // Second pass left to right (foldl)
+        n1 = head;
+        next = n1.brother;
+        while ((n2 = next) != r) {
             next = n2.brother;
             n1 = meld(n1, n2);
-            if (prev != null) prev.brother = n1;
-            prev = n1;
-            n1 = next;
-        } else {
-            break;
+            n1.brother = null;
+            n1.val = -Math.abs(n1.val);
         }
-    }
-    if (prev != null) prev.brother = n1;
-
-    // Second pass left to right (foldl)
-    n1 = head;
-    next = n1.brother;
-    while ((n2 = next) != r) {
-        next = n2.brother;
-        n1 = meld(n1, n2);
         n1.brother = null;
-        n1.val = -Math.abs(n1.val);
+
+        // System.out.println("(extract min) new root: " + (n1 != null ? n1 : "null"));
+        return n1;
     }
-    n1.brother = null;
-    return n1;
-}
 
     @Override
     public HeapNode extractMin() {
         if (this.root == null) {
             return null;
         }
+        // System.out.println("(extract min) current root: " + (this.root != null ? this.root : "null"));
         HeapNode oldRoot = this.root;
+        // System.out.println("(extract min) Old root: " + (oldRoot != null ? oldRoot : "null"));
         this.root = extractMin(this.root);
+        // System.out.println("(extract min) asdf New root: " + (this.root != null ? this.root : "null"));
+
+        if (this.root == oldRoot) { // Last node in the heap
+            // otherwise it would loop forever
+            this.root = null;
+        }
+        // System.out.println("(extract min) final root: " + (this.root != null ? this.root : "null"));
+        // System.out.println("(extract min) extracted root: " + (oldRoot != null ? oldRoot : "null"));
+
         return oldRoot;
     }
 
     @Override
-    public String toString() {
+    public String toString() 
+    {
         return "PairingHeap {" +
-                " }";
+            "root=" + root +
+            " }";
     }
 }
