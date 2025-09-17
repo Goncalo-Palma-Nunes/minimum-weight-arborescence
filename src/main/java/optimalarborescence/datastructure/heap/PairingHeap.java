@@ -142,9 +142,9 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         n1 = head;
 
         // Reset the node
-        r.child = null;
-        r.brother = null;
-        r.val = -1;
+        // r.child = null;
+        // r.brother = null;
+        // r.val = -1;
 
         // Turn values negative (each child should now be a head of a heap)
         while (n1 != r) {
