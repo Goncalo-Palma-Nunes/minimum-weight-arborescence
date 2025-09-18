@@ -12,6 +12,5 @@ public interface InferenceAlgorithm {
      * @return the inferred phylogenetic tree as a graph
      */
     Graph inferPhylogeny(Graph graph);
-
-    
+   
 }
