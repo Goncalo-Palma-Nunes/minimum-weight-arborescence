@@ -4,6 +4,11 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Stream;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Collections;
+import java.util.Comparator;
 
 import optimalarborescence.exception.NotImplementedException;
 import optimalarborescence.graph.Graph;
@@ -163,6 +168,37 @@ public class TarjanArborescence extends StaticAlgorithm {
             else { rset.add(r); continue; } // Passar este 1º if/else para uma função?
 
             TarjanForestNode minNode = createMinNode(e);
+
+            Node u = e.getSource();
+            if (ufWCC.find(u.getId()) != ufWCC.find(r.getId())) {
+                inEdgeNode.set(r.getId(), minNode);
+                ufWCC.union(u.getId(), r.getId());
+            }
+            else {
+                inEdgeNode.set(r.getId(), null);
+                List<TarjanForestNode> cycle = new ArrayList<>(); cycle.add(minNode);
+                Map<TarjanForestNode, Edge> map = new HashMap<>();
+                map.put(minNode, e);
+
+                u = ufSCC.find(u.getId());
+                while (inEdgeNode.get(u.getId()) != null) {
+                    TarjanForestNode node = inEdgeNode.get(u.getId());
+                    cycle.add(node);
+                    map.put(node, node.edge);
+                    u = ufSCC.find(node.edge.getSource().getId());
+                }
+
+                TarjanForestNode maxWeightEdge = cycle.stream().max(Comparator.comparing(n -> n.edge.getWeight())).orElseThrow();
+                /** Value of the maximum weight edge in cycle */
+                int sigma = maxWeightEdge.edge.getWeight();
+
+                for (TarjanForestNode node : cycle) {
+                    Edge edge = map.get(node);
+                    int cost = sigma - edge.getWeight();
+                    Node v = edge.getDestination();
+                }
+
+            }
         }
         throw new NotImplementedException("Tarjan's optimum branching algorithm is not yet implemented.");
     }
