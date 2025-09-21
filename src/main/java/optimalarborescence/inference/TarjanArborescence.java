@@ -21,26 +21,38 @@ public class TarjanArborescence extends StaticAlgorithm {
  
     public class TarjanForestNode {
         Edge edge;
+        TarjanForestNode parent;
         List<TarjanForestNode> children; // TODO - passar a uma left child right sibling representation
 
         /* Auxiliary data structure for Tarjan's algorithm. TarjanForestNode is used to build the 
          * forest F described in Camerini's correction of Tarjan's optimum branching algorithm.
          */
-        public TarjanForestNode(Edge edge) {
+        protected TarjanForestNode(Edge edge) {
             this.edge = edge;
             this.children = null;
+            this.parent = null;
         }
 
         /* Checks if the node is a leaf node. */
-        public boolean isLeaf() {
+        protected boolean isLeaf() {
             return children == null || children.isEmpty();
         }
 
-        public List<TarjanForestNode> getChildren() {
+        protected List<TarjanForestNode> getChildren() {
             return children;
         }
 
-        public void addChild(TarjanForestNode child) {
+        protected TarjanForestNode getParent() {
+            return parent;
+        }
+
+        protected TarjanForestNode setParent(TarjanForestNode parent) {
+            this.parent = parent;
+            // Adicionar como child ao parent aqui?
+            return this.parent;
+        }
+
+        protected void addChild(TarjanForestNode child) {
             if (children == null) {
                 children = new ArrayList<>();
             }
@@ -49,7 +61,7 @@ public class TarjanArborescence extends StaticAlgorithm {
     }
 
 
-    private List<TarjanForestNode> forest;
+    // private List<TarjanForestNode> forest; // Guardando as leafs e um parent pointer, não precisamos disto diria eu
 
     /* A list of vertices to be processed. Initialized with all the vertices in 𝑉 */
     private List<Node> roots;
@@ -61,14 +73,15 @@ public class TarjanArborescence extends StaticAlgorithm {
     edge incident in 𝑣 */
     private List<TarjanForestNode> inEdgeNode;
 
-    /* A list of 𝐻’s leaves */
-    private List<Node> leaves;
+    /* A list of F’s leaves */
+    private List<TarjanForestNode> leaves;
 
     /* A list of the maximum weight edge for each SCC */
     private List<Edge> max;
 
-    /* A list that stores for each representative cycle vertex 𝑣 the list of cycle edge nodes in 𝐻 */
-    private List<List<Edge>> cycleEdgeNodes;
+    /* A list that stores for each representative cycle vertex 𝑣 the list of cycle edge nodes in F */
+    //private List<List<Edge>> cycleEdgeNodes;
+    private List<List<TarjanForestNode>> cycleEdgeNodes;
 
     /* A union-find data structure to maintain the strongly connected components of 𝐻 */
     private UnionFind uf;
@@ -80,7 +93,7 @@ public class TarjanArborescence extends StaticAlgorithm {
      */
     public TarjanArborescence(Graph graph) {
         super(graph);
-        this.forest = new ArrayList<>();
+        // this.forest = new ArrayList<>();
         this.roots = new ArrayList<>();
         this.rset = new TreeSet<>();
         //this.inEdgeNode = new ArrayList<>(graph.getNumNodes());
@@ -101,17 +114,39 @@ public class TarjanArborescence extends StaticAlgorithm {
         return q.isEmpty();
     }
 
+    private TarjanForestNode createMinNode(Edge e) {  // Rever esta parte no paper
+        Node r = e.getDestination();
+        List<TarjanForestNode> cycleEdges = getCycleEdges(r);
 
+        TarjanForestNode minNode = new TarjanForestNode(e);
+        if (cycleEdges.isEmpty()) {
+            //leaves.set(r.getId(), minNode);
+            leaves.add(minNode);
+        }
+        else {
+            for (TarjanForestNode ce : cycleEdges) {
+                ce.setParent(minNode);
+                minNode.addChild(ce);
+            }
+        }
+
+        return minNode;
+    }
+
+    private List<TarjanForestNode> getCycleEdges(Node v) {
+        return cycleEdgeNodes.get(uf.find(v.getId()));
+    }
 
     @Override
     public Graph inferPhylogeny(Graph graph) {
 
         while (!roots.isEmpty()) {
             Node r = roots.remove(0);
+            Edge e = null;
 
             MergeableHeapInterface<HeapNode> q = getQueue(r); // priority queue of edges entering r
             if (!emptyQueue(q)) {
-                Edge e = q.extractMin();
+                e = q.extractMin();
 
                 while (!emptyQueue(q) && uf.find(e.getSource().getId()) == uf.find(r.getId())) {
                     e = q.extractMin();
@@ -121,9 +156,10 @@ public class TarjanArborescence extends StaticAlgorithm {
                     continue;
                 }
             }
-            else { rset.add(r); continue; }
-        }
+            else { rset.add(r); continue; } // Passar este 1º if/else para uma função?
 
+            TarjanForestNode minNode = createMinNode(e);
+        }
         throw new NotImplementedException("Tarjan's optimum branching algorithm is not yet implemented.");
     }
 }
