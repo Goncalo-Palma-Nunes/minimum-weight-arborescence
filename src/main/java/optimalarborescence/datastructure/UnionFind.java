@@ -4,20 +4,23 @@ import java.util.*;
 import optimalarborescence.graph.Edge;
 
 public class UnionFind {
-    private int[] parent;
-    private int[] size;
+    protected int[] parent;
+    protected int[] rank;
+    protected int size;
 
     /**
-     * Constructs a UnionFind instance with the specified number of elements.
+     * Constructs a UnionFind instance with the specified number of elements. 
+     * Can be used to keep track of weakly connected components in a graph.
      * 
      * @param n The number of elements in the UnionFind structure.
      */
     public UnionFind(int n) {
-        parent = new int[n];
-        size = new int[n];
-        for (int i = 0; i < n; i++) {
+        this.size = n + 1;
+        parent = new int[size];
+        rank = new int[size];
+        for (int i = 0; i < size; i++) {
             parent[i] = i; // Each element is its own parent initially
-            size[i] = 1;   // Each set has size 1 initially
+            rank[i] = 1;   // Each set has rank 1 initially
         }
     }
 
@@ -52,7 +55,7 @@ public class UnionFind {
 
     /**
      * Unites the sets containing the two specified nodes.
-     * This method uses union by size to keep the tree flat.
+     * This method uses union by rank to keep the tree flat.
      * 
      * @param a The first node.
      * @param b The second node.
@@ -62,12 +65,12 @@ public class UnionFind {
         int rootB = find(b);
 
         if (rootA != rootB) {
-            if (size[rootA] < size[rootB]) {
+            if (rank[rootA] < rank[rootB]) {
                 parent[rootA] = rootB;
-                size[rootB] += size[rootA];
+                rank[rootB] += rank[rootA];
             } else {
                 parent[rootB] = rootA;
-                size[rootA] += size[rootB];
+                rank[rootA] += rank[rootB];
             }
         }
     }

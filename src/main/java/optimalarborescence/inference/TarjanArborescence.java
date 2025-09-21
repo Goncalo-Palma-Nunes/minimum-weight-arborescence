@@ -24,7 +24,7 @@ public class TarjanArborescence extends StaticAlgorithm {
         TarjanForestNode parent;
         List<TarjanForestNode> children; // TODO - passar a uma left child right sibling representation
 
-        /* Auxiliary data structure for Tarjan's algorithm. TarjanForestNode is used to build the 
+        /** Auxiliary data structure for Tarjan's algorithm. TarjanForestNode is used to build the
          * forest F described in Camerini's correction of Tarjan's optimum branching algorithm.
          */
         protected TarjanForestNode(Edge edge) {
@@ -63,32 +63,32 @@ public class TarjanArborescence extends StaticAlgorithm {
 
     // private List<TarjanForestNode> forest; // Guardando as leafs e um parent pointer, não precisamos disto diria eu
 
-    /* A list of vertices to be processed. Initialized with all the vertices in 𝑉 */
+    /** A list of vertices to be processed. Initialized with all the vertices in 𝑉 */
     private List<Node> roots;
 
-    /* A set of the root components of the subgraph 𝐺′ = (𝑉, 𝐻) with no incident edges of positive value */
+    /** A set of the root components of the subgraph 𝐺′ = (𝑉, 𝐻) with no incident edges of positive value */
     private Set<Node> rset;
 
-    /* A list that for each vertex 𝑣 stores a vertex of 𝐹 associated with the minimum weight
+    /** A list that for each vertex 𝑣 stores a vertex of 𝐹 associated with the minimum weight
     edge incident in 𝑣 */
     private List<TarjanForestNode> inEdgeNode;
 
-    /* A list of F’s leaves */
+    /** A list of F’s leaves */
     private List<TarjanForestNode> leaves;
 
-    /* A list of the maximum weight edge for each SCC */
+    /** A list of the maximum weight edge for each SCC */
     private List<Edge> max;
 
-    /* A list that stores for each representative cycle vertex 𝑣 the list of cycle edge nodes in F */
+    /** A list that stores for each representative cycle vertex 𝑣 the list of cycle edge nodes in F */
     //private List<List<Edge>> cycleEdgeNodes;
     private List<List<TarjanForestNode>> cycleEdgeNodes;
 
-    /* A union-find data structure to maintain the strongly connected components of 𝐻 */
-    private UnionFind uf;
+    /** A union-find data structure to maintain the weakly connected components of 𝐻 */
+    private UnionFind uf; // mudar o nome para wcc
 
     private List<MergeableHeapInterface<HeapNode>> queues;
 
-    /* Constructor for TarjanArborescence. This class is an implementation of
+    /** Constructor for TarjanArborescence. This class is an implementation of
      * Tarjan's optimum branching algorithm as corrected by Camerini et al.
      */
     public TarjanArborescence(Graph graph) {
