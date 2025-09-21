@@ -10,6 +10,7 @@ import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
 import optimalarborescence.datastructure.UnionFind;
+import optimalarborescence.datastructure.UnionFindStronglyConnected;
 import optimalarborescence.datastructure.heap.*;
 
 public class TarjanArborescence extends StaticAlgorithm {
@@ -83,8 +84,10 @@ public class TarjanArborescence extends StaticAlgorithm {
     //private List<List<Edge>> cycleEdgeNodes;
     private List<List<TarjanForestNode>> cycleEdgeNodes;
 
-    /** A union-find data structure to maintain the weakly connected components of 𝐻 */
-    private UnionFind uf; // mudar o nome para wcc
+    /** A union-find data structure to maintain the strongly connected components of 𝐻 */
+    private UnionFindStronglyConnected ufSCC;
+
+    private UnionFind ufWCC;
 
     private List<MergeableHeapInterface<HeapNode>> queues;
 
@@ -101,8 +104,9 @@ public class TarjanArborescence extends StaticAlgorithm {
         this.leaves = new ArrayList<>();
         this.max = new ArrayList<>();
         this.cycleEdgeNodes = new ArrayList<>();
-        //this.uf = new UnionFind(graph.getNumNodes());
-        this.uf = new UnionFind(-1);
+        //this.ufSCC = new UnionFind(graph.getNumNodes());
+        this.ufSCC = new UnionFindStronglyConnected(-1);
+        this.ufWCC = new UnionFind(-1);
         this.queues = new ArrayList<>();
     }
 
@@ -134,7 +138,7 @@ public class TarjanArborescence extends StaticAlgorithm {
     }
 
     private List<TarjanForestNode> getCycleEdges(Node v) {
-        return cycleEdgeNodes.get(uf.find(v.getId()));
+        return cycleEdgeNodes.get(ufSCC.find(v.getId()));
     }
 
     @Override
@@ -148,10 +152,10 @@ public class TarjanArborescence extends StaticAlgorithm {
             if (!emptyQueue(q)) {
                 e = q.extractMin();
 
-                while (!emptyQueue(q) && uf.find(e.getSource().getId()) == uf.find(r.getId())) {
+                while (!emptyQueue(q) && ufSCC.find(e.getSource().getId()) == ufSCC.find(r.getId())) {
                     e = q.extractMin();
                 }
-                if (uf.find(e.getSource().getId()) == uf.find(r.getId())) {
+                if (ufSCC.find(e.getSource().getId()) == ufSCC.find(r.getId())) {
                     rset.add(r);
                     continue;
                 }
