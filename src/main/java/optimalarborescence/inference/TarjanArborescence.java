@@ -192,10 +192,27 @@ public class TarjanArborescence extends StaticAlgorithm {
                 /** Value of the maximum weight edge in cycle */
                 int sigma = maxWeightEdge.edge.getWeight();
 
-                for (TarjanForestNode node : cycle) {
+                for (TarjanForestNode node : cycle) { // Update reduced costs
                     Edge edge = map.get(node);
-                    int cost = sigma - edge.getWeight();
+                    int cost = sigma - edge.getWeight(); // compute cost reduction
                     Node v = edge.getDestination();
+                    ufSCC.addWeight(v.getId(), cost);
+                    getCycleEdges(ufSCC.find(v.getId())).add(node);
+                }
+
+                for (TarjanForestNode n: cycle) { // Perform union of the nodes in the cycle
+                    ufSCC.union(n.edge.getSource().getId(), n.edge.getDestination().getId());
+                }
+
+                Node rep = ufSCC.find(maxWeightEdge.edge.getDestination().getId());
+                
+                roots.add(ufSCC.find(rep.getId()));
+                max[ufSCC.find(rep.getId())] = max[rep.getId()];
+
+                for (TarjanForestNode n : cycle) { // Merge queues involved in the cycle
+                    if (ufSCC.find(n.edge.getDestination().getId()) != rep) {
+                        getQueue(rep).merge(getQueue(ufSCC.find(n.edge.getDestination().getId())));
+                    }
                 }
 
             }
