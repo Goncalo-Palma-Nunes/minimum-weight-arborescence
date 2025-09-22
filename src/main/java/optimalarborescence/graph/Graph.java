@@ -37,6 +37,10 @@ public abstract class Graph implements Serializable{
         return numEdges;
     }
 
+    public List<Node> getNodes() {
+        return nodes;
+    }
+
     /* ******************************************
      *
      *            Graph Operations

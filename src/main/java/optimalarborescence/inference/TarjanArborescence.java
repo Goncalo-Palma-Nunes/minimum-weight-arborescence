@@ -96,11 +96,14 @@ public class TarjanArborescence extends StaticAlgorithm {
 
     private List<MergeableHeapInterface<HeapNode>> queues;
 
+    private List<Node> nodes;
+
     /** Constructor for TarjanArborescence. This class is an implementation of
      * Tarjan's optimum branching algorithm as corrected by Camerini et al.
      */
     public TarjanArborescence(Graph graph) {
         super(graph);
+        this.nodes = graph.getNodes();
         // this.forest = new ArrayList<>();
         this.roots = new ArrayList<>();
         this.rset = new TreeSet<>();
@@ -146,9 +149,52 @@ public class TarjanArborescence extends StaticAlgorithm {
         return cycleEdgeNodes.get(ufSCC.find(v.getId()));
     }
 
-    @Override
-    public Graph inferPhylogeny(Graph graph) {
+    private Node wccFind(Node v) {
+        return nodes.get(ufWCC.find(v.getId()));
+    }
 
+    private void wccUnion(Node u, Node v) {
+        ufWCC.union(u.getId(), v.getId());
+    }
+
+    private Node sccFind(Node v) {
+        return nodes.get(ufSCC.find(v.getId()));
+    }
+
+    private void sccUnion(Node u, Node v) {
+        ufSCC.union(u.getId(), v.getId());
+    }
+
+    private void updateReducedCosts(List<TarjanForestNode> cycle, int sigma, Map<TarjanForestNode, Edge> map) {
+        for (TarjanForestNode node : cycle) { // Update reduced costs
+            Edge edge = map.get(node);
+            int cost = sigma - edge.getWeight(); // compute cost reduction
+            Node v = edge.getDestination();
+            ufSCC.addWeight(v.getId(), cost);
+            // getCycleEdges(ufSCC.find(v.getId())).add(node);
+            getCycleEdges(sccFind(v)).add(node);
+        }
+    }
+
+    private TarjanForestNode getMaxWeightEdgeInCycle(List<TarjanForestNode> cycle) {
+        return cycle.stream().max(Comparator.comparing(n -> n.edge.getWeight())).orElseThrow();
+    }
+
+    private void updateSCCMaxWeightEdge(Node rep) {
+        max.set(sccFind(rep).getId(), max.get(rep.getId())); // Update maximum weight edge for the new SCC
+        
+        
+        // Update the cycle edge nodes for the new SCC
+        /////////// ??????? Mais delírios do copilot ????????
+        // // cycleEdgeNodes.set(sccFind(rep).getId(), new ArrayList<>());
+        // // for (TarjanForestNode n : getCycleEdges(rep)) {
+        // //     if (sccFind(n.edge.getDestination()) != rep) {
+        // //         getCycleEdges(sccFind(rep)).add(n);
+        // //     }
+        // // }
+    }
+
+    private void contractionPhase() {
         while (!roots.isEmpty()) {
             Node r = roots.remove(0);
             Edge e = null;
@@ -170,9 +216,9 @@ public class TarjanArborescence extends StaticAlgorithm {
             TarjanForestNode minNode = createMinNode(e);
 
             Node u = e.getSource();
-            if (ufWCC.find(u.getId()) != ufWCC.find(r.getId())) {
+            if (wccFind(u) != wccFind(r)) {
                 inEdgeNode.set(r.getId(), minNode);
-                ufWCC.union(u.getId(), r.getId());
+                wccUnion(u, r);
             }
             else {
                 inEdgeNode.set(r.getId(), null);
@@ -180,43 +226,54 @@ public class TarjanArborescence extends StaticAlgorithm {
                 Map<TarjanForestNode, Edge> map = new HashMap<>();
                 map.put(minNode, e);
 
-                u = ufSCC.find(u.getId());
+                // u = ufSCC.find(u.getId());
+                u = sccFind(u);
                 while (inEdgeNode.get(u.getId()) != null) {
                     TarjanForestNode node = inEdgeNode.get(u.getId());
                     cycle.add(node);
                     map.put(node, node.edge);
-                    u = ufSCC.find(node.edge.getSource().getId());
+                    // u = ufSCC.find(node.edge.getSource().getId());
+                    u = sccFind(node.edge.getSource());
                 }
 
-                TarjanForestNode maxWeightEdge = cycle.stream().max(Comparator.comparing(n -> n.edge.getWeight())).orElseThrow();
-                /** Value of the maximum weight edge in cycle */
+                // TarjanForestNode maxWeightEdge = cycle.stream().max(Comparator.comparing(n -> n.edge.getWeight())).orElseThrow();
+                TarjanForestNode maxWeightEdge = getMaxWeightEdgeInCycle(cycle);
                 int sigma = maxWeightEdge.edge.getWeight();
-
-                for (TarjanForestNode node : cycle) { // Update reduced costs
-                    Edge edge = map.get(node);
-                    int cost = sigma - edge.getWeight(); // compute cost reduction
-                    Node v = edge.getDestination();
-                    ufSCC.addWeight(v.getId(), cost);
-                    getCycleEdges(ufSCC.find(v.getId())).add(node);
-                }
+                updateReducedCosts(cycle, sigma, map);
 
                 for (TarjanForestNode n: cycle) { // Perform union of the nodes in the cycle
-                    ufSCC.union(n.edge.getSource().getId(), n.edge.getDestination().getId());
+                    sccUnion(n.edge.getSource(), n.edge.getDestination());
                 }
 
-                Node rep = ufSCC.find(maxWeightEdge.edge.getDestination().getId());
+                // Node rep = ufSCC.find(maxWeightEdge.edge.getDestination().getId());
+                Node rep = sccFind(maxWeightEdge.edge.getDestination());
+                // inEdgeNode.set(rep.getId(), null); -----> ??????? delírios do copilot ?????
                 
-                roots.add(ufSCC.find(rep.getId()));
-                max[ufSCC.find(rep.getId())] = max[rep.getId()];
+                // roots.add(ufSCC.find(rep.getId()));
+                roots.add(sccFind(rep));
+                // max.set(sccFind(rep).getId(), max.get(rep.getId())); // Update maximum weight edge for the new SCC
+                updateSCCMaxWeightEdge(rep);
 
                 for (TarjanForestNode n : cycle) { // Merge queues involved in the cycle
-                    if (ufSCC.find(n.edge.getDestination().getId()) != rep) {
-                        getQueue(rep).merge(getQueue(ufSCC.find(n.edge.getDestination().getId())));
+                    if (sccFind(n.edge.getDestination()) != rep) {
+                        getQueue(rep).merge(getQueue(sccFind(n.edge.getDestination())));
                     }
                 }
-
             }
         }
-        throw new NotImplementedException("Tarjan's optimum branching algorithm is not yet implemented.");
     }
+
+    private void expansionPhase() {
+
+    }
+
+    @Override
+    public Graph inferPhylogeny(Graph graph) {
+
+        contractionPhase();
+        expansionPhase();
+        
+        throw new NotImplementedException("Tarjan's algorithm not fully implemented yet.");
+    }
+
 }

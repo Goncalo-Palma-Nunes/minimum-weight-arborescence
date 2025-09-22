@@ -74,20 +74,4 @@ public class UnionFind {
             }
         }
     }
-
-    // // // // Example usage of Edge's compareTo method
-    // // // public void processEdges(List<Edge> edges) {
-    // // //     Collections.sort(edges); // Sort edges using Edge's compareTo
-    // // //     for (Edge edge : edges) {
-    // // //         int u = edge.getSource().getId(); // Assuming Node has a getId() method
-    // // //         int v = edge.getDestination().getId(); // Assuming Node has a getId() method
-
-    // // //         // Union the sets containing u and v
-    // // //         if (find(u) != find(v)) {
-    // // //             union(u, v);
-    // // //             System.out.println("Edge added: " + edge);
-    // // //         }
-    // // //     }
-    // // // }
-
 }
