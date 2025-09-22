@@ -155,10 +155,10 @@ public class TarjanArborescence extends StaticAlgorithm {
 
             MergeableHeapInterface<HeapNode> q = getQueue(r); // priority queue of edges entering r
             if (!emptyQueue(q)) {
-                e = q.extractMin();
+                e = q.extractMin().getEdge();
 
                 while (!emptyQueue(q) && ufSCC.find(e.getSource().getId()) == ufSCC.find(r.getId())) {
-                    e = q.extractMin();
+                    e = q.extractMin().getEdge();
                 }
                 if (ufSCC.find(e.getSource().getId()) == ufSCC.find(r.getId())) {
                     rset.add(r);
