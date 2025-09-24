@@ -66,9 +66,6 @@ public class TarjanArborescence extends StaticAlgorithm {
         }
     }
 
-
-    // private List<TarjanForestNode> forest; // Guardando as leafs e um parent pointer, não precisamos disto diria eu
-
     /** A list of vertices to be processed. Initialized with all the vertices in 𝑉 */
     private List<Node> roots;
 
@@ -80,7 +77,8 @@ public class TarjanArborescence extends StaticAlgorithm {
     private List<TarjanForestNode> inEdgeNode;
 
     /** A list of F’s leaves */
-    private List<TarjanForestNode> leaves;
+    // private List<TarjanForestNode> leaves;
+    private TarjanForestNode[] leaves;
 
     /** A list of the maximum weight edge for each SCC */
     private List<Edge> max;
@@ -109,7 +107,9 @@ public class TarjanArborescence extends StaticAlgorithm {
         this.rset = new TreeSet<>();
         //this.inEdgeNode = new ArrayList<>(graph.getNumNodes());
         this.inEdgeNode = new ArrayList<>();
-        this.leaves = new ArrayList<>();
+        // this.leaves = new ArrayList<>();
+        // this.leaves = new TarjanForestNode[graph.getNumNodes()];
+        this.leaves = new TarjanForestNode[-1];
         this.max = new ArrayList<>();
         this.cycleEdgeNodes = new ArrayList<>();
         //this.ufSCC = new UnionFind(graph.getNumNodes());
@@ -126,6 +126,10 @@ public class TarjanArborescence extends StaticAlgorithm {
         return q.isEmpty();
     }
 
+    private void addLeave(TarjanForestNode node, int index) {
+        leaves[index] = node;
+    }
+
     private TarjanForestNode createMinNode(Edge e) {  // Rever esta parte no paper
         Node r = e.getDestination();
         List<TarjanForestNode> cycleEdges = getCycleEdges(r);
@@ -133,7 +137,8 @@ public class TarjanArborescence extends StaticAlgorithm {
         TarjanForestNode minNode = new TarjanForestNode(e);
         if (cycleEdges.isEmpty()) {
             //leaves.set(r.getId(), minNode);
-            leaves.add(minNode);
+            // leaves.add(minNode);
+            addLeave(minNode, r.getId());
         }
         else {
             for (TarjanForestNode ce : cycleEdges) {
@@ -141,7 +146,6 @@ public class TarjanArborescence extends StaticAlgorithm {
                 minNode.addChild(ce);
             }
         }
-
         return minNode;
     }
 
@@ -168,10 +172,9 @@ public class TarjanArborescence extends StaticAlgorithm {
     private void updateReducedCosts(List<TarjanForestNode> cycle, int sigma, Map<TarjanForestNode, Edge> map) {
         for (TarjanForestNode node : cycle) { // Update reduced costs
             Edge edge = map.get(node);
-            int cost = sigma - edge.getWeight(); // compute cost reduction
+            int cost = sigma - edge.getWeight(); // Compute cost reduction
             Node v = edge.getDestination();
             ufSCC.addWeight(v.getId(), cost);
-            // getCycleEdges(ufSCC.find(v.getId())).add(node);
             getCycleEdges(sccFind(v)).add(node);
         }
     }
@@ -182,16 +185,23 @@ public class TarjanArborescence extends StaticAlgorithm {
 
     private void updateSCCMaxWeightEdge(Node rep) {
         max.set(sccFind(rep).getId(), max.get(rep.getId())); // Update maximum weight edge for the new SCC
-        
-        
-        // Update the cycle edge nodes for the new SCC
-        /////////// ??????? Mais delírios do copilot ????????
-        // // cycleEdgeNodes.set(sccFind(rep).getId(), new ArrayList<>());
-        // // for (TarjanForestNode n : getCycleEdges(rep)) {
-        // //     if (sccFind(n.edge.getDestination()) != rep) {
-        // //         getCycleEdges(sccFind(rep)).add(n);
-        // //     }
-        // // }
+    }
+
+    private Node getSCCMaxTarget(Node v) {
+        Edge e = max.get(sccFind(v).getId());
+        return e.getDestination();
+    }
+
+    private List<TarjanForestNode> deleteAncestors(TarjanForestNode nodeF, List<TarjanForestNode> leavesList) {
+        while (nodeF != null) {
+            for (TarjanForestNode child : nodeF.getChildren()) {
+                Edge e = child.edge;
+                child.setParent(null);
+                leavesList.add(child);
+            }
+            nodeF = nodeF.getParent();
+        }
+        return leavesList;
     }
 
     private void contractionPhase() {
@@ -226,17 +236,14 @@ public class TarjanArborescence extends StaticAlgorithm {
                 Map<TarjanForestNode, Edge> map = new HashMap<>();
                 map.put(minNode, e);
 
-                // u = ufSCC.find(u.getId());
                 u = sccFind(u);
                 while (inEdgeNode.get(u.getId()) != null) {
                     TarjanForestNode node = inEdgeNode.get(u.getId());
                     cycle.add(node);
                     map.put(node, node.edge);
-                    // u = ufSCC.find(node.edge.getSource().getId());
                     u = sccFind(node.edge.getSource());
                 }
 
-                // TarjanForestNode maxWeightEdge = cycle.stream().max(Comparator.comparing(n -> n.edge.getWeight())).orElseThrow();
                 TarjanForestNode maxWeightEdge = getMaxWeightEdgeInCycle(cycle);
                 int sigma = maxWeightEdge.edge.getWeight();
                 updateReducedCosts(cycle, sigma, map);
@@ -245,13 +252,10 @@ public class TarjanArborescence extends StaticAlgorithm {
                     sccUnion(n.edge.getSource(), n.edge.getDestination());
                 }
 
-                // Node rep = ufSCC.find(maxWeightEdge.edge.getDestination().getId());
                 Node rep = sccFind(maxWeightEdge.edge.getDestination());
                 // inEdgeNode.set(rep.getId(), null); -----> ??????? delírios do copilot ?????
                 
-                // roots.add(ufSCC.find(rep.getId()));
                 roots.add(sccFind(rep));
-                // max.set(sccFind(rep).getId(), max.get(rep.getId())); // Update maximum weight edge for the new SCC
                 updateSCCMaxWeightEdge(rep);
 
                 for (TarjanForestNode n : cycle) { // Merge queues involved in the cycle
@@ -263,8 +267,22 @@ public class TarjanArborescence extends StaticAlgorithm {
         }
     }
 
-    private void expansionPhase() {
+    private List<Edge> expansionPhase() {
+        List<Edge> H = new ArrayList<>(); // optimal arborescence
+        List<Node> R = rset.stream().map(v -> getSCCMaxTarget(v)).toList(); // roots of H
+        List<TarjanForestNode> leavesList = Stream.of(leaves).filter(n -> n != null).toList();
 
+        while (!R.isEmpty()) {
+            Node u = R.remove(0);
+            leavesList = deleteAncestors(leaves[u.getID()], leavesList);
+        }
+        while (!leavesList.isEmpty()) {
+            Edge e = leavesList.remove(0).edge;
+            H.add(e);
+            Node v = e.getDestination();
+            leavesList = deleteAncestors(leaves[v.getID()], leavesList);
+        }
+        return H;
     }
 
     @Override
@@ -275,5 +293,4 @@ public class TarjanArborescence extends StaticAlgorithm {
         
         throw new NotImplementedException("Tarjan's algorithm not fully implemented yet.");
     }
-
 }

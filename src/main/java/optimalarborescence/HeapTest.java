@@ -1,52 +1,59 @@
 package optimalarborescence;
 
 import optimalarborescence.datastructure.heap.*;
+import optimalarborescence.graph.Edge;
 import java.util.ArrayList;
 import java.util.List;
 
 public class HeapTest {
 
+    private final static int NODES_PER_HEAP = 3;
+    private final static int NUM_HEAPS = 3;
+
     public static void main(String[] args) {
         System.out.println("##################### Heap Test #####################");
 
-        List<HeapNode> h1_nodes = new ArrayList<>();
-        List<HeapNode> h2_nodes = new ArrayList<>();
-        List<HeapNode> h3_nodes = new ArrayList<>();
+        List<List<HeapNode>> heap_nodes = new ArrayList<>();
 
-        h1_nodes.add(new HeapNode(55, null, null));
-        h1_nodes.add(new HeapNode(33, null, null));
-        h1_nodes.add(new HeapNode(88, null, null));
-
-        h2_nodes.add(new HeapNode(22, null, null));
-        h2_nodes.add(new HeapNode(77, null, null));
-        h2_nodes.add(new HeapNode(66, null, null));
-
-        h3_nodes.add(new HeapNode(44, null, null));
-        h3_nodes.add(new HeapNode(11, null, null));
-        h3_nodes.add(new HeapNode(99, null, null));
-
-        MergeableHeapInterface<HeapNode> h1 = new PairingHeap();
-        MergeableHeapInterface<HeapNode> h2 = new PairingHeap();
-        MergeableHeapInterface<HeapNode> h3 = new PairingHeap();
-
-        for (HeapNode node : h1_nodes) {
-            h1.insert(node);
+        for (int i = 0; i < NUM_HEAPS; i++) {
+            heap_nodes.add(new ArrayList<>());
         }
 
-        for (HeapNode node : h2_nodes) {
-            h2.insert(node);
+        List<Edge> edges = new ArrayList<>();
+        int[] weights = {55, 33, 88, 22, 77, 66, 44, 11, 99};
+        for (int weight : weights) {
+            edges.add(new Edge(null, null, weight));
         }
 
-        for (HeapNode node : h3_nodes) {
-            h3.insert(node);
+        for (int i = 0; i < NUM_HEAPS; i++) {
+            for (int j = 0; j < NODES_PER_HEAP; j++) {
+                heap_nodes.get(i).add(new HeapNode(edges.get(i * NODES_PER_HEAP + j), null, null));
+            }
         }
 
-        System.out.println("Heap 1 Min: " + h1.findMin().getVal());
-        System.out.println("Heap 2 Min: " + h2.findMin().getVal());
-        System.out.println("Heap 3 Min: " + h3.findMin().getVal());
+        List<MergeableHeapInterface<HeapNode>> heaps = new ArrayList<>();
+        for (int i = 0; i < NUM_HEAPS; i++) {
+            heaps.add(new PairingHeap());
+        }
 
+        for (int i = 0; i < NUM_HEAPS; i++) {
+            MergeableHeapInterface<HeapNode> heap = heaps.get(i);
+            List<HeapNode> nodes = heap_nodes.get(i);
 
-        MergeableHeapInterface<HeapNode> mergedHeap = h1.merge(h2).merge(h3);
+            for (HeapNode node : nodes) {
+                heap.insert(node);
+            }
+        }
+
+        System.out.println("Heap 1 Min: " + heaps.get(0).findMin().getVal());
+        System.out.println("Heap 2 Min: " + heaps.get(1).findMin().getVal());
+        System.out.println("Heap 3 Min: " + heaps.get(2).findMin().getVal());
+
+        MergeableHeapInterface<HeapNode> mergedHeap = heaps.get(0);
+
+        for (int i = 1; i < NUM_HEAPS; i++) {
+            mergedHeap = mergedHeap.merge(heaps.get(i));
+        }
         System.out.println("Merged Heap Min: " + mergedHeap.findMin().getVal());
 
         while (!mergedHeap.isEmpty()) {
@@ -57,9 +64,6 @@ public class HeapTest {
             System.out.println("New Min/Root Node: " + (mergedHeap.isEmpty() ? "Heap is empty" : mergedHeap.findMin()));
             System.out.println("<-------------------------------------------------->");
         }
-
         System.out.println("##################### End of Heap Test #####################");
-
     }
-    
 }

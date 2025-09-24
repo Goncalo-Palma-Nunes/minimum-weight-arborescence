@@ -40,7 +40,7 @@ public class HeapNode {
         return "HeapNode {" +
             //"id=" + HeapNode.id +
             ", value='" + getVal() + '\'' +
-            ", edge=" + (this.e != null ? getEdge() : "null") +
+            // ", edge=" + (this.e != null ? getEdge() : "null") +
             ", child=" + (this.child != null ? this.child.getVal() : "null") +
             ", brother=" + (this.brother != null ? this.brother.getVal() : "null") +
             " }";
