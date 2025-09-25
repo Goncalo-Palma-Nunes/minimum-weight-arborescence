@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.HashMap;
 
-public abstract class Graph implements Serializable{
+public class Graph implements Serializable{
     
     private List<Node> nodes;
     private List<Edge> edges;
@@ -21,6 +21,25 @@ public abstract class Graph implements Serializable{
         this.edges = new ArrayList<>();
         this.numNodes = 0;
         this.numEdges = 0;
+    }
+
+    public Graph(List<Edge> edges) {
+        this();
+        for (Edge edge : edges) {
+            addEdge(edge);
+        }
+
+        HashMap<Integer, Node> nodeMap = new HashMap<>();
+        for (Edge edge : edges) {
+            if (!nodeMap.containsKey(edge.getSource().getId())) {
+                addNode(edge.getSource());
+                nodeMap.put(edge.getSource().getId(), edge.getSource());
+            }
+            if (!nodeMap.containsKey(edge.getDestination().getId())) {
+                addNode(edge.getDestination());
+                nodeMap.put(edge.getDestination().getId(), edge.getDestination());
+            }
+        }
     }
 
     /* ******************************************
@@ -39,6 +58,10 @@ public abstract class Graph implements Serializable{
 
     public List<Node> getNodes() {
         return nodes;
+    }
+
+    public int getNumNodes() {
+        return numNodes;
     }
 
     /* ******************************************
@@ -65,6 +88,15 @@ public abstract class Graph implements Serializable{
             edges.add(edge);
             numEdges++;
         }
+    }
+
+
+    public List<Node> cloneNodeList() {
+        List<Node> clonedList = new ArrayList<>();
+        for (Node node : nodes) {
+            clonedList.add(new Node(node.getMLSTdata(), node.getId()));
+        }
+        return clonedList;
     }
 
     /**
@@ -139,10 +171,11 @@ public abstract class Graph implements Serializable{
         for (Node node : nodes) {
             sb.append(node.toString()).append("\n");
         }
-        // sb.append(" Edges:\n");
-        // for (Edge edge : edges) {
-        //     sb.append(edge.toString()).append("\n");
-        // }
+
+        sb.append("\n Edges:\n");
+        for (Edge edge : edges) {
+            sb.append(edge.toString()).append("\n");
+        }
         return sb.toString();
     }
 }

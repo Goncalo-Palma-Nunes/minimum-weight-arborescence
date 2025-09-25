@@ -22,6 +22,13 @@ public class UnionFind {
             parent[i] = i; // Each element is its own parent initially
             rank[i] = 1;   // Each set has rank 1 initially
         }
+
+        System.out.println("UnionFind initialized with " + n + " elements.");
+    }
+
+    /** Gets the size of the UnionFind structure. */
+    public int getSize() {
+        return size;
     }
 
     /**

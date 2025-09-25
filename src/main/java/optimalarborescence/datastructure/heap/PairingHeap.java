@@ -17,6 +17,10 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         this.root = null;
     }
 
+    public PairingHeap(HeapNode node) {
+        this.root = node;
+    }
+
     @Override
     public boolean isEmpty() {
         return root == null;

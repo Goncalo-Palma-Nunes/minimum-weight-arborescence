@@ -9,10 +9,48 @@ public class HeapTest {
 
     private final static int NODES_PER_HEAP = 3;
     private final static int NUM_HEAPS = 3;
+    private final static int[] WEIGHTS = {55, 33, 88, 22, 77, 66, 44, 11, 99};
+    private final static boolean VERBOSE = false;
 
     public static void main(String[] args) {
-        System.out.println("##################### Heap Test #####################");
+        System.out.println("##################### Heap Test ############################");
 
+        List<MergeableHeapInterface<HeapNode>> heaps = createHeaps();
+
+        if (VERBOSE) {
+            for (int i = 0; i < NUM_HEAPS; i++) {
+                System.out.print("Heap " + (i + 1) + " Min:");
+                System.out.println(heaps.get(i).findMin().getVal());
+            }
+        }
+
+        MergeableHeapInterface<HeapNode> mergedHeap = mergeHeaps(heaps);
+
+        if (VERBOSE) {
+            System.out.println("Merged Heap Min: " + mergedHeap.findMin().getVal());
+        }
+
+        while (!mergedHeap.isEmpty()) {
+            extractMin(mergedHeap);
+        }
+        System.out.println("##################### End of Heap Test #####################");
+    }
+
+    private static void extractMin(MergeableHeapInterface<HeapNode> mergedHeap) {
+        
+        if (VERBOSE) {
+            System.out.println("\n <-----------> Removing Min Node <-----------> ");
+            System.out.println("Current Min/Root Node: " + (mergedHeap.isEmpty() ? "Heap is empty" : mergedHeap.findMin()));
+        }
+        HeapNode minNode = mergedHeap.extractMin();
+            System.out.println("Extracted Min: " + minNode);
+        if (VERBOSE) {
+            System.out.println("New Min/Root Node: " + (mergedHeap.isEmpty() ? "Heap is empty" : mergedHeap.findMin()));
+            System.out.println("<-------------------------------------------------->");
+        }
+    }
+
+    private static List<MergeableHeapInterface<HeapNode>> createHeaps() {
         List<List<HeapNode>> heap_nodes = new ArrayList<>();
 
         for (int i = 0; i < NUM_HEAPS; i++) {
@@ -20,8 +58,7 @@ public class HeapTest {
         }
 
         List<Edge> edges = new ArrayList<>();
-        int[] weights = {55, 33, 88, 22, 77, 66, 44, 11, 99};
-        for (int weight : weights) {
+        for (int weight : WEIGHTS) {
             edges.add(new Edge(null, null, weight));
         }
 
@@ -44,26 +81,15 @@ public class HeapTest {
                 heap.insert(node);
             }
         }
+        return heaps;
+    }
 
-        System.out.println("Heap 1 Min: " + heaps.get(0).findMin().getVal());
-        System.out.println("Heap 2 Min: " + heaps.get(1).findMin().getVal());
-        System.out.println("Heap 3 Min: " + heaps.get(2).findMin().getVal());
-
+    private static final MergeableHeapInterface<HeapNode> mergeHeaps(List<MergeableHeapInterface<HeapNode>> heaps) {
         MergeableHeapInterface<HeapNode> mergedHeap = heaps.get(0);
 
         for (int i = 1; i < NUM_HEAPS; i++) {
             mergedHeap = mergedHeap.merge(heaps.get(i));
         }
-        System.out.println("Merged Heap Min: " + mergedHeap.findMin().getVal());
-
-        while (!mergedHeap.isEmpty()) {
-            System.out.println("\n <-----------> Removing Min Node <-----------> ");
-            System.out.println("Current Min/Root Node: " + (mergedHeap.isEmpty() ? "Heap is empty" : mergedHeap.findMin()));
-            HeapNode minNode = mergedHeap.extractMin();
-            System.out.println("Extracted Min: " + minNode);
-            System.out.println("New Min/Root Node: " + (mergedHeap.isEmpty() ? "Heap is empty" : mergedHeap.findMin()));
-            System.out.println("<-------------------------------------------------->");
-        }
-        System.out.println("##################### End of Heap Test #####################");
+        return mergedHeap;
     }
 }
