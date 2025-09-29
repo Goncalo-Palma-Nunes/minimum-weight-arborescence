@@ -146,14 +146,15 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         n1 = head;
 
         // Reset the node
-        // r.child = null;
-        // r.brother = null;
-        // r.val = -1;
+        r.child = null;
+        r.brother = null;
+        r.val = -1;
 
         // Turn values negative (each child should now be a head of a heap)
         while (n1 != r) {
             n1.val = -Math.abs(n1.val);
             n1 = n1.brother;
+            // System.out.println("11111111111111111111111111111111");
         }
 
         // First pass left to right, joining two by two
@@ -164,6 +165,7 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
             n1 = next;
         }
         while (n1 != r) {
+            // System.out.println("222222222222222222222222222");
             if ((n2 = n1.brother) != r) {
                 next = n2.brother;
                 n1 = meld(n1, n2);
@@ -180,6 +182,7 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         n1 = head;
         next = n1.brother;
         while ((n2 = next) != r) {
+            // System.out.println("33333333333333333333333333333");
             next = n2.brother;
             n1 = meld(n1, n2);
             n1.brother = null;

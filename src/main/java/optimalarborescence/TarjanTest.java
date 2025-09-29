@@ -21,12 +21,12 @@ public class TarjanTest {
         add("ATGC");
         add("ATGA");
         add("ATTT");
-        add("ATGT");
-        add("ATGG");
-        add("ACTC");
-        add("TGGC");
-        add("TTTT");
-        add("CCGG");
+        // add("ATGT");
+        // add("ATGG");
+        // add("ACTC");
+        // add("TGGC");
+        // add("TTTT");
+        // add("CCGG");
     }};
     private static final int NUM_NODES = ALLELIC_PROFILES.size();
 
@@ -48,6 +48,8 @@ public class TarjanTest {
         Graph graph = createGraph();
         TarjanArborescence tarjan = new TarjanArborescence(graph);
 
+        System.out.println(graph);
+        System.out.println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
         System.out.println(tarjan.inferPhylogeny(graph));
 
         System.out.println("##################### End of Tarjan Test #####################");

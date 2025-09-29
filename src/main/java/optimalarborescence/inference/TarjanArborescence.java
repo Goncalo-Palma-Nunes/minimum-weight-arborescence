@@ -7,10 +7,9 @@ import java.util.TreeSet;
 import java.util.stream.Stream;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.Collections;
 import java.util.Comparator;
+import java.util.stream.Collectors;
 
-import optimalarborescence.exception.NotImplementedException;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
@@ -68,6 +67,14 @@ public class TarjanArborescence extends StaticAlgorithm {
             //     children = new ArrayList<>();
             // }
             children.add(child);
+        }
+
+        @Override
+        public String toString() {
+            // return "TarjanForestNode(\nedge=" + edge + 
+            // "\nparent=" + (parent != null ? parent.edge : null) + 
+            // "\nchildren=" + children + "\n)";
+            return "(" + edge.getSource().getId() + ", " + edge.getDestination().getId() + ")";
         }
     }
 
@@ -129,12 +136,12 @@ public class TarjanArborescence extends StaticAlgorithm {
         }
         initializeDataStructures();
 
-        System.out.println("\n\n\nnum nodes = " + graph.getNumNodes() + "\n\n\n");
-        System.out.println("Length of inEdgeNode = " + inEdgeNode.size());
-        System.out.println("Length of leaves = " + leaves.length);
-        System.out.println("Length of max = " + max.size());
-        System.out.println("Length of cycleEdgeNodes = " + cycleEdgeNodes.size());
-        System.out.println("Length of queues = " + queues.size());
+        // System.out.println("\n\n\nnum nodes = " + graph.getNumNodes() + "\n\n\n");
+        // System.out.println("Length of inEdgeNode = " + inEdgeNode.size());
+        // System.out.println("Length of leaves = " + leaves.length);
+        // System.out.println("Length of max = " + max.size());
+        // System.out.println("Length of cycleEdgeNodes = " + cycleEdgeNodes.size());
+        // System.out.println("Length of queues = " + queues.size());
     }
 
     private void initializeDataStructures() {
@@ -182,6 +189,7 @@ public class TarjanArborescence extends StaticAlgorithm {
         }
         else {
             for (TarjanForestNode ce : cycleEdges) {
+                System.out.println("\tSetting parent of " + ce + " to " + minNode);
                 ce.setParent(minNode);
                 // minNode.addChild(ce);
             }
@@ -194,9 +202,9 @@ public class TarjanArborescence extends StaticAlgorithm {
     }
 
     private Node wccFind(Node v) {
-        System.out.println("wccFind on node with id " + v.getId());
+        // System.out.println("wccFind on node with id " + v.getId());
         // System.out.println("nodes size = " + nodes.size());
-        System.out.println("ufWCC size = " + ufWCC.getSize());
+        // System.out.println("ufWCC size = " + ufWCC.getSize());
         return getNodes().get(ufWCC.find(v.getId()));
     }
 
@@ -213,13 +221,17 @@ public class TarjanArborescence extends StaticAlgorithm {
     }
 
     private void updateReducedCosts(List<TarjanForestNode> cycle, int sigma, Map<TarjanForestNode, Edge> map) {
+        System.out.println("\tUpdating cycle's reduced costs with sigma = " + sigma);
+        System.out.println("\tCycle: " + cycle);
+        System.out.println("\tCycle edges before update: " + getCycleEdges(sccFind(cycle.get(0).edge.getDestination())));
         for (TarjanForestNode node : cycle) { // Update reduced costs
             Edge edge = map.get(node);
             int cost = sigma - edge.getWeight(); // Compute cost reduction
             Node v = edge.getDestination();
             ufSCC.addWeight(v.getId(), cost);
-            getCycleEdges(sccFind(v)).add(node);
+            getCycleEdges(sccFind(v)).addAll(cycle); // TODO - meti addAll porque antes só estava a adicionar a si próprio. Deve haver uma maneira mais eficiente (tipo meter todos a apontar para o mesmo sítio)
         }
+        System.out.println("\tCycle edges after update: " + getCycleEdges(sccFind(cycle.get(1).edge.getDestination())));
     }
 
     private TarjanForestNode getMaxWeightEdgeInCycle(List<TarjanForestNode> cycle) {
@@ -234,48 +246,126 @@ public class TarjanArborescence extends StaticAlgorithm {
         return max.get(sccFind(v).getId());
     }
 
-    private List<TarjanForestNode> deleteAncestors(TarjanForestNode nodeF, List<TarjanForestNode> leavesList) {
+    private List<TarjanForestNode> deleteAncestors(TarjanForestNode nodeF, List<TarjanForestNode> N) {
         while (nodeF != null) {
-            for (TarjanForestNode child : nodeF.getChildren()) {
+            List<TarjanForestNode> copy_arr = new ArrayList<>(nodeF.getChildren());
+            for (TarjanForestNode child : copy_arr) {
                 Edge e = child.edge;
                 child.setParent(null);
-                leavesList.add(child);
+                N.add(child);
             }
             nodeF = nodeF.getParent();
         }
-        return leavesList;
+        return N;
+    }
+
+    private void printQueues() {
+        System.out.println("Printing queues:");
+        for (int i = 0; i < queues.size(); i++) {
+            MergeableHeapInterface<HeapNode> q = queues.get(i);
+            System.out.print("Queue entering node " + i + ": ");
+            if (q.isEmpty()) {
+                System.out.println("Empty");
+            } else {
+                List<HeapNode> elements = new ArrayList<>();
+                while (!q.isEmpty()) {
+                    // System.out.println("Extracting min...");
+                    elements.add(q.extractMin());
+                }
+                System.out.println(elements.stream()
+                    .map(hn -> hn.getEdge().toString())
+                    .collect(Collectors.joining(", ")));
+                // Reinsert elements back into the queue
+                for (HeapNode hn : elements) {
+                    q.insert(hn);
+                }
+            }
+        }
+    }
+
+    private void printMaxEdges() {
+        System.out.println("Printing max edges for each SCC:");
+        for (int i = 0; i < max.size(); i++) {
+            Node v = getNodes().get(i);
+            Node maxNode = max.get(i);
+            System.out.println("SCC represented by node " + v.getId() + ": max edge target = " + (maxNode != null ? maxNode.getId() : "null"));
+        }
+    }
+
+    private void printLeaves() {
+        System.out.println("Printing leaves:");
+        for (int i = 0; i < leaves.length; i++) {
+            TarjanForestNode leaf = leaves[i];
+            System.out.println("pi[" + i + "]: " + (leaf != null ? leaf.edge.toString() : "null"));
+        }
+    }
+
+    private void printRoots() {
+        System.out.print("\nroots = {");
+        for (Node r : roots) {
+            System.out.print(" " + r.getID() + ", ");
+        }
+        System.out.println("}");
+    }
+
+    private List<TarjanForestNode> getRoots() {
+        List<TarjanForestNode> rootsList = new ArrayList<>();
+
+        for (TarjanForestNode leaf : leaves) {
+            // System.out.println("\tIterating over leaf " + leaf);
+        
+            while (leaf != null && leaf.getParent() != null) {
+                // System.out.println("\t\tVisiting parent " + leaf.getParent());
+                leaf = leaf.getParent();
+            }
+            // System.out.println("\t\tAdding root " + leaf + " to rootsList");
+            if (leaf != null && !rootsList.contains(leaf)) {
+                // System.out.println("\t\tAdded root");
+                rootsList.add(leaf);
+            }
+        }
+        return rootsList;
     }
 
     private void contractionPhase() {
         System.out.println("<--------------------------------------------------->");
-        System.out.println("TarjanArborescence (Contraction): starting contraction phase...");
+        // System.out.println("TarjanArborescence (Contraction): starting contraction phase...");
         // System.out.println("TarjanArborescence (Contraction): roots = " + roots);
         while (!roots.isEmpty()) {
+            printRoots();
+            printQueues();
+
             Node r = roots.remove(0);
             Edge e = null;
+            System.out.println("Popped root r = " + r);
 
             MergeableHeapInterface<HeapNode> q = getQueue(r); // priority queue of edges entering r
+            System.out.println("Queue of edges entering r: " + q);
             if (!emptyQueue(q)) {
                 e = q.extractMin().getEdge();
-
+                System.out.print("Queue not empty");
                 while (!emptyQueue(q) && ufSCC.find(e.getSource().getId()) == ufSCC.find(r.getId())) {
                     e = q.extractMin().getEdge();
                 }
+                System.out.println(", extracted edge e = " + e);
                 if (ufSCC.find(e.getSource().getId()) == ufSCC.find(r.getId())) {
+                    System.out.println("All edges in the queue form a loop. Add r to rset and process next node");
                     rset.add(r);
                     continue;
                 }
             }
-            else { rset.add(r); continue; } // Passar este 1º if/else para uma função?
+            else { System.out.println("Queue is empty. Nothing to process. Add r to rset and process next node"); rset.add(r); continue; } // Passar este 1º if/else para uma função?
 
             TarjanForestNode minNode = createMinNode(e);
 
             Node u = e.getSource();
             if (wccFind(u) != wccFind(r)) {
+                System.out.println("No cycle formed. Adding edge e to the arborescence.");
                 inEdgeNode.set(r.getId(), minNode);
                 wccUnion(u, r);
             }
             else {
+                System.out.println("Cycle formed. Contracting the cycle.");
                 inEdgeNode.set(r.getId(), null);
                 List<TarjanForestNode> cycle = new ArrayList<>(); cycle.add(minNode);
                 Map<TarjanForestNode, Edge> map = new HashMap<>();
@@ -288,6 +378,7 @@ public class TarjanArborescence extends StaticAlgorithm {
                     map.put(node, node.edge);
                     u = sccFind(node.edge.getSource());
                 }
+                System.out.println("Cycle nodes: " + cycle);
 
                 TarjanForestNode maxWeightEdge = getMaxWeightEdgeInCycle(cycle);
                 int sigma = maxWeightEdge.edge.getWeight();
@@ -322,38 +413,44 @@ public class TarjanArborescence extends StaticAlgorithm {
         //     System.out.println("TarjanArborescence (Contraction): leaves[" + i + "] = " + leaves[i]);
         // }
         // System.out.println("TarjanArborescence: leaves = " + List.of(leaves));
-        System.out.println("TarjanArborescence (Contraction): contraction phase completed.");
+        // System.out.println("TarjanArborescence (Contraction): contraction phase completed.");
         System.out.println("<--------------------------------------------------->");
     }
 
     private List<Edge> expansionPhase() {
-        System.out.println("TarjanArborescence (Expansion): starting expansion phase...");
+        // System.out.println("TarjanArborescence (Expansion): starting expansion phase...");
         List<Edge> H = new ArrayList<>(); // optimal arborescence
-        List<Node> R = rset.stream().map(v -> getSCCMaxTarget(v)).toList(); // roots of H
-        List<TarjanForestNode> leavesList = Stream.of(leaves).filter(n -> n != null).toList();
+        List<Node> R = rset.stream().map(v -> getSCCMaxTarget(v)).collect(Collectors.toCollection(ArrayList::new)); // roots of H
+        // List<TarjanForestNode> leavesList = Stream.of(leaves).filter(n -> n != null).collect(Collectors.toCollection(ArrayList::new));
+        // System.out.println("TarjanArborescence (Expansion): R = " + R);
+        System.out.println("<--------------------------------------------------->");
+        System.out.println("R = " + R);
+        List<TarjanForestNode> N = getRoots();
+        System.out.println("N = " + N);
+        printLeaves();
 
-        // while (!R.isEmpty()) {
-        //     Node u = R.remove(0);
-        //     leavesList = deleteAncestors(leaves[u.getID()], leavesList);
+        while (!R.isEmpty()) {
+            Node u = R.remove(0);
+            N = deleteAncestors(leaves[u.getID()], N);
+        }
+        // for (Node u : R) {
+        //     N = deleteAncestors(leaves[u.getId()], N);
         // }
-        for (Node u : R) {
-            leavesList = deleteAncestors(leaves[u.getId()], leavesList);
-        }
-        for (TarjanForestNode leaf : leavesList) {
-            Edge e = leaf.edge;
-            H.add(e);
-            Node v = e.getDestination();
-            leavesList = deleteAncestors(leaves[v.getId()], leavesList);
-        }
-        // while (!leavesList.isEmpty()) {
-        //     Edge e = leavesList.remove(0).edge;
+        // for (TarjanForestNode root : N) {
+        //     Edge e = root.edge;
         //     H.add(e);
         //     Node v = e.getDestination();
-        //     leavesList = deleteAncestors(leaves[v.getID()], leavesList);
+        //     N = deleteAncestors(leaves[v.getId()], N);
         // }
+        while (!N.isEmpty()) {
+            Edge e = (N.remove(0)).edge;
+            H.add(e);
+            Node v = e.getDestination();
+            N = deleteAncestors(leaves[v.getId()], N);
+        }
 
-        System.out.println("TarjanArborescence (Expansion): expansion phase completed.");
-        System.out.println("TarjanArborescence (Expansion): optimal forest H = " + H);
+        // System.out.println("TarjanArborescence (Expansion): expansion phase completed.");
+        // System.out.println("TarjanArborescence (Expansion): optimal forest H = " + H);
         System.out.println("<--------------------------------------------------->");
         return H;
     }
@@ -363,7 +460,7 @@ public class TarjanArborescence extends StaticAlgorithm {
 
         contractionPhase();
         List<Edge> forest = expansionPhase();
-        System.out.println("TarjanArborescence (inferPhylogeny): optimal forest H = " + forest);
+        // System.out.println("TarjanArborescence (inferPhylogeny): optimal forest H = " + forest);
         
         return new Graph(forest);
     }

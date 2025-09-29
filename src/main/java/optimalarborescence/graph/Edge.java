@@ -61,8 +61,10 @@ public class Edge implements Serializable, Comparable<Edge> {
     @Override
     public String toString() {
         return "Edge {" +
-                "source=" + source.getMLSTdata() +
-                ", destination=" + destination.getMLSTdata() +
+                // "source=" + source.getMLSTdata() +
+                "source=" + source.getID() +
+                // ", destination=" + destination.getMLSTdata() +
+                ", destination=" + destination.getID() +
                 ", weight=" + weight +
                 " }";
     }
