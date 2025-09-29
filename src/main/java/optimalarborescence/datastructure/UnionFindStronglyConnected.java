@@ -106,4 +106,25 @@ public class UnionFindStronglyConnected extends UnionFind {
         }
         return node;
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("UnionFindStronglyConnected {\n");
+        sb.append(" Size: ").append(size).append("\n");
+        sb.append(" Parent: ");
+        for (int i = 0; i < size; i++) {
+            sb.append(parent[i]).append(" ");
+        }
+        sb.append("\n Rank: ");
+        for (int i = 0; i < size; i++) {
+            sb.append(rank[i]).append(" ");
+        }
+        sb.append("\n Weight: ");
+        for (int i = 0; i < size; i++) {
+            sb.append(weight[i]).append(" ");
+        }
+        sb.append("\n}");
+        return sb.toString();
+    }
 }
