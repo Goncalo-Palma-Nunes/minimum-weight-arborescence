@@ -42,8 +42,10 @@ public class DirectedGraph extends Graph {
                 Node neighborNode = (Node) neighbor;
                 // TODO - double ou int para a distância?
                 int distance = (int) nnSearch.getDistanceFunction().calculate(node.getBitArray(), neighborNode.getBitArray());
-                node.addNeighbor(neighborNode, distance);
-                super.addEdge(new Edge(node, neighborNode, distance));
+                // node.addNeighbor(neighborNode, distance);
+                neighborNode.addNeighbor(node, distance);
+                // super.addEdge(new Edge(node, neighborNode, distance));
+                super.addEdge(new Edge(neighborNode, node, distance));
             }
         }
     }

@@ -138,6 +138,22 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         }
     }
 
+    public void decreaseAllKeys(int delta) {
+        if (this.root != null) {
+            decreaseAllKeys(this.root, delta);
+        }
+    }
+
+    private void decreaseAllKeys(HeapNode node, int delta) {
+        if (node == null) return;
+
+        node.val -= delta;
+
+        // Recursively decrease the keys of the children
+        decreaseAllKeys(node.child, delta);
+        decreaseAllKeys(node.brother, delta);
+    }
+
     private HeapNode extractMin(HeapNode r) {
         if (r.child == null) return r;
 

@@ -127,4 +127,12 @@ public class UnionFindStronglyConnected extends UnionFind {
         sb.append("\n}");
         return sb.toString();
     }
+
+    public UnionFindStronglyConnected clone() {
+        UnionFindStronglyConnected clone = new UnionFindStronglyConnected(this.size);
+        System.arraycopy(this.parent, 0, clone.parent, 0, this.size);
+        System.arraycopy(this.rank, 0, clone.rank, 0, this.size);
+        System.arraycopy(this.weight, 0, clone.weight, 0, this.size);
+        return clone;
+    }
 }
