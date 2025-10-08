@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.ArrayList;
 
 import optimalarborescence.graph.Edge;
+import optimalarborescence.inference.TarjanForestNode;
 
 /** Implementation of an Augmented Tree Node (used to maintain fully dynamic minimum weight arborescences) as specified in:
  * <p>
@@ -16,7 +17,7 @@ import optimalarborescence.graph.Edge;
  * <p>
  * J. Espada's Master's Thesis: “Large scale phylogenetic inference from noisy data based on minimum weight spanning arborescences,” 2014.
  */
-public class ATreeNode implements Serializable {
+public class ATreeNode extends TarjanForestNode {
 
     private int id; // Unique identifier for the ATreeNode (for debugging purposes)
 
@@ -31,10 +32,10 @@ public class ATreeNode implements Serializable {
     /** The parent of this ATreeNode in the ATree. 
      * <p>
      * this.parent = null, if this is the root node (if this.edge == null) */
-    private ATreeNode parent;
+    protected ATreeNode parent;
 
     /** The children of this ATreeNode in the ATree. */
-    private List<ATreeNode> children;
+    protected List<ATreeNode> children;
 
     /** Whether this node is a simple node or a c-node.
      * <p>
@@ -58,7 +59,7 @@ public class ATreeNode implements Serializable {
 
 
     public ATreeNode(Edge edge, int y, ATreeNode parent, List<ATreeNode> children, boolean simpleNode, List<Edge> contractedEdges, int id) {
-        this.edge = edge;
+        super(edge);
         this.y = y;
         this.parent = parent;
         this.children = children;
@@ -69,6 +70,10 @@ public class ATreeNode implements Serializable {
 
     public ATreeNode(Edge edge, int y, ATreeNode parent, boolean simpleNode, List<Edge> contractedEdges, int id) {
         this(edge, y, parent, new ArrayList<>(), simpleNode, contractedEdges, id);
+    }
+
+    public ATreeNode(Edge edge, int y, boolean simpleNode, List<Edge> contractedEdges, int id) {
+        this(edge, y, null, new ArrayList<>(), simpleNode, contractedEdges, id);
     }
 
     public Edge getEdge() {
@@ -87,24 +92,8 @@ public class ATreeNode implements Serializable {
         this.y = y;
     }
 
-    public ATreeNode getParent() {
-        return parent;
-    }
-
-    public void setParent(ATreeNode parent) {
-        this.parent = parent;
-    }
-
     public int getId() {
         return id;
-    }
-
-    public List<ATreeNode> getChildren() {
-        return children;
-    }
-
-    public void addChild(ATreeNode child) {
-        this.children.add(child);
     }
 
     public boolean isSimpleNode() {
@@ -130,7 +119,7 @@ public class ATreeNode implements Serializable {
 
         if (!node.isSimpleNode() && node.getContractedEdges().contains(edge)) return node;
 
-        for (ATreeNode child : node.getChildren()) {
+        for (ATreeNode child : node.children) {
             ATreeNode result = findContractionByEdge(edge, child);
             if (result != null) return result;
         }
@@ -148,7 +137,7 @@ public class ATreeNode implements Serializable {
 
         if (node.getEdge() != null && node.getEdge().equals(edge)) return node;
 
-        for (ATreeNode child : node.getChildren()) {
+        for (ATreeNode child : node.children) {
             ATreeNode result = findATreeNodeByEdge(edge, child);
             if (result != null) return result;
         }

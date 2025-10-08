@@ -2,11 +2,12 @@ package optimalarborescence.inference;
 
 import optimalarborescence.graph.Edge;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
 
-public class TarjanForestNode {
+public class TarjanForestNode implements Serializable {
     Edge edge;
     TarjanForestNode parent;
     List<TarjanForestNode> children; // TODO - passar a uma left child right sibling representation
@@ -18,6 +19,10 @@ public class TarjanForestNode {
         this.edge = edge;
         this.children = new ArrayList<>();
         this.parent = null;
+    }
+
+    public Edge getEdge() {
+        return edge;
     }
 
     /** Checks if the node is a leaf node. */
