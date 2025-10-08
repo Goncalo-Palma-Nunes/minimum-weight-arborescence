@@ -17,67 +17,9 @@ import optimalarborescence.graph.Node;
 import optimalarborescence.datastructure.UnionFind;
 import optimalarborescence.datastructure.UnionFindStronglyConnected;
 import optimalarborescence.datastructure.heap.*;
+import optimalarborescence.inference.TarjanForestNode;
 
 public class TarjanArborescence extends StaticAlgorithm {
-
-
-    /***********************************************************************************
-     *               Auxiliary Data Structures for Tarjan's Algorithm                  *
-     ***********************************************************************************/
- 
-    public class TarjanForestNode {
-        Edge edge;
-        TarjanForestNode parent;
-        List<TarjanForestNode> children; // TODO - passar a uma left child right sibling representation
-
-        /** Auxiliary data structure for Tarjan's algorithm. TarjanForestNode is used to build the
-         * forest F described in Camerini's correction of Tarjan's optimum branching algorithm.
-         */
-        protected TarjanForestNode(Edge edge) {
-            this.edge = edge;
-            this.children = new ArrayList<>();
-            this.parent = null;
-        }
-
-        /* Checks if the node is a leaf node. */
-        protected boolean isLeaf() {
-            return children == null || children.isEmpty();
-        }
-
-        protected List<TarjanForestNode> getChildren() {
-            return children;
-        }
-
-        protected TarjanForestNode getParent() {
-            return parent;
-        }
-
-        protected TarjanForestNode setParent(TarjanForestNode parent) {
-            if (this.parent != null) {
-                this.parent.children.remove(this);
-            }
-            this.parent = parent;
-            if (this.parent != null) {
-                this.parent.addChild(this);
-            }
-            return this.parent;
-        }
-
-        protected void addChild(TarjanForestNode child) {
-            // if (children == null) {
-            //     children = new ArrayList<>();
-            // }
-            children.add(child);
-        }
-
-        @Override
-        public String toString() {
-            // return "TarjanForestNode(\nedge=" + edge + 
-            // "\nparent=" + (parent != null ? parent.edge : null) + 
-            // "\nchildren=" + children + "\n)";
-            return "(" + edge.getSource().getId() + ", " + edge.getDestination().getId() + ")";
-        }
-    }
 
     /** A list of vertices to be processed. Initialized with all the vertices in 𝑉 */
     private List<Node> roots;
@@ -127,6 +69,25 @@ public class TarjanArborescence extends StaticAlgorithm {
     private List<UnionFindStronglyConnected> sccStacks;
 
     // private List<Node> nodes;
+
+    public TarjanArborescence() {
+        this.roots = new ArrayList<>();
+        this.rset = new TreeSet<>();
+        this.inEdgeNode = new ArrayList<>();
+        this.leaves = null;
+        this.max = new ArrayList<>();
+        this.cycleEdgeNodes = new ArrayList<>();
+        this.ufSCC = null;
+        this.ufWCC = null;
+        this.queues = new ArrayList<>();
+        this.sccStacks = new ArrayList<>();
+        this.b = new ArrayList<>();
+        this.branchings = new ArrayList<>();
+        this.levels = 0;
+        this.cycles = new ArrayList<>();
+        this.contractedNodes = new ArrayList<>();
+    }
+
 
     /** Constructor for TarjanArborescence. This class is an implementation of
      * Tarjan's optimum branching algorithm as corrected by Camerini et al.
@@ -180,7 +141,7 @@ public class TarjanArborescence extends StaticAlgorithm {
         return this.graph.getNodes();
     }
 
-    private MergeableHeapInterface<HeapNode> getQueue(Node v) {
+    protected MergeableHeapInterface<HeapNode> getQueue(Node v) {
         return queues.get(v.getId());
     }
 
@@ -474,8 +435,6 @@ public class TarjanArborescence extends StaticAlgorithm {
     }
 
     private boolean isRoots(List<Edge> edges, Node n, int level) {
-        // TODO - isto devia basear-se no component S[level] que ainda não implementei
-
         for (Edge e : edges) {
             if (sccFind(e.getDestination(), level) == n) {
                 return false;
@@ -501,7 +460,6 @@ public class TarjanArborescence extends StaticAlgorithm {
                     .collect(Collectors.toList()));
             }
             else {
-                // TODO - falta a estrutura de dados S que ainda não percebi como manter
                 HashSet<Node> endpoints = new HashSet<>();
                 for (Edge e : edges) {
                     endpoints.add(sccFind(e.getDestination(), levels));
