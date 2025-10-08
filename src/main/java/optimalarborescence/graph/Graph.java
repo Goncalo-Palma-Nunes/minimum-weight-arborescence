@@ -12,7 +12,7 @@ import java.util.HashMap;
 public class Graph implements Serializable{
     
     private List<Node> nodes;
-    private List<Edge> edges;
+    private List<Edge> edges; // TODO - forma eficiente de representar para dar delete de arestas e nós facilmente?
     private int numNodes;
     private int numEdges;
 
@@ -97,6 +97,12 @@ public class Graph implements Serializable{
             clonedList.add(new Node(node.getMLSTdata(), node.getId()));
         }
         return clonedList;
+    }
+
+    public void removeEdge(Edge edge) {
+        if (edges.remove(edge)) {
+            numEdges--;
+        }
     }
 
     /**

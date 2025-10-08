@@ -18,6 +18,8 @@ import optimalarborescence.graph.Edge;
  */
 public class ATreeNode implements Serializable {
 
+    private int id; // Unique identifier for the ATreeNode (for debugging purposes)
+
     /** The edge selected by the algorithm for the represented vertex. 
      * If no edge was selected then this.edge = null and this is a root node.
      * */
@@ -55,17 +57,18 @@ public class ATreeNode implements Serializable {
                                         // Gabow et al. "Efficient algorithms for finding minimum spanning trees in undirected and directed graphs."
 
 
-    public ATreeNode(Edge edge, int y, ATreeNode parent, List<ATreeNode> children, boolean simpleNode, List<Edge> contractedEdges) {
+    public ATreeNode(Edge edge, int y, ATreeNode parent, List<ATreeNode> children, boolean simpleNode, List<Edge> contractedEdges, int id) {
         this.edge = edge;
         this.y = y;
         this.parent = parent;
         this.children = children;
         this.simpleNode = simpleNode;
         this.contractedEdges = contractedEdges;
+        this.id = id;
     }
 
-    public ATreeNode(Edge edge, int y, ATreeNode parent, boolean simpleNode, List<Edge> contractedEdges) {
-        this(edge, y, parent, new ArrayList<>(), simpleNode, contractedEdges);
+    public ATreeNode(Edge edge, int y, ATreeNode parent, boolean simpleNode, List<Edge> contractedEdges, int id) {
+        this(edge, y, parent, new ArrayList<>(), simpleNode, contractedEdges, id);
     }
 
     public Edge getEdge() {
@@ -90,6 +93,10 @@ public class ATreeNode implements Serializable {
 
     public void setParent(ATreeNode parent) {
         this.parent = parent;
+    }
+
+    public int getId() {
+        return id;
     }
 
     public List<ATreeNode> getChildren() {
@@ -130,6 +137,12 @@ public class ATreeNode implements Serializable {
         return null;
     }
 
+    /** Searches the ATree for the node associated with the specified edge.
+     * 
+     * @param edge The edge to search for.
+     * @param node The current node in the recursive search (initially, the root of the ATree).
+     * @return The ATreeNode whose edge is the specified edge, or null if no such node exists.
+     */
     public ATreeNode findATreeNodeByEdge(Edge edge, ATreeNode node) {
         if (node == null) return null;
 
@@ -141,4 +154,5 @@ public class ATreeNode implements Serializable {
         }
         return null;
     }
+
 }

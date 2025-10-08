@@ -7,6 +7,10 @@ public abstract class StaticAlgorithm implements InferenceAlgorithm {
 
     protected Graph graph;
 
+    public StaticAlgorithm() {
+        this.graph = null;
+    }
+
     public StaticAlgorithm(Graph graph) {
         this.graph = graph;
     }
