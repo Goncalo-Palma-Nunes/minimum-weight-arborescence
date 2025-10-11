@@ -108,6 +108,13 @@ public class ATreeNode extends TarjanForestNode {
         return contractedEdges;
     }
 
+    public void addContractedEdge(Edge edge) {
+        if (this.contractedEdges == null) {
+            this.contractedEdges = new ArrayList<>();
+        }
+        this.contractedEdges.add(edge);
+    }
+
     /** Searches the ATree for a contraction node (c-node) that contains the specified edge.
      * 
      * @param edge The edge to search for.

@@ -140,18 +140,34 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
 
     public void decreaseAllKeys(int delta) {
         if (this.root != null) {
-            decreaseAllKeys(this.root, delta);
+            decreaseAllKeysIterative(this.root, delta);
         }
     }
 
-    private void decreaseAllKeys(HeapNode node, int delta) {
-        if (node == null) return;
+    private void decreaseAllKeysIterative(HeapNode root, int delta) {
+        if (root == null) return;
 
-        node.val -= delta;
+        // Use a queue for level-order traversal to avoid stack overflow
+        Queue<HeapNode> queue = new LinkedList<>();
+        queue.add(root);
 
-        // Recursively decrease the keys of the children
-        decreaseAllKeys(node.child, delta);
-        decreaseAllKeys(node.brother, delta);
+        while (!queue.isEmpty()) {
+            HeapNode current = queue.poll();
+            // Since val = -weight, to decrease weight by delta, we increase val by delta
+            current.val += delta;
+
+            // Process all children in the circular sibling list
+            if (current.child != null) {
+                HeapNode firstChild = current.child;
+                HeapNode child = firstChild;
+                
+                // Traverse the circular brother list until we get back to the parent
+                do {
+                    queue.add(child);
+                    child = child.brother;
+                } while (child != null && child != current);
+            }
+        }
     }
 
     private HeapNode extractMin(HeapNode r) {
@@ -220,11 +236,8 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
             this.root = null;
             return oldRoot;
         }
-        // System.out.println("(extract min) current root: " + (this.root != null ? this.root : "null"));
         HeapNode oldRoot = this.root;
-        // System.out.println("(extract min) Old root: " + (oldRoot != null ? oldRoot : "null"));
         this.root = extractMin(this.root);
-        // System.out.println("(extract min) asdf New root: " + (this.root != null ? this.root : "null"));
 
         // if (this.root == oldRoot) { // Last node in the heap
         //     // otherwise it would loop forever

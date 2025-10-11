@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 
-public class TarjanForestNode implements Serializable {
+public class TarjanForestNode implements Serializable, Comparable<TarjanForestNode> {
     Edge edge;
     TarjanForestNode parent;
     List<TarjanForestNode> children; // TODO - passar a uma left child right sibling representation
@@ -62,5 +62,47 @@ public class TarjanForestNode implements Serializable {
         // "\nparent=" + (parent != null ? parent.edge : null) + 
         // "\nchildren=" + children + "\n)";
         return "(" + edge.getSource().getId() + ", " + edge.getDestination().getId() + ")";
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        TarjanForestNode other = (TarjanForestNode) obj;
+        return edge.equals(other.edge);
+    }
+
+    @Override
+    public int compareTo(TarjanForestNode other) {
+        return Integer.compare(this.edge.getWeight(), other.edge.getWeight());
+    }
+
+    /**
+     * Finds the Lowest Common Ancestor (LCA) of this node and another node in the tree.
+     * 
+     * @param other The other node to find the LCA with
+     * @return The lowest common ancestor node, or null if no common ancestor exists
+     */
+    public TarjanForestNode LCA(TarjanForestNode other) {
+        if (other == null) return null;
+        
+        // Collect all ancestors of this node
+        List<TarjanForestNode> ancestors = new ArrayList<>();
+        TarjanForestNode current = this;
+        while (current != null) {
+            ancestors.add(current);
+            current = current.parent;
+        }
+        
+        // Traverse ancestors of other node and find first common ancestor
+        current = other;
+        while (current != null) {
+            if (ancestors.contains(current)) {
+                return current;
+            }
+            current = current.parent;
+        }
+        
+        return null; // No common ancestor (different trees)
     }
 }

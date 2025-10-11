@@ -2,14 +2,18 @@ package optimalarborescence.inference.dynamic;
 
 import optimalarborescence.inference.OnlineAlgorithm;
 import optimalarborescence.inference.TarjanArborescence;
+import optimalarborescence.inference.TarjanForestNode;
 import optimalarborescence.graph.Graph;
-import optimalarborescence.exception.NotImplementedException;
 import optimalarborescence.graph.Edge;
+import optimalarborescence.graph.Node;
+import optimalarborescence.exception.NotImplementedException;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Queue;
 import java.util.Queue;
 
 public class FullyDynamicArborescence extends OnlineAlgorithm {
@@ -218,7 +222,148 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
 
     @Override
     public List<Edge> addEdge(Edge edge) {
-        throw new NotImplementedException("The addEdge method is not implemented.");
+        getGraph().addEdge(edge);
+
+        Node source = edge.getSource();
+        Node destination = edge.getDestination();
+
+        TarjanForestNode[] leaves = this.tarjan.getLeaves();
+        TarjanForestNode sourceLeaf = leaves[source.getId()];
+        TarjanForestNode destLeaf = leaves[destination.getId()];
+
+        TarjanForestNode candidateForRemoval = this.findCandidateForRemoval(destLeaf, edge);
+        if (candidateForRemoval != null) {
+            // Found a candidate node N which should replace its edge with e_in
+            // Determine whether e_in should belong in the "in" cut-set of N
+            // by checking if N(source) is in the subtree rooted at N
+            
+            boolean sourceInSubtree = isNodeInSubtree(sourceLeaf, candidateForRemoval);
+            
+            if (sourceInSubtree) {
+                // N(source) is in the subtree rooted at N
+                // e_in should NOT belong in the "in" cut-set of N
+                // Simply insert edge in contracted-edges list of LCA
+                TarjanForestNode lca = destLeaf.LCA(sourceLeaf);
+                if (lca instanceof ATreeNode) {
+                    ATreeNode lcaATreeNode = (ATreeNode) lca;
+                    lcaATreeNode.addContractedEdge(edge);
+                }
+            }
+            else {
+                // N(source) is NOT in the subtree rooted at N
+                // e_in should replace the edge of N
+                // Engage virtual deletion of N's edge and run Edmonds' algorithm
+                
+                Edge removedEdge = candidateForRemoval.getEdge();
+                
+                // Virtual deletion: recognize G(V', E') without actually removing the edge
+                List<ATreeNode> V = new LinkedList<>(this.getRoots());
+                List<ATreeNode> removedContractions = decompose(removedEdge);
+                List<Edge> contractedEdges = removedContractions.stream()
+                        .flatMap(c -> c.getContractedEdges().stream())
+                        .toList();
+                
+                // Add e_in to the edge set
+                List<Edge> edgesWithNewEdge = new ArrayList<>(contractedEdges);
+                edgesWithNewEdge.add(edge);
+                
+                // Compute reduction quantities and apply them
+                Map<Integer, Integer> reductions = computeReductionQuantities();
+                Map<Edge, Integer> reducedCosts = applyReductionQuantities(edgesWithNewEdge, reductions);
+                
+                // Run Edmonds' algorithm over G(V', E' ∪ {e_in})
+                DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
+                    V,
+                    edgesWithNewEdge,
+                    reducedCosts,
+                    this.getGraph()
+                );
+                
+                Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
+                this.currentArborescence = updatedArborescence.getEdges();
+            }
+        }
+        else {
+            // No candidate for replacement found
+            // Insert edge in the contracted-edges list of the LCA
+            TarjanForestNode lca = destLeaf.LCA(sourceLeaf);
+            if (lca instanceof ATreeNode) {
+                ATreeNode lcaATreeNode = (ATreeNode) lca;
+                lcaATreeNode.addContractedEdge(edge);
+            }
+        }
+
+        return this.getCurrentArborescence();
+    }
+
+    /**
+     * Finds a candidate node for removal when adding a new edge e_in to the arborescence.
+     * 
+     * Starting from the destination leaf node N(e_in), we follow the path towards the ATree root.
+     * For each visited node N, we check whether N.edge.weight > e_in.weight.
+     * If this is the case, we have found a candidate node N which should have e_in as its selected edge,
+     * because e_in is of lower cost.
+     * 
+     * @param destLeaf The leaf node representing the destination of the new edge e_in
+     * @param edge The new edge e_in being added
+     * @return The candidate node for removal if found, null if e_in cannot replace any edge
+     */
+    private TarjanForestNode findCandidateForRemoval(TarjanForestNode destLeaf, Edge edge) {
+        if (destLeaf == null) return null;
+
+        TarjanForestNode current = destLeaf;
+        
+        // Follow the path from N(e_in) towards the ATree root
+        while (current != null) {
+            Edge currentEdge = current.getEdge();
+            
+            // Check if current node's edge weight is greater than the new edge weight
+            if (currentEdge != null && currentEdge.getWeight() > edge.getWeight()) {
+                // Found a candidate: e_in can replace this edge because it has lower cost
+                return current;
+            }
+            
+            // Proceed to parent node
+            current = current.getParent();
+        }
+        
+        // Root node reached: e_in cannot replace any edge of the arborescence
+        return null;
+    }
+
+    /**
+     * Checks whether a target node is in the subtree rooted at a given root node using BFS.
+     * 
+     * This is used to determine if N(source) is hanged in the subtree rooted at the candidate node N.
+     * 
+     * @param targetNode The node to search for
+     * @param rootNode The root of the subtree to search in
+     * @return true if targetNode is found in the subtree rooted at rootNode, false otherwise
+     */
+    private boolean isNodeInSubtree(TarjanForestNode targetNode, TarjanForestNode rootNode) {
+        if (targetNode == null || rootNode == null) return false;
+        if (targetNode.equals(rootNode)) return true;
+        
+        // BFS traversal of the subtree
+        Queue<TarjanForestNode> queue = new LinkedList<>();
+        queue.add(rootNode);
+        
+        while (!queue.isEmpty()) {
+            TarjanForestNode current = queue.poll();
+            
+            if (current.equals(targetNode)) {
+                return true;
+            }
+            
+            // Add all children to the queue
+            if (current.getChildren() != null) {
+                for (TarjanForestNode child : current.getChildren()) {
+                    queue.add(child);
+                }
+            }
+        }
+        
+        return false;
     }
     
 }
