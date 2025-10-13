@@ -10,7 +10,7 @@ import optimalarborescence.distance.*;
 import java.util.List;
 import java.util.ArrayList;
 
-public class DynamicTarjanEdgeInsertionTest {
+public class DynamicTarjanEdgeUpdateTest {
 
     /* Graph Parameters */
     private static final List<Node> NODES = new ArrayList<>() {{
@@ -59,38 +59,33 @@ public class DynamicTarjanEdgeInsertionTest {
         System.out.println("\nInitial arborescence:");
         System.out.println(initialArborescence);
 
-        // // Test edge insertion with sub-optimal edge
-        Edge edgeToInsert = new Edge(NODES.get(1), NODES.get(2), 10);
-        System.out.println("\n--- Testing edge insertion ---");
-        System.out.println("Inserting edge: " + edgeToInsert);
+        // printNeighbours(graph);
 
-        List<Edge> updatedArborescence = fullyDynamic.addEdge(edgeToInsert);
-        System.out.println("\nUpdated arborescence after insertion:" + new Graph(updatedArborescence));
+        // // // Test edge update with new optimal edge
+        Edge edgeToInsert = new Edge(NODES.get(0), NODES.get(3), 1);
+        System.out.println("\n--- Testing edge update ---");
+        System.out.println("Updating with edge: " + edgeToInsert);
 
-        // // Test edge insertion with a new optimal edge
-        edgeToInsert = new Edge(NODES.get(2), NODES.get(1), 1);
-        System.out.println("\n--- Testing another edge insertion ---");
-        System.out.println("Inserting edge: " + edgeToInsert);
-        updatedArborescence = fullyDynamic.addEdge(edgeToInsert);
-        System.out.println("\nUpdated arborescence after insertion:" + new Graph(updatedArborescence));
-
-        // Test edge insertion with a new optimal edge ----> Esta edge causa problemas
-        edgeToInsert = new Edge(NODES.get(2), NODES.get(3), 1);
-        System.out.println("\n--- Testing another edge insertion ---");
-        System.out.println("Inserting edge: " + edgeToInsert);
-        updatedArborescence = fullyDynamic.addEdge(edgeToInsert);
+        List<Edge> updatedArborescence = fullyDynamic.updateEdge(edgeToInsert);
         System.out.println("\nUpdated arborescence after insertion:" + new Graph(updatedArborescence));
 
 
+        // // // Test edge update with new optimal edge
+        edgeToInsert = new Edge(NODES.get(3), NODES.get(2), 1);
+        System.out.println("\n--- Testing edge update ---");
+        System.out.println("Updating with edge: " + edgeToInsert);
 
-        // // Test edge insertion with optimal edge
+        updatedArborescence = fullyDynamic.updateEdge(edgeToInsert);
+        System.out.println("\nUpdated arborescence after insertion:" + new Graph(updatedArborescence));
 
+        // // // Test edge update ---> fica preso
+        // edgeToInsert = new Edge(NODES.get(2), NODES.get(3), 1);
+        // System.out.println("\n--- Testing edge update ---");
+        // System.out.println("Updating with edge: " + edgeToInsert);
 
+        // updatedArborescence = fullyDynamic.updateEdge(edgeToInsert);
+        // System.out.println("\nUpdated arborescence after insertion:" + new Graph(updatedArborescence));
 
-        // System.out.println("\nUpdated arborescence after insertion:");
-        // for (Edge e : updatedArborescence) {
-        //     System.out.println("  " + e);
-        // }
 
     }
 
@@ -98,4 +93,16 @@ public class DynamicTarjanEdgeInsertionTest {
         return new Graph(edges);
     }
     
+    public static void printNeighbours(Graph graph) {
+        for (Node node : graph.getNodes()) {
+            System.out.print("Node " + node.getId() + " neighbors: ");
+            for (Edge edge : graph.getEdges()) {
+                if (edge.getSource().equals(node)) {
+                    System.out.print(edge.getDestination().getId() + "(" + edge.getWeight() + ") ");
+                }
+            }
+            System.out.println();
+            // System.out.println("\t\tnode.getNeighbors(): " + node.getNeighbors());
+        }
+    }
 }

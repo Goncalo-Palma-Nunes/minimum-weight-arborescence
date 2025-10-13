@@ -62,7 +62,23 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
 
     @Override
     public List<Edge> updateEdge(Edge edge) {
-        throw new NotImplementedException("The updateEdge method is not implemented.");
+        Node source = edge.getSource();
+        Node destination = edge.getDestination();
+
+        System.out.println("(FullyDynamic) Updating edge: " + edge);
+        System.out.println("(FullyDDynamic) source.neighbors: " + source.getNeighbors());
+        if (!source.getNeighbors().containsKey(destination)) {
+            throw new IllegalArgumentException("Edge to update does not exist in the graph.");
+        }
+
+        int oldEdgeWeight = source.getNeighbors().get(destination);
+        Edge oldEdge = new Edge(source, destination, oldEdgeWeight);
+
+        // Remove the old edge
+        this.removeEdge(oldEdge);
+        source.getNeighbors().put(destination, edge.getWeight());
+
+        return this.addEdge(edge);
     }
 
     private List<ATreeNode> decompose(Edge e) {
@@ -175,6 +191,10 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
 
     @Override
     public List<Edge> removeEdge(Edge edge) {
+        if (edge == null || !this.getGraph().getEdges().contains(edge)) {
+            return this.getCurrentArborescence();
+        }
+
         getGraph().removeEdge(edge);
         if (!this.getCurrentArborescence().contains(edge)) {
 

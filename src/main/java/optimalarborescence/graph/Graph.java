@@ -39,6 +39,7 @@ public class Graph implements Serializable{
                 addNode(edge.getDestination());
                 nodeMap.put(edge.getDestination().getId(), edge.getDestination());
             }
+            edge.getSource().addNeighbor(edge.getDestination(), edge.getWeight());
         }
     }
 
