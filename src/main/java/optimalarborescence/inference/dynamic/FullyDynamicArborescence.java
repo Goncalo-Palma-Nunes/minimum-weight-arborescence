@@ -13,7 +13,8 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.Queue;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.Queue;
 
 public class FullyDynamicArborescence extends OnlineAlgorithm {
@@ -65,8 +66,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         Node source = edge.getSource();
         Node destination = edge.getDestination();
 
-        System.out.println("(FullyDynamic) Updating edge: " + edge);
-        System.out.println("(FullyDDynamic) source.neighbors: " + source.getNeighbors());
         if (!source.getNeighbors().containsKey(destination)) {
             throw new IllegalArgumentException("Edge to update does not exist in the graph.");
         }
@@ -74,7 +73,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         int oldEdgeWeight = source.getNeighbors().get(destination);
         Edge oldEdge = new Edge(source, destination, oldEdgeWeight);
 
-        // Remove the old edge
         this.removeEdge(oldEdge);
         source.getNeighbors().put(destination, edge.getWeight());
 
@@ -185,6 +183,38 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         return reducedCosts;
     }
 
+    /**
+     * Expands a partial arborescence by adding the cycle edges from all ATree contractions.
+     * 
+     * When DynamicTarjanArborescence runs on the partially contracted graph, it returns
+     * an arborescence with edges between contracted vertices (ATree nodes). To get the
+     * full arborescence on the original graph, we need to add back all the internal
+     * cycle edges that were contracted and stored in the ATree nodes.
+     * 
+     * @param partialArborescence The arborescence edges from the partially contracted graph
+     * @return The full arborescence including all cycle edges from contractions
+     */
+    private List<Edge> expandArborescence(List<Edge> partialArborescence) {
+        List<Edge> fullArborescence = new ArrayList<>(partialArborescence);
+        
+        // Traverse all ATree nodes and collect their contracted edges
+        Queue<ATreeNode> queue = new LinkedList<>(this.getRoots());
+        
+        while (!queue.isEmpty()) {
+            ATreeNode current = queue.poll();
+            
+            // If this is a contraction node (not simple), add its cycle edges
+            if (!current.isSimpleNode() && current.getContractedEdges() != null) {
+                fullArborescence.addAll(current.getContractedEdges());
+            }
+            
+            // Add children to queue for traversal
+            queue.addAll(current.children);
+        }
+        
+        return fullArborescence;
+    }
+
     public void rebuildContractedDigraph() {
         throw new NotImplementedException("The rebuildContractedDigraph method is not implemented.");
     }
@@ -210,31 +240,43 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             }
         }
         else {
-            List<ATreeNode> V = new LinkedList<>(this.getRoots()); // V' in Joaquim's thesis
-            List<ATreeNode> removedContractions = decompose(edge); // set R in Joaquim's thesis
-            List<Edge> edges = removedContractions.stream()
-                    .flatMap(c -> c.getContractedEdges().stream())
-                    .toList(); // Union E' of all contracted edges from decomposed non-simple nodes
+            // Check if ATree structure exists
+            if (this.getRoots().isEmpty()) {
+                // No ATree structure - fallback to running full Tarjan
+                TarjanArborescence freshTarjan = new TarjanArborescence(this.getGraph());
+                Graph updatedArborescence = freshTarjan.inferPhylogeny(this.getGraph());
+                this.currentArborescence = updatedArborescence.getEdges();
+            } else {
+                List<ATreeNode> V = new LinkedList<>(this.getRoots()); // V' in Joaquim's thesis
+                List<ATreeNode> removedContractions = decompose(edge); // set R in Joaquim's thesis
+                List<Edge> edges = removedContractions.stream()
+                        .flatMap(c -> c.getContractedEdges().stream())
+                        .toList(); // Union E' of all contracted edges from decomposed non-simple nodes
 
-            // Compute reduction quantities for all vertices in O(|V|) time
-            Map<Integer, Integer> reductions = computeReductionQuantities();
-            
-            // Apply reduction quantities to edges in E'
-            Map<Edge, Integer> reducedCosts = applyReductionQuantities(edges, reductions);
-            
-            // Initialize DynamicTarjanArborescence with the partially contracted graph
-            DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
-                V,                  // ATree roots representing V'
-                edges,              // Edges from E'
-                reducedCosts,       // Reduced costs for edges
-                this.getGraph()     // Original graph
-            );
-            
-            // Run Tarjan's algorithm on the partially contracted graph
-            Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
-            
-            // Update the current arborescence
-            this.currentArborescence = updatedArborescence.getEdges();
+                // Compute reduction quantities for all vertices in O(|V|) time
+                Map<Integer, Integer> reductions = computeReductionQuantities();
+                
+                // Apply reduction quantities to edges in E'
+                Map<Edge, Integer> reducedCosts = applyReductionQuantities(edges, reductions);
+                
+                // Initialize DynamicTarjanArborescence with the partially contracted graph
+                DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
+                    V,                  // ATree roots representing V'
+                    edges,              // Edges from E'
+                    reducedCosts,       // Reduced costs for edges
+                    this.getGraph()     // Original graph
+                );
+                
+                // Run Tarjan's algorithm on the partially contracted graph
+                Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
+                
+                // Expand the partial arborescence to include all cycle edges from contractions
+                List<Edge> partialEdges = updatedArborescence.getEdges();
+                List<Edge> fullEdges = expandArborescence(partialEdges);
+                
+                // Update the current arborescence
+                this.currentArborescence = fullEdges;
+            }
         }
         
         return this.getCurrentArborescence();
@@ -276,31 +318,45 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                 
                 Edge removedEdge = candidateForRemoval.getEdge();
                 
-                // Virtual deletion: recognize G(V', E') without actually removing the edge
-                List<ATreeNode> V = new LinkedList<>(this.getRoots());
-                List<ATreeNode> removedContractions = decompose(removedEdge);
-                List<Edge> contractedEdges = removedContractions.stream()
-                        .flatMap(c -> c.getContractedEdges().stream())
-                        .toList();
-                
-                // Add e_in to the edge set
-                List<Edge> edgesWithNewEdge = new ArrayList<>(contractedEdges);
-                edgesWithNewEdge.add(edge);
-                
-                // Compute reduction quantities and apply them
-                Map<Integer, Integer> reductions = computeReductionQuantities();
-                Map<Edge, Integer> reducedCosts = applyReductionQuantities(edgesWithNewEdge, reductions);
-                
-                // Run Edmonds' algorithm over G(V', E' ∪ {e_in})
-                DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
-                    V,
-                    edgesWithNewEdge,
-                    reducedCosts,
-                    this.getGraph()
-                );
-                
-                Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
-                this.currentArborescence = updatedArborescence.getEdges();
+                // Check if ATree structure exists
+                if (this.getRoots().isEmpty()) {
+                    // No ATree structure - fallback to running full Tarjan
+                    // Note: Must create a new Tarjan instance since it maintains internal state
+                    TarjanArborescence freshTarjan = new TarjanArborescence(this.getGraph());
+                    Graph updatedArborescence = freshTarjan.inferPhylogeny(this.getGraph());
+                    this.currentArborescence = updatedArborescence.getEdges();
+                } else {
+                    // Virtual deletion: recognize G(V', E') without actually removing the edge
+                    List<ATreeNode> V = new LinkedList<>(this.getRoots());
+                    List<ATreeNode> removedContractions = decompose(removedEdge);
+                    List<Edge> contractedEdges = removedContractions.stream()
+                            .flatMap(c -> c.getContractedEdges().stream())
+                            .toList();
+                    
+                    // Add e_in to the edge set
+                    List<Edge> edgesWithNewEdge = new ArrayList<>(contractedEdges);
+                    edgesWithNewEdge.add(edge);
+                    
+                    // Compute reduction quantities and apply them
+                    Map<Integer, Integer> reductions = computeReductionQuantities();
+                    Map<Edge, Integer> reducedCosts = applyReductionQuantities(edgesWithNewEdge, reductions);
+                    
+                    // Run Edmonds' algorithm over G(V', E' ∪ {e_in})
+                    DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
+                        V,
+                        edgesWithNewEdge,
+                        reducedCosts,
+                        this.getGraph()
+                    );
+                    
+                    Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
+                    
+                    // Expand the partial arborescence to include all cycle edges from contractions
+                    List<Edge> partialEdges = updatedArborescence.getEdges();
+                    List<Edge> fullEdges = expandArborescence(partialEdges);
+                    
+                    this.currentArborescence = fullEdges;
+                }
             }
         }
         else {
@@ -366,9 +422,20 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         
         // BFS traversal of the subtree
         Queue<TarjanForestNode> queue = new LinkedList<>();
+        Set<TarjanForestNode> visited = new HashSet<>();
         queue.add(rootNode);
+        visited.add(rootNode);
         
+        int iterations = 0;
         while (!queue.isEmpty()) {
+            iterations++;
+            if (iterations > 10000) {
+                System.err.println("WARNING: isNodeInSubtree exceeded 10000 iterations - likely infinite loop!");
+                System.err.println("Target: " + targetNode);
+                System.err.println("Root: " + rootNode);
+                return false;
+            }
+            
             TarjanForestNode current = queue.poll();
             
             if (current.equals(targetNode)) {
@@ -378,7 +445,10 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             // Add all children to the queue
             if (current.getChildren() != null) {
                 for (TarjanForestNode child : current.getChildren()) {
-                    queue.add(child);
+                    if (!visited.contains(child)) {
+                        queue.add(child);
+                        visited.add(child);
+                    }
                 }
             }
         }

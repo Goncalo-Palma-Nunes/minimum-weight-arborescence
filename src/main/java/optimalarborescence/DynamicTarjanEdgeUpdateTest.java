@@ -39,6 +39,7 @@ public class DynamicTarjanEdgeUpdateTest {
         // Create graph and tarjan instance
         Graph graph = createGraph();
         TarjanArborescence tarjan = new TarjanArborescence(graph);
+        List<Edge> updatedArborescence;
         
         // Initialize FullyDynamicArborescence
         // Note: We need to create ATree roots from the initial inference
@@ -61,16 +62,16 @@ public class DynamicTarjanEdgeUpdateTest {
 
         // printNeighbours(graph);
 
-        // // // Test edge update with new optimal edge
+        // // // // Test edge update with new optimal edge
         Edge edgeToInsert = new Edge(NODES.get(0), NODES.get(3), 1);
         System.out.println("\n--- Testing edge update ---");
         System.out.println("Updating with edge: " + edgeToInsert);
 
-        List<Edge> updatedArborescence = fullyDynamic.updateEdge(edgeToInsert);
+        updatedArborescence = fullyDynamic.updateEdge(edgeToInsert);
         System.out.println("\nUpdated arborescence after insertion:" + new Graph(updatedArborescence));
 
 
-        // // // Test edge update with new optimal edge
+        // // // // Test edge update with new optimal edge
         edgeToInsert = new Edge(NODES.get(3), NODES.get(2), 1);
         System.out.println("\n--- Testing edge update ---");
         System.out.println("Updating with edge: " + edgeToInsert);
@@ -78,13 +79,13 @@ public class DynamicTarjanEdgeUpdateTest {
         updatedArborescence = fullyDynamic.updateEdge(edgeToInsert);
         System.out.println("\nUpdated arborescence after insertion:" + new Graph(updatedArborescence));
 
-        // // // Test edge update ---> fica preso
-        // edgeToInsert = new Edge(NODES.get(2), NODES.get(3), 1);
-        // System.out.println("\n--- Testing edge update ---");
-        // System.out.println("Updating with edge: " + edgeToInsert);
+        // // // Test edge update
+        edgeToInsert = new Edge(NODES.get(2), NODES.get(3), 1);
+        System.out.println("\n--- Testing edge update ---");
+        System.out.println("Updating with edge: " + edgeToInsert);
 
-        // updatedArborescence = fullyDynamic.updateEdge(edgeToInsert);
-        // System.out.println("\nUpdated arborescence after insertion:" + new Graph(updatedArborescence));
+        updatedArborescence = fullyDynamic.updateEdge(edgeToInsert);
+        System.out.println("\nUpdated arborescence after insertion:" + new Graph(updatedArborescence));
 
 
     }

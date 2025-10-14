@@ -70,7 +70,7 @@ public class DynamicDeleteTest {
             System.out.println("  " + e);
         }
 
-        // Remove second edge
+        // // Remove second edge
         Edge secondEdgeToRemove = edges.get(3); // Edge (C, T) with weight 10
         System.out.println("Removing edge: " + secondEdgeToRemove);
 
@@ -81,7 +81,7 @@ public class DynamicDeleteTest {
             System.out.println("  " + e);
         }
 
-        System.out.println("##################### End of Fully Dynamic Arborescence Test ###########");
+        // // System.out.println("##################### End of Fully Dynamic Arborescence Test ###########");
     }
 
     public static Graph createGraph() {

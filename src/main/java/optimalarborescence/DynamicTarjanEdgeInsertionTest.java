@@ -67,19 +67,19 @@ public class DynamicTarjanEdgeInsertionTest {
         List<Edge> updatedArborescence = fullyDynamic.addEdge(edgeToInsert);
         System.out.println("\nUpdated arborescence after insertion:" + new Graph(updatedArborescence));
 
-        // // Test edge insertion with a new optimal edge
+        // // // Test edge insertion with a new optimal edge --> fica preso
         edgeToInsert = new Edge(NODES.get(2), NODES.get(1), 1);
         System.out.println("\n--- Testing another edge insertion ---");
         System.out.println("Inserting edge: " + edgeToInsert);
         updatedArborescence = fullyDynamic.addEdge(edgeToInsert);
         System.out.println("\nUpdated arborescence after insertion:" + new Graph(updatedArborescence));
 
-        // Test edge insertion with a new optimal edge ----> Esta edge causa problemas
-        edgeToInsert = new Edge(NODES.get(2), NODES.get(3), 1);
-        System.out.println("\n--- Testing another edge insertion ---");
-        System.out.println("Inserting edge: " + edgeToInsert);
-        updatedArborescence = fullyDynamic.addEdge(edgeToInsert);
-        System.out.println("\nUpdated arborescence after insertion:" + new Graph(updatedArborescence));
+        // // Test edge insertion with a new optimal edge ----> Esta edge causa problemas
+        // edgeToInsert = new Edge(NODES.get(2), NODES.get(3), 1);
+        // System.out.println("\n--- Testing another edge insertion ---");
+        // System.out.println("Inserting edge: " + edgeToInsert);
+        // updatedArborescence = fullyDynamic.addEdge(edgeToInsert);
+        // System.out.println("\nUpdated arborescence after insertion:" + new Graph(updatedArborescence));
 
 
 

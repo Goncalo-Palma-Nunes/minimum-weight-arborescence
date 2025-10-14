@@ -121,6 +121,21 @@ public class TarjanArborescence extends StaticAlgorithm {
         cycles = new ArrayList<>();
         contractedNodes = new ArrayList<>();
 
+        // Check for duplicate edges
+        Map<String, List<Edge>> edgesByKey = new HashMap<>();
+        for (Edge e : graph.getEdges()) {
+            String key = e.getSource().getId() + "->" + e.getDestination().getId();
+            edgesByKey.computeIfAbsent(key, k -> new ArrayList<>()).add(e);
+        }
+        for (Map.Entry<String, List<Edge>> entry : edgesByKey.entrySet()) {
+            if (entry.getValue().size() > 1) {
+                System.out.println("[Tarjan.init] WARNING: Duplicate edges for " + entry.getKey() + ":");
+                for (Edge e : entry.getValue()) {
+                    System.out.println("  " + e);
+                }
+            }
+        }
+        
         for (Edge e : graph.getEdges()) {
             Node v = e.getDestination();
             getQueue(v).insert(new HeapNode(e, null, null));;
@@ -192,12 +207,23 @@ public class TarjanArborescence extends StaticAlgorithm {
         ufWCC.union(u.getId(), v.getId());
     }
 
+    private Node getNodeById(int id) {
+        for (Node node : getNodes()) {
+            if (node.getId() == id) {
+                return node;
+            }
+        }
+        throw new IllegalStateException("Node with ID " + id + " not found");
+    }
+
     private Node sccFind(Node v) {
-        return getNodes().get(ufSCC.find(v.getId()));
+        int repId = ufSCC.find(v.getId());
+        return getNodeById(repId);
     }
 
     private Node sccFind(Node v, int level) {
-        return getNodes().get(sccStacks.get(level).find(v.getId()));
+        int repId = sccStacks.get(level).find(v.getId());
+        return getNodeById(repId);
     }
 
     private void sccUnion(Node u, Node v) {
@@ -205,9 +231,6 @@ public class TarjanArborescence extends StaticAlgorithm {
     }
 
     private void updateReducedCosts(List<TarjanForestNode> cycle, int sigma, Map<TarjanForestNode, Edge> map) {
-        System.out.println("\tUpdating cycle's reduced costs with sigma = " + sigma);
-        System.out.println("\tCycle: " + cycle);
-        System.out.println("\tCycle edges before update: " + getCycleEdges(sccFind(cycle.get(0).edge.getDestination())));
         for (TarjanForestNode node : cycle) { // Update reduced costs
             Edge edge = map.get(node);
             Node v = edge.getDestination();
@@ -215,15 +238,16 @@ public class TarjanArborescence extends StaticAlgorithm {
             // the max edge weight (sigma) and this edge's weight
             int cost = sigma - edge.getWeight();
             ufSCC.addWeight(v.getId(), cost);
-            getCycleEdges(sccFind(v)).addAll(cycle); // TODO - meti addAll porque antes só estava a adicionar a si próprio. Deve haver uma maneira mais eficiente (tipo meter todos a apontar para o mesmo sítio)
         }
+        // Add the cycle edges to the SCC representative (do this only once after all nodes are merged)
+        Node cycleRep = sccFind(cycle.get(0).edge.getDestination());
+        getCycleEdges(cycleRep).addAll(cycle);
+        
         // After setting the cost differences, decrease all edge weights entering the cycle by sigma
         for (TarjanForestNode node : cycle) {
             Node v = node.edge.getDestination();
             ((PairingHeap) getQueue(v)).decreaseAllKeys(sigma);
         }
-        // Use the last element in the cycle to check the updated state (safe for cycles of any size)
-        System.out.println("\tCycle edges after update: " + getCycleEdges(sccFind(cycle.get(cycle.size() - 1).edge.getDestination())));
     }
 
     private TarjanForestNode getMaxWeightEdgeInCycle(List<TarjanForestNode> cycle) {
@@ -234,7 +258,7 @@ public class TarjanArborescence extends StaticAlgorithm {
         List<TarjanForestNode> cycleEdges = getCycleEdges(rep);
         if (!cycleEdges.isEmpty()) {
             Edge maxEdge = cycleEdges.stream().max(Comparator.comparing(n -> n.edge.getWeight())).orElseThrow().edge;
-            // max.set(sccFind(rep).getId(), maxEdge.getDestination());
+                                                                                                                                                                                                                                                                                                                                                                                                        // max.set(sccFind(rep).getId(), maxEdge.getDestination());
         }
     }
 
@@ -333,14 +357,16 @@ public class TarjanArborescence extends StaticAlgorithm {
     }
 
     private Edge extractMinIncidentEdge(Node v) {
-        MergeableHeapInterface<HeapNode> q = getQueue(v);
+        // After cycle contractions, v might be in an SCC. We should extract from the representative's queue.
+        Node rep = sccFind(v);
+        MergeableHeapInterface<HeapNode> q = getQueue(rep);
         if (q.isEmpty()) {
             return null;
         }
         Edge e = q.extractMin().getEdge();
         // Skip edges that are internal to the SCC represented by v
-        // Queue[v] contains edges (source → destination) where destination is v or nodes in v's SCC
-        // We need to check if the edge's source is in the same SCC as v (making it internal)
+        // An edge (u → w) entering rep's queue has destination w in rep's SCC
+        // The edge is internal if the source u is also in rep's SCC
         while (!q.isEmpty() && ufSCC.find(e.getSource().getId()) == ufSCC.find(v.getId())) {
             e = q.extractMin().getEdge();
         }
@@ -374,14 +400,9 @@ public class TarjanArborescence extends StaticAlgorithm {
 
     private void contractionPhase() {
         while (!roots.isEmpty()) {
-
             Node r = roots.remove(0);
-            Edge e = null;
-            System.out.println("Popped root r = " + r);
-            e = extractMinIncidentEdge(r);
-            System.out.println("Extracted min incident edge e = " + e);
+            Edge e = extractMinIncidentEdge(r);
             if (e == null) {
-                System.out.println("No incident edges. Add r to rset and process next node");
                 rset.add(r);
                 continue;
             }
@@ -390,13 +411,11 @@ public class TarjanArborescence extends StaticAlgorithm {
 
             Node u = e.getSource();
             if (wccFind(u) != wccFind(r)) { // No cycle formed, safe to add edge
-                System.out.println("No cycle formed. Adding edge e to the arborescence.");
                 inEdgeNode.set(sccFind(r).getId(), minNode);
                 wccUnion(u, r);
                 b.add(e);
             }
             else { // Contract cycle
-                System.out.println("Cycle formed. Contracting the cycle.");
                 inEdgeNode.set(sccFind(r).getId(), null);
                 List<TarjanForestNode> cycle = new ArrayList<>(); cycle.add(minNode);
                 Map<TarjanForestNode, Edge> map = new HashMap<>();
@@ -409,7 +428,6 @@ public class TarjanArborescence extends StaticAlgorithm {
                     map.put(node, node.edge);
                     u = sccFind(node.edge.getSource());
                 }
-                System.out.println("Cycle nodes: " + cycle);
 
                 TarjanForestNode maxWeightEdge = getMaxWeightEdgeInCycle(cycle);
                 int sigma = maxWeightEdge.edge.getWeight();
@@ -420,42 +438,23 @@ public class TarjanArborescence extends StaticAlgorithm {
                 }
 
                 Node rep = sccFind(maxWeightEdge.edge.getDestination());
-                // inEdgeNode.set(rep.getId(), null); -----> ??????? delírios do copilot ?????
                 
                 roots.add(sccFind(rep));
                 updateSCCMaxWeightEdge(rep);
                 mergeCycleQueues(rep, cycle);
 
-
                 /** Prepare structs for the next level */
-
                 levels++;
                 branchings.add(new ArrayList<>(b));
-                // contractedNodes.addAll(cycle.stream().map(n -> n.edge.getSource()).collect(Collectors.toList()));
                 contractedNodes.add(rep);
                 sccStacks.add(ufSCC.clone());
-                cycles.add(cycle.stream().map(n -> n.edge).collect(Collectors.toList())); // TODO - mudar para o cycle ser de arestas e nao forest nodes para poupar tempo aqui
-                for (TarjanForestNode n : cycle) { // TODO - com um stream?
+                cycles.add(cycle.stream().map(n -> n.edge).collect(Collectors.toList()));
+                for (TarjanForestNode n : cycle) {
                     b.remove(n.edge);
                 }
                 max.add(maxWeightEdge.edge);
-
             }
         }
-
-        // System.out.println("TarjanArborescence (Contraction): rset = " + rset);
-        // for (int i = 0; i < max.size(); i++) {
-        //     System.out.println("TarjanArborescence (Contraction): max[" + i + "] = " + max.get(i));
-        // }
-        // for (int i = 0; i < inEdgeNode.size(); i++) {
-        //     System.out.println("TarjanArborescence (Contraction): inEdgeNode[" + i + "] = " + inEdgeNode.get(i));
-        // }
-        // for (int i = 0; i < leaves.length; i++) {
-        //     System.out.println("TarjanArborescence (Contraction): leaves[" + i + "] = " + leaves[i]);
-        // }
-        // System.out.println("TarjanArborescence: leaves = " + List.of(leaves));
-        // System.out.println("TarjanArborescence (Contraction): contraction phase completed.");
-        System.out.println("<--------------------------------------------------->");
     }
 
     private boolean isRoots(List<Edge> edges, Node n, int level) {
@@ -472,7 +471,7 @@ public class TarjanArborescence extends StaticAlgorithm {
             return b;
         }
 
-        List<Edge> edges = branchings.get(levels - 1);
+        List<Edge> edges = new ArrayList<>(b);
         while (levels > 0) {
             levels--;
             Node n = contractedNodes.remove(levels);
