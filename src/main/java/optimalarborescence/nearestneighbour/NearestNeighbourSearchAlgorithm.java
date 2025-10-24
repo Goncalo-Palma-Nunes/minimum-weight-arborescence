@@ -3,11 +3,13 @@ package optimalarborescence.nearestneighbour;
 import optimalarborescence.exception.NotImplementedException;
 import optimalarborescence.distance.*;
 
+import java.io.Serializable;
 import java.util.List;
 
-public abstract class NearestNeighbourSearchAlgorithm {
+public abstract class NearestNeighbourSearchAlgorithm implements Serializable {
 
     private DistanceFunction distanceFunction;
+    private static final long serialVersionUID = 129348938L; // TODO - UID para serialização. Pesquisar mais sobre isto
 
     public NearestNeighbourSearchAlgorithm(DistanceFunction distanceFunction) {
         this.distanceFunction = distanceFunction;

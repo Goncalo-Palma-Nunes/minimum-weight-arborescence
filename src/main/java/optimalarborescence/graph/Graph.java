@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.HashMap;
+import java.util.Comparator;
 
 public class Graph implements Serializable{
     
@@ -107,61 +108,133 @@ public class Graph implements Serializable{
     }
 
     /**
-     * Exports the edge list to a binary file (each edge: 2 integers)
-     * and the index file (each node: 1 long offset, with padding for missing nodes).
-     * Edges for the same source node are stored contiguously.
+     * Exports the edge list to a binary file (edges sorted by source)
+     * and the index file (node ID, MLST data, and file offset for outgoing edges).
+     * 
+     * Edge List File Format:
+     *   For each edge: [source_id (4 bytes), destination_id (4 bytes), weight (4 bytes)]
+     *   Edges are sorted by source_id so outgoing edges are contiguous.
+     * 
+     * Index File Format:
+     *   For each node (with padding for missing nodes):
+     *   [node_id (4 bytes), MLST_data_length (4 bytes), MLST_data (variable), offset (8 bytes)]
+     *   Offset points to the first outgoing edge in the edge list file.
      */
     public void exportEdgeListAndIndex(String edgeListFile, String indexFile) throws IOException {
-        // Group edges by source node ID
-        Map<Integer, List<Edge>> edgesBySource = new TreeMap<>();
+        // Sort edges by source node ID (to keep outgoing edges together)
+        List<Edge> sortedEdges = new ArrayList<>(edges);
+        sortedEdges.sort(Comparator.comparingInt(edge -> edge.getSource().getId()));
+        
+        // Group edges by source to find where each node's outgoing edges start
+        Map<Integer, Long> outgoingEdgeOffsets = new TreeMap<>();
+        long currentOffset = 0;
         int maxNodeId = -1;
-        for (Edge edge : edges) {
+        
+        for (Edge edge : sortedEdges) {
             int srcId = edge.getSource().getId();
-            int dstId = edge.getDestination().getId();
-            edgesBySource.computeIfAbsent(srcId, k -> new ArrayList<>()).add(edge);
-            maxNodeId = Math.max(maxNodeId, Math.max(srcId, dstId));
+            if (!outgoingEdgeOffsets.containsKey(srcId)) {
+                outgoingEdgeOffsets.put(srcId, currentOffset);
+            }
+            maxNodeId = Math.max(maxNodeId, Math.max(edge.getSource().getId(), edge.getDestination().getId()));
+            currentOffset += 12; // 3 ints per edge (source, dest, weight), 4 bytes each
         }
-        // Write edge list file
+        
+        // Create a map of all nodes for easy lookup
+        Map<Integer, Node> nodeMap = new HashMap<>();
+        for (Node node : nodes) {
+            nodeMap.put(node.getId(), node);
+            maxNodeId = Math.max(maxNodeId, node.getId());
+        }
+        
+        // Write edge list file (sorted by source)
         try (DataOutputStream edgeOut = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(edgeListFile)))) {
-            for (List<Edge> edgeList : edgesBySource.values()) {
-                for (Edge edge : edgeList) {
-                    edgeOut.writeInt(edge.getSource().getId());
-                    edgeOut.writeInt(edge.getDestination().getId());
-                }
+            for (Edge edge : sortedEdges) {
+                edgeOut.writeInt(edge.getSource().getId());
+                edgeOut.writeInt(edge.getDestination().getId());
+                edgeOut.writeInt(edge.getWeight());
             }
         }
-        // Write index file
+        
+        // Write index file (one entry per node ID, with padding for missing nodes)
         try (DataOutputStream indexOut = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(indexFile)))) {
-            long offset = 0;
             for (int nodeId = 0; nodeId <= maxNodeId; nodeId++) {
-                List<Edge> edgeList = edgesBySource.get(nodeId);
-                indexOut.writeLong(offset);
-                if (edgeList != null) {
-                    offset += edgeList.size() * 8L; // 2 ints per edge, 4 bytes each
+                // Write node ID
+                indexOut.writeInt(nodeId);
+                
+                // Write MLST data
+                Node node = nodeMap.get(nodeId);
+                if (node != null && node.getMLSTdata() != null) {
+                    String mlstData = node.getMLSTdata();
+                    byte[] mlstBytes = mlstData.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    indexOut.writeInt(mlstBytes.length);
+                    indexOut.write(mlstBytes);
+                } else {
+                    indexOut.writeInt(0); // No MLST data
                 }
+                
+                // Write offset to outgoing edges
+                Long offset = outgoingEdgeOffsets.get(nodeId);
+                indexOut.writeLong(offset != null ? offset : -1L); // -1 indicates no outgoing edges
             }
         }
     }
 
     /**
-     * Static method to load a graph from a binary edge list and index file.
-     * Node objects are created with their ID as both id and MLSTdata (as String).
-     * Returns a new Graph instance populated with the loaded edges.
+     * Static method to load a graph from binary edge list and index files.
+     * 
+     * Reads the index file to reconstruct nodes with their IDs and MLST data,
+     * then reads the edge list to reconstruct edges.
+     * 
+     * @param edgeListFile Path to the binary edge list file
+     * @param indexFile Path to the binary index file
+     * @return A new Graph instance populated with nodes and edges
      */
     public static Graph loadFromEdgeListAndIndex(String edgeListFile, String indexFile) throws IOException {
-        Graph graph = new Graph() {};
         Map<Integer, Node> nodeMap = new HashMap<>();
-        try (DataInputStream edgeIn = new DataInputStream(new FileInputStream(edgeListFile))) {
-            while (edgeIn.available() >= 8) { // 2 ints = 8 bytes
-                int srcId = edgeIn.readInt();
-                int dstId = edgeIn.readInt();
-                Node src = nodeMap.computeIfAbsent(srcId, id -> new Node(String.valueOf(id), id));
-                Node dst = nodeMap.computeIfAbsent(dstId, id -> new Node(String.valueOf(id), id));
-                graph.addEdge(new Edge(src, dst, 0)); // Weight unknown from file, set to 0 or add a third int if needed
+        
+        // Read index file to reconstruct all nodes
+        try (DataInputStream indexIn = new DataInputStream(new BufferedInputStream(new FileInputStream(indexFile)))) {
+            while (indexIn.available() > 0) {
+                // Read node ID
+                int nodeId = indexIn.readInt();
+                
+                // Read MLST data
+                int mlstLength = indexIn.readInt();
+                String mlstData;
+                if (mlstLength > 0) {
+                    byte[] mlstBytes = new byte[mlstLength];
+                    indexIn.readFully(mlstBytes);
+                    mlstData = new String(mlstBytes, java.nio.charset.StandardCharsets.UTF_8);
+                } else {
+                    mlstData = String.valueOf(nodeId); // Default to node ID as string
+                }
+                
+                // Read offset (we don't use it during loading, but need to consume it)
+                indexIn.readLong();
+                
+                // Create node
+                nodeMap.put(nodeId, new Node(mlstData, nodeId));
             }
         }
-        // Optionally, you can read the index file here if you want to store offsets or degrees
-        return graph;
+        
+        // Read edge list file to reconstruct edges
+        List<Edge> edgeList = new ArrayList<>();
+        try (DataInputStream edgeIn = new DataInputStream(new BufferedInputStream(new FileInputStream(edgeListFile)))) {
+            while (edgeIn.available() >= 12) { // 3 ints = 12 bytes
+                int srcId = edgeIn.readInt();
+                int dstId = edgeIn.readInt();
+                int weight = edgeIn.readInt();
+                
+                Node src = nodeMap.get(srcId);
+                Node dst = nodeMap.get(dstId);
+                
+                if (src != null && dst != null) {
+                    edgeList.add(new Edge(src, dst, weight));
+                }
+            }
+        }
+        
+        return new Graph(edgeList);
     }
 
     /* ******************************************

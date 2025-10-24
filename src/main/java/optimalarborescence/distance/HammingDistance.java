@@ -1,6 +1,10 @@
 package optimalarborescence.distance;
 
-public class HammingDistance implements DistanceFunction {
+import java.io.Serializable;
+
+public class HammingDistance implements DistanceFunction, Serializable {
+
+    private static final long serialVersionUID = 1L; // TODO - UID para serialização. Pesquisar mais sobre isto
 
     @Override
     public double calculate(String s1, String s2) {

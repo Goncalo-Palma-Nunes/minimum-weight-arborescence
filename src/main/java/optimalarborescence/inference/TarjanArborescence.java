@@ -122,19 +122,19 @@ public class TarjanArborescence extends StaticAlgorithm {
         contractedNodes = new ArrayList<>();
 
         // Check for duplicate edges
-        Map<String, List<Edge>> edgesByKey = new HashMap<>();
-        for (Edge e : graph.getEdges()) {
-            String key = e.getSource().getId() + "->" + e.getDestination().getId();
-            edgesByKey.computeIfAbsent(key, k -> new ArrayList<>()).add(e);
-        }
-        for (Map.Entry<String, List<Edge>> entry : edgesByKey.entrySet()) {
-            if (entry.getValue().size() > 1) {
-                System.out.println("[Tarjan.init] WARNING: Duplicate edges for " + entry.getKey() + ":");
-                for (Edge e : entry.getValue()) {
-                    System.out.println("  " + e);
-                }
-            }
-        }
+        // Map<String, List<Edge>> edgesByKey = new HashMap<>();
+        // for (Edge e : graph.getEdges()) {
+            // String key = e.getSource().getId() + "->" + e.getDestination().getId();
+            // edgesByKey.computeIfAbsent(key, k -> new ArrayList<>()).add(e);
+        // }
+        // for (Map.Entry<String, List<Edge>> entry : edgesByKey.entrySet()) {
+        //     if (entry.getValue().size() > 1) {
+        //         System.out.println("[Tarjan.init] WARNING: Duplicate edges for " + entry.getKey() + ":");
+        //         for (Edge e : entry.getValue()) {
+        //             System.out.println("  " + e);
+        //         }
+        //     }
+        // }
         
         for (Edge e : graph.getEdges()) {
             Node v = e.getDestination();
