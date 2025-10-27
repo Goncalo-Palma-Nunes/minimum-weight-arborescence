@@ -117,6 +117,49 @@ public class EdgeListMapper {
     }
     
     /**
+     * Load edges from a memory-mapped file, creating minimal Node objects without MLST data.
+     * Use this method when you only need the graph structure and don't care about MLST data.
+     * 
+     * @param fileName Path to the input file
+     * @return List of edges loaded from the file with minimal Node objects (MLST data = "CGCG")
+     * @throws IOException if file operations fail
+     */
+    public static List<Edge> loadEdgesFromMappedFile(String fileName) throws IOException {
+        List<Edge> edges = new ArrayList<>();
+        Map<Integer, Node> nodeCache = new HashMap<>();
+        
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
+             FileChannel channel = raf.getChannel()) {
+            
+            long size = channel.size();
+            if (size % BYTES_PER_EDGE != 0) {
+                throw new IOException("Edge file size is not a multiple of edge size (12 bytes)");
+            }
+            
+            int edgeCount = (int) (size / BYTES_PER_EDGE);
+            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, size);
+            mbb.order(ByteOrder.nativeOrder());
+            
+            for (int i = 0; i < edgeCount; i++) {
+                int srcId = mbb.getInt();
+                int dstId = mbb.getInt();
+                int weight = mbb.getInt();
+                
+                // Create minimal nodes on-the-fly with dummy MLST data (reuse same instance for same ID)
+                // Using "CGCG" as placeholder since Point constructor requires non-empty sequence
+                // Note: MLST sequences are only relevant for the nearest neighbour algorithms
+                // and distance computations. It does not matter when we just want to load edges 
+                Node src = nodeCache.computeIfAbsent(srcId, id -> new Node("CGCG", id));
+                Node dst = nodeCache.computeIfAbsent(dstId, id -> new Node("CGCG", id));
+                
+                edges.add(new Edge(src, dst, weight));
+            }
+        }
+        
+        return edges;
+    }
+    
+    /**
      * Read a specific edge from the file at a given byte offset.
      * 
      * @param fileName Path to the edge list file
@@ -149,5 +192,38 @@ public class EdgeListMapper {
         }
         
         return null;
+    }
+    
+    /**
+     * Read a specific edge from the file at a given byte offset, creating minimal Node objects.
+     * Use this method when you only need the graph structure and don't care about MLST data.
+     * 
+     * @param fileName Path to the edge list file
+     * @param offset Byte offset in the file
+     * @return The edge at the specified offset with minimal Node objects (MLST data = "CGCG"), or null if invalid
+     * @throws IOException if file operations fail
+     */
+    public static Edge readEdgeAtOffset(String fileName, long offset) throws IOException {
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
+             FileChannel channel = raf.getChannel()) {
+            
+            if (offset < 0 || offset + BYTES_PER_EDGE > channel.size()) {
+                return null;
+            }
+            
+            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, offset, BYTES_PER_EDGE);
+            mbb.order(ByteOrder.nativeOrder());
+            
+            int srcId = mbb.getInt();
+            int dstId = mbb.getInt();
+            int weight = mbb.getInt();
+            
+            // Create minimal nodes with dummy MLST data
+            // Using "CGCG" as placeholder since Point constructor requires non-empty sequence
+            Node src = new Node("CGCG", srcId);
+            Node dst = new Node("CGCG", dstId);
+            
+            return new Edge(src, dst, weight);
+        }
     }
 }
