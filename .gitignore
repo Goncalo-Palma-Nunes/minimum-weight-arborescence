@@ -42,3 +42,8 @@ graph.dat
 
 tmp/
 *.tmp
+
+# vscode
+.vscode/settings.json
+.vscode*
+**/.vscode/*
