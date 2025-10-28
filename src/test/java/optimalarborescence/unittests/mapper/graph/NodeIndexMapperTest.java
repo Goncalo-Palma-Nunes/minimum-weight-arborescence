@@ -115,7 +115,7 @@ public class NodeIndexMapperTest {
         // Test offsets
         for (Node node : graph.getNodes()) {
             long expectedOffset = offsetMap.getOrDefault(node.getID(), -1L);
-            long loadedOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, node.getID(), mlstLength);
+            long loadedOffset = NodeIndexMapper.getIncomingEdgeOffset(MLST_FILE_NAME, node.getID(), mlstLength);
             Assert.assertEquals(expectedOffset, loadedOffset);
         }
     }
