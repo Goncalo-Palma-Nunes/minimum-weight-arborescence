@@ -23,3 +23,17 @@ Where NAME in `optimalarborescence.NAME` should be replaced by the name of the f
 To see an example of writing a simple graph to a memory mapped file and reading it run:
 
 `mvn exec:java -Dexec.mainClass="optimalarborescence.Main"`
+
+## Running Tests
+
+To run all the unit tests with maven, just run the following maven command at the project's root directory:
+
+`mvn test`
+
+To run a specific class of tests, add the `-Dtest` flag. For example, to run the NodeIndexMapperTests run:
+
+`mvn test -Dtest=NodeIndexMapperTest`
+
+If you just want to run a specific unit test from the a class of tests `<TestClass>`, run the following command:
+
+`mvn test -Dtest=<TestClass>#<TEST_NAME>`
