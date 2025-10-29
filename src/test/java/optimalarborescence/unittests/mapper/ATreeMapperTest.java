@@ -1,8 +1,9 @@
-package optimalarborescence.memorymapper;
+package optimalarborescence.unittests.mapper;
 
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
 import optimalarborescence.inference.dynamic.ATreeNode;
+import optimalarborescence.memorymapper.ATreeMapper;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
