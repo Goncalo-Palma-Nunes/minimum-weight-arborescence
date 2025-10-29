@@ -1,6 +1,5 @@
 package optimalarborescence.inference.dynamic;
 
-import java.io.Serializable;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -34,7 +33,9 @@ public class ATreeNode extends TarjanForestNode {
      * this.parent = null, if this is the root node (if this.edge == null) */
     protected ATreeNode parent;
 
-    /** The children of this ATreeNode in the ATree. */
+    /** The children of this ATreeNode in the ATree. 
+     * NOTE: This shadows the parent class field intentionally since the parent field
+     * is package-private and not accessible. */
     protected List<ATreeNode> children;
 
     /** Whether this node is a simple node or a c-node.
@@ -60,6 +61,7 @@ public class ATreeNode extends TarjanForestNode {
 
     public ATreeNode(Edge edge, int y, ATreeNode parent, List<ATreeNode> children, boolean simpleNode, List<Edge> contractedEdges, int id) {
         super(edge);
+        this.edge = edge; // Set our shadowed field too
         this.y = y;
         this.parent = parent;
         this.children = children;
@@ -94,6 +96,26 @@ public class ATreeNode extends TarjanForestNode {
 
     public int getId() {
         return id;
+    }
+
+    public ATreeNode getParent() {
+        return parent;
+    }
+
+    public void setParent(ATreeNode parent) {
+        this.parent = parent;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void setChildren(List<ATreeNode> children) {
+        this.children = children;
+        // Also update parent's children field (which getChildren() returns)
+        // by clearing and adding all elements
+        List<TarjanForestNode> parentChildren = super.getChildren();
+        parentChildren.clear();
+        if (children != null) {
+            parentChildren.addAll((List<TarjanForestNode>) (List<?>) children);
+        }
     }
 
     public boolean isSimpleNode() {
