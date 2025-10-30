@@ -1,22 +1,15 @@
 package optimalarborescence.unittests.graph;
 
 import optimalarborescence.graph.Node;
-import optimalarborescence.nearestneighbour.Point;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
-import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class NodeTest {
 
-    private Node nodeA;
-    private Node nodeB;
-    private Node nodeC;
     List<String> mlstDataList = new ArrayList<String>() {{
         add("AACGT");
         add("AAGCT");
