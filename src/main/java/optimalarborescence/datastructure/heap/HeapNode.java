@@ -2,7 +2,7 @@ package optimalarborescence.datastructure.heap;
 
 import optimalarborescence.graph.Edge;
 
-public class HeapNode {
+public class HeapNode { // TODO - refactor para os parametros serem private
     private static final long id = 1L; // for debugging purposes
     int val;
     Edge e;
