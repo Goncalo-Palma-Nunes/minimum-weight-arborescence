@@ -16,12 +16,26 @@
   </properties>
 
   <dependencies>
-    <!-- Junit (Unit Tests) -->
+    <!-- JUnit 5 (Jupiter) for Unit Tests -->
     <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <version>4.13.2</version>
-      <scope>test</scope> <!-- Indicates that this dependency is only required for the test phase -->
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.11.0</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter-params</artifactId>
+        <version>5.11.0</version>
+        <scope>test</scope>
+    </dependency>
+    
+    <!-- JUnit Vintage Engine for running JUnit 4 tests -->
+    <dependency>
+      <groupId>org.junit.vintage</groupId>
+      <artifactId>junit-vintage-engine</artifactId>
+      <version>5.11.0</version>
+      <scope>test</scope>
     </dependency>
 
     <!-- Apache Commons Math -->
@@ -45,6 +59,13 @@
         <configuration>
           <mainClass>${exec.mainClass}</mainClass>
         </configuration>
+      </plugin>
+      
+      <!-- Maven Surefire Plugin for running tests (JUnit 5 support) -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.0.0-M9</version>
       </plugin>
     </plugins>
   </build>
