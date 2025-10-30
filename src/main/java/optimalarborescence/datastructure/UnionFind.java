@@ -23,7 +23,7 @@ public class UnionFind {
             rank[i] = 1;   // Each set has rank 1 initially
         }
 
-        System.out.println("UnionFind initialized with " + n + " elements.");
+        // System.out.println("UnionFind initialized with " + n + " elements.");
     }
 
     /** Gets the size of the UnionFind structure. */

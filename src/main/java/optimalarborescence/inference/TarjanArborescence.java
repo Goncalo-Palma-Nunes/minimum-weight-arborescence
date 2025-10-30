@@ -254,7 +254,7 @@ public class TarjanArborescence extends StaticAlgorithm {
         return cycle.stream().max(Comparator.comparing(n -> n.edge.getWeight())).orElseThrow();
     }
 
-    private void updateSCCMaxWeightEdge(Node rep) {
+    private void updateSCCMaxWeightEdge(Node rep) { // TODO - isto faz alguma coisa?????
         List<TarjanForestNode> cycleEdges = getCycleEdges(rep);
         if (!cycleEdges.isEmpty()) {
             Edge maxEdge = cycleEdges.stream().max(Comparator.comparing(n -> n.edge.getWeight())).orElseThrow().edge;

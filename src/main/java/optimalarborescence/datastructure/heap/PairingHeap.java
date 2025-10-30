@@ -2,10 +2,6 @@ package optimalarborescence.datastructure.heap;
 
 import java.util.Queue;
 
-import optimalarborescence.exception.NotImplementedException;
-
-import java.util.List;
-import java.util.ArrayList;
 import java.util.LinkedList;
 
 // TODO - a interface deve ser do tipo <HeapNode> ou outra coisa?
