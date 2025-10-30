@@ -134,7 +134,8 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         } else {
             extractNode(node);
             node.val = -newValue;
-            return meld(this.root, node);
+            this.root = meld(this.root, node);
+            return this.root;
         }
     }
 
