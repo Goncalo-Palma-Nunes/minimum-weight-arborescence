@@ -1,6 +1,5 @@
 package optimalarborescence.datastructure;
 
-import optimalarborescence.exception.NotImplementedException;
 
 public class UnionFindStronglyConnected extends UnionFind {
     private int[] weight;
