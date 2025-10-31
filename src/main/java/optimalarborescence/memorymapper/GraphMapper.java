@@ -111,4 +111,13 @@ public class GraphMapper {
         
         return incomingEdges;
     }
+
+    public static void addNode(Node node, List<Edge> incomingEdges, String baseName, int mlstLength) throws IOException {
+        String nodeIndexFile = baseName + "_nodes.dat";
+        String mlstDataFile = baseName + "_mlst.dat";
+        String edgeFile = baseName + "_edges.dat";
+
+        NodeIndexMapper.addNode(node, nodeIndexFile, mlstDataFile, mlstLength);
+        EdgeListMapper.addEdges(incomingEdges, node, edgeFile);
+    }
 }

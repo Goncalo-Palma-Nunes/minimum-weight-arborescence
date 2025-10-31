@@ -3,7 +3,6 @@ package optimalarborescence.nearestneighbour;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.Hashtable;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -11,12 +10,10 @@ import java.util.stream.Collectors;
 import java.util.Set;
 import java.util.TreeSet;
 
-import javax.management.RuntimeErrorException;
 
 import org.apache.commons.math3.util.CombinatoricsUtils;
 
 import optimalarborescence.distance.DistanceFunction;
-import optimalarborescence.distance.HammingDistance;
 import optimalarborescence.exception.NotImplementedException;
 
 /* TODO (importante) - Acho que há um bug com o parâmetero widthConcatenatedHashes

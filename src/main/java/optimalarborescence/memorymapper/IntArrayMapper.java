@@ -100,5 +100,15 @@ public class IntArrayMapper {
             mbb.force();
         }
     }
+
+    /**
+     * Append a single int element to the end of a memory-mapped file.
+     * @param fileName
+     * @param element
+     * @throws IOException
+     */
+    public static void appendElementToFile(String fileName, int element) throws IOException {
+        appendElementsToFile(fileName, new int[]{element});
+    }
     
 }

@@ -11,6 +11,7 @@ import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 
@@ -224,6 +225,256 @@ public class EdgeListMapper {
             Node dst = new Node("CGCG", dstId);
             
             return new Edge(src, dst, weight);
+        }
+    }
+
+    /**
+     * Add a single edge to the memory-mapped edge list file, maintaining sorted order by destination ID.
+     * <p>
+     * If the destination node has no incoming edges yet, the edge is appended at the end. Otherwise,
+     * the edge is inserted at the appropriate position to maintain order (by shifting subsequent edges, and
+     * update the respective offsets in the MLST index file).
+     * 
+     * @param edge
+     * @param fileName
+     * @throws IOException
+     */
+    public static void addEdge(Edge edge, String fileName) throws IOException {
+        Node dest = edge.getDestination();
+        
+
+        long offset = NodeIndexMapper.getIncomingEdgeOffset(fileName.replace("_edges.dat", "_mlst.dat"), dest.getID(), dest.getMLSTdata().length());
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
+            FileChannel channel = raf.getChannel()) {
+            long fileSize = channel.size();
+            
+            if (offset < 0) { // If the node has no incoming edges yet
+                // Append at the end
+                channel.position(fileSize);
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, fileSize, BYTES_PER_EDGE);
+                mbb.order(ByteOrder.nativeOrder());
+                
+                writeEdge(mbb, edge);
+                
+                mbb.force();
+
+                // update offset in mlst index file
+                NodeIndexMapper.updateIncomingEdgeOffset(
+                    fileName.replace("_edges.dat", "_mlst.dat"),
+                    dest.getID(),
+                    dest.getMLSTdata().length(),
+                    fileSize
+                );
+            } 
+            else {    // Insert at the specified offset (shifting subsequent edges)
+
+                // seek to offset and read edges until we find the right position to insert
+                channel.position(offset);
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, offset, fileSize - offset);
+                mbb.order(ByteOrder.nativeOrder());
+
+                // Read edges until we find the first one with a different destination
+                long insertPosition = offset;
+                boolean foundPosition = false;
+                while (mbb.remaining() >= BYTES_PER_EDGE && !foundPosition) {
+                    int currentSrcId = mbb.getInt();
+                    int currentDstId = mbb.getInt();
+                    int currentWeight = mbb.getInt();
+
+                    if (currentDstId != dest.getID()) { foundPosition = true; }
+                    else { insertPosition += BYTES_PER_EDGE; }
+                }
+
+                long shiftBy = BYTES_PER_EDGE;
+                Map<Integer, Long> updatedOffsets = shiftEdges(channel, insertPosition, shiftBy);
+                writeEdgeAtPosition(channel, insertPosition, edge);
+                NodeIndexMapper.updateIncomingEdgeOffsets(fileName.replace("_edges.dat", "_mlst.dat"), dest.getMLSTdata().length(), updatedOffsets);
+            }
+        }
+    }
+
+
+    /**
+     * Shift edges in the file starting from a given offset by a specified number of bytes.
+     * This is used to make space for inserting new edges while maintaining sorted order.
+     * <p>
+     * Returns a map of destination node IDs to their new offsets after the shift.
+     *
+     * @param channel The file channel for the edge list
+     * @param startOffset The offset to start shifting from
+     * @param shiftBy The number of bytes to shift
+     * @return A map of destination node IDs to their new offsets
+     * @throws IOException
+     */
+    private static Map<Integer, Long> shiftEdges(FileChannel channel, long startOffset, long shiftBy) throws IOException {
+        Map<Integer, Long> updatedOffsets = new HashMap<>();
+
+        long fileSize = channel.size();
+        long readPosition = fileSize - BYTES_PER_EDGE; // Start by shifting at the end to avoid overwriting data
+        long writePosition = fileSize - BYTES_PER_EDGE + shiftBy;
+        ByteOrder order = ByteOrder.nativeOrder();
+        channel.position(readPosition);
+        MappedByteBuffer readMbb = channel.map(FileChannel.MapMode.READ_ONLY, readPosition, BYTES_PER_EDGE);
+        readMbb.order(order);
+        MappedByteBuffer writeMbb = channel.map(FileChannel.MapMode.READ_WRITE, writePosition, BYTES_PER_EDGE);
+        writeMbb.order(order);
+
+        while (readPosition >= startOffset) {
+            // Read edge
+            int srcId = readMbb.getInt();
+            int dstId = readMbb.getInt();
+            int weight = readMbb.getInt();
+
+            // Write edge at new position
+            writeEdge(writeMbb, srcId, dstId, weight);
+
+            // Update offset for destination node
+            updatedOffsets.put(dstId, writePosition); // Since we read from the end, the final offset will be of the last edge we read
+
+            // Move to previous edge
+            readPosition -= BYTES_PER_EDGE;
+            writePosition -= BYTES_PER_EDGE;
+            if (readPosition >= startOffset) {
+                channel.position(readPosition);
+                readMbb = channel.map(FileChannel.MapMode.READ_ONLY, readPosition, BYTES_PER_EDGE);
+                readMbb.order(order);
+                channel.position(writePosition);
+                writeMbb = channel.map(FileChannel.MapMode.READ_WRITE, writePosition, BYTES_PER_EDGE);
+                writeMbb.order(order);
+            }
+        }
+
+        return updatedOffsets;
+    }
+
+    /**
+     * Write an edge at a specific position in the file.
+     *
+     * @param channel The file channel for the edge list
+     * @param position The byte position to write the edge at
+     * @param edge The edge to write
+     * @throws IOException
+     */
+    private static void writeEdgeAtPosition(FileChannel channel, long position, Edge edge) throws IOException {
+        MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, position, BYTES_PER_EDGE);
+        mbb.order(ByteOrder.nativeOrder());
+
+        writeEdge(mbb, edge);
+
+        mbb.force();
+    }
+
+    /**
+     * Write multiple edges starting at a specific position in the file.
+     *
+     * @param channel The file channel for the edge list
+     * @param position The byte position to start writing edges at
+     * @param edges The list of edges to write
+     * @throws IOException
+     */
+    private static void writeEdges(FileChannel channel, long position, List<Edge> edges) throws IOException {
+        MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, position, (long) edges.size() * BYTES_PER_EDGE);
+        mbb.order(ByteOrder.nativeOrder());
+
+        for (Edge edge : edges) {
+            writeEdge(mbb, edge);
+        }
+
+        mbb.force();
+    }
+
+    /**
+     * Write a single edge to the given MappedByteBuffer.
+     *
+     * @param mbb The MappedByteBuffer to write to
+     * @param edge The edge to write
+     */
+    private static void writeEdge(MappedByteBuffer mbb, Edge edge) {
+        mbb.putInt(edge.getSource().getID());
+        mbb.putInt(edge.getDestination().getID());
+        mbb.putInt(edge.getWeight());
+    }
+
+    /**
+     * Write a single edge to the given MappedByteBuffer using individual components.
+     *
+     * @param mbb The MappedByteBuffer to write to
+     * @param srcId Source node ID
+     * @param dstId Destination node ID
+     * @param weight Edge weight
+     */
+    private static void writeEdge(MappedByteBuffer mbb, int srcId, int dstId, int weight) {
+        mbb.putInt(srcId);
+        mbb.putInt(dstId);
+        mbb.putInt(weight);
+    }
+
+    /**
+     * Add multiple edges for a node to the memory-mapped edge list file, maintaining sorted order by destination ID.
+     * <p>
+     * If the destination node has no incoming edges yet, the edges are appended at the end. Otherwise,
+     * the edges are inserted at the appropriate position to maintain order (by shifting subsequent edges, and
+     * update the respective offsets in the MLST index file).
+     *
+     * @param edges The list of edges to add
+     * @param node The destination node for all edges
+     * @param fileName The name of the edge list file
+     * @throws IOException
+     */
+    public static void addEdges(List<Edge> edges, Node node, String fileName) throws IOException {
+        Node dest = node;
+        
+
+        long offset = NodeIndexMapper.getIncomingEdgeOffset(fileName.replace("_edges.dat", "_mlst.dat"), dest.getID(), dest.getMLSTdata().length());
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
+            FileChannel channel = raf.getChannel()) {
+            long fileSize = channel.size();
+
+            if (offset < 0) { // If the node has no incoming edges yet
+                // TODO - refactor para appendEdge
+                // Append at the end
+                channel.position(fileSize);
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, fileSize, edges.size() * BYTES_PER_EDGE);
+                mbb.order(ByteOrder.nativeOrder());
+                
+                for (Edge edge : edges) {
+                    writeEdge(mbb, edge);
+                }
+                
+                mbb.force();
+
+                // update offset in mlst index file
+                NodeIndexMapper.updateIncomingEdgeOffset(
+                    fileName.replace("_edges.dat", "_mlst.dat"),
+                    dest.getID(),
+                    dest.getMLSTdata().length(),
+                    fileSize
+                );
+            } 
+            else {    // Insert at the specified offset (shifting subsequent edges)
+
+                // seek to offset and read edges until we find the right position to insert
+                channel.position(offset);
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, offset, fileSize - offset);
+                mbb.order(ByteOrder.nativeOrder());
+
+                // Read edges until we find the first one with a different destination
+                long insertPosition = offset;
+                boolean foundPosition = false;
+                while (mbb.remaining() >= BYTES_PER_EDGE && !foundPosition) {
+                    int currentSrcId = mbb.getInt();
+                    int currentDstId = mbb.getInt();
+                    int currentWeight = mbb.getInt();
+
+                    if (currentDstId != dest.getID()) { foundPosition = true; }
+                    else { insertPosition += BYTES_PER_EDGE; }
+                }
+
+                long shiftBy = (long) edges.size() * BYTES_PER_EDGE;
+                Map<Integer, Long> updatedOffsets = shiftEdges(channel, insertPosition, shiftBy);
+                writeEdges(channel, insertPosition, edges);
+                NodeIndexMapper.updateIncomingEdgeOffsets(fileName.replace("_edges.dat", "_mlst.dat"), dest.getMLSTdata().length(), updatedOffsets);
+            }
         }
     }
 }

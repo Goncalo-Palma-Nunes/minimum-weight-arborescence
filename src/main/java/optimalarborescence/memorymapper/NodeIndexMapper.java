@@ -249,4 +249,80 @@ public class NodeIndexMapper {
             return mbb.getLong();
         }
     }
+
+    /**
+     * Add a single node to the memory-mapped files.
+     * 
+     * @param node
+     * @param nodeIndexFile
+     * @param mlstDataFile
+     * @param mlstLength
+     * @throws IOException
+     */
+    public static void addNode(Node node, String nodeIndexFile, String mlstDataFile, int mlstLength) throws IOException {
+        IntArrayMapper.appendElementToFile(nodeIndexFile, node.getID());
+
+        // Append MLST data and offset
+        try (RandomAccessFile raf = new RandomAccessFile(mlstDataFile, "rw");
+            FileChannel channel = raf.getChannel()) {
+            long position = channel.size();
+            String mlstData = node.getMLSTdata();
+            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, position, mlstLength + Long.BYTES);
+            mbb.order(ByteOrder.nativeOrder());
+            mbb.put(mlstData.getBytes(StandardCharsets.UTF_8));
+            mbb.putLong(-1L); // New node has no incoming edges initially
+            mbb.force();
+        }
+    }
+
+    /**
+     * Update the incoming edge offset for a specific node.
+     * 
+     * @param mlstDataFile
+     * @param nodeId
+     * @param mlstLength
+     * @param newOffset
+     * @throws IOException
+     */
+    public static void updateIncomingEdgeOffset(String mlstDataFile, int nodeId, int mlstLength, long newOffset) throws IOException {
+        int entrySize = mlstLength + Long.BYTES;
+        long position = (long) nodeId * entrySize + mlstLength; // Skip to offset field
+
+        try (RandomAccessFile raf = new RandomAccessFile(mlstDataFile, "rw");
+             FileChannel channel = raf.getChannel()) {
+
+            if (position + Long.BYTES > channel.size()) { 
+                throw new IOException("Node ID " + nodeId + " out of range"); 
+            }
+
+            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, position, Long.BYTES);
+            mbb.order(ByteOrder.nativeOrder());
+            mbb.putLong(newOffset);
+            mbb.force();
+        }
+    }
+
+    public static void updateIncomingEdgeOffsets(String mlstDataFile, int mlstLength, Map<Integer, Long> updatedOffsets) throws IOException {
+        
+        try (RandomAccessFile raf = new RandomAccessFile(mlstDataFile, "rw");
+            FileChannel channel = raf.getChannel()) {
+
+            for (Map.Entry<Integer, Long> entry : updatedOffsets.entrySet()) {
+                int nodeId = entry.getKey();
+                long newOffset = entry.getValue();
+                
+                int entrySize = mlstLength + Long.BYTES;
+                long position = (long) nodeId * entrySize + mlstLength; // Skip to offset field
+
+                if (position + Long.BYTES > channel.size()) { 
+                    throw new IOException("Node ID " + nodeId + " out of range"); 
+                }
+
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, position, Long.BYTES);
+                mbb.order(ByteOrder.nativeOrder());
+                mbb.putLong(newOffset);
+                mbb.force();
+            }
+        }
+    }
 }
