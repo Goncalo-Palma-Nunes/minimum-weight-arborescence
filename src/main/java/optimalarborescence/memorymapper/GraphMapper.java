@@ -59,7 +59,16 @@ public class GraphMapper {
         // Load edges
         List<Edge> edges = EdgeListMapper.loadEdgesFromMappedFile(edgeFile, nodeMap);
         
-        return new Graph(edges);
+        Graph graph = new Graph(edges);
+        
+        // Add any isolated nodes (nodes that don't appear in any edges)
+        for (Node node : nodeMap.values()) {
+            if (!graph.getNodes().contains(node)) {
+                graph.addNode(node);
+            }
+        }
+        
+        return graph;
     }
     
     /**

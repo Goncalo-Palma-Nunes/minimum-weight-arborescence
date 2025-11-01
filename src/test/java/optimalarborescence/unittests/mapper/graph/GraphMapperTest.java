@@ -97,9 +97,9 @@ public class GraphMapperTest {
                 loadedEdge.getDestination().getID() == 1 && 
                 loadedEdge.getWeight() == 5) {
                 foundMatchingEdge = true;
-                Assert.assertEquals("Source MLST should match", "ATCG", 
+                Assert.assertEquals("Source MLST should match", "ATCGATCGATCGATCGATCG", 
                                   loadedEdge.getSource().getMLSTdata());
-                Assert.assertEquals("Destination MLST should match", "GCTA", 
+                Assert.assertEquals("Destination MLST should match", "GCTAGCTAGCTAGCTAGCTA", 
                                   loadedEdge.getDestination().getMLSTdata());
                 break;
             }
@@ -395,6 +395,256 @@ public class GraphMapperTest {
         // Clean up
         deleteTestFiles(baseName);
     }
+
+    // ===== Tests for addNode method =====
+
+    /**
+     * Test adding a new node with no incoming edges to an existing graph.
+     */
+    @Test
+    public void testAddNodeWithNoIncomingEdges() throws IOException {
+        // Arrange - save initial graph
+        String baseName = TEST_BASE_NAME + "_addnode1";
+        GraphMapper.saveGraph(testGraph, MLST_LENGTH, baseName);
+        
+        // Create new node with no incoming edges
+        Node newNode = new Node("AAAAAAAAAAAAAAAAAAAA", 4);
+        List<Edge> incomingEdges = new ArrayList<>();
+        
+        // Act
+        GraphMapper.addNode(newNode, incomingEdges, baseName, MLST_LENGTH);
+        
+        // Assert - reload graph and verify
+        Graph loadedGraph = GraphMapper.loadGraph(baseName);
+        Assert.assertEquals("Should have 5 nodes (4 original + 1 new)", 
+                          5, loadedGraph.getNumNodes());
+        Assert.assertEquals("Should have same number of edges as original", 
+                          testGraph.getNumEdges(), loadedGraph.getNumEdges());
+        
+        // Verify the new node exists
+        boolean foundNewNode = false;
+        for (Node node : loadedGraph.getNodes()) {
+            if (node.getID() == 4) {
+                foundNewNode = true;
+                Assert.assertEquals("New node MLST should match", "AAAAAAAAAAAAAAAAAAAA", node.getMLSTdata());
+                break;
+            }
+        }
+        Assert.assertTrue("New node should be found in loaded graph", foundNewNode);
+        
+        // Clean up
+        deleteTestFiles(baseName);
+    }
+
+    /**
+     * Test adding a new node with single incoming edge.
+     */
+    @Test
+    public void testAddNodeWithSingleIncomingEdge() throws IOException {
+        // Arrange - save initial graph
+        String baseName = TEST_BASE_NAME + "_addnode2";
+        GraphMapper.saveGraph(testGraph, MLST_LENGTH, baseName);
+        
+        // Create new node with one incoming edge
+        Node newNode = new Node("AACCAACCAACCAACCAACC", 4);
+        Node existingNode = new Node("ATCGATCGATCGATCGATCG", 0); // Node from original graph
+        List<Edge> incomingEdges = new ArrayList<>();
+        incomingEdges.add(new Edge(existingNode, newNode, 100));
+        
+        // Act
+        GraphMapper.addNode(newNode, incomingEdges, baseName, MLST_LENGTH);
+        
+        // Assert - reload graph and verify
+        Graph loadedGraph = GraphMapper.loadGraph(baseName);
+        Assert.assertEquals("Should have 5 nodes", 5, loadedGraph.getNumNodes());
+        Assert.assertEquals("Should have 7 edges (6 original + 1 new)", 
+                          7, loadedGraph.getNumEdges());
+        
+        // Verify the new edge exists
+        boolean foundNewEdge = false;
+        for (Edge edge : loadedGraph.getEdges()) {
+            if (edge.getSource().getID() == 0 && 
+                edge.getDestination().getID() == 4 && 
+                edge.getWeight() == 100) {
+                foundNewEdge = true;
+                break;
+            }
+        }
+        Assert.assertTrue("New edge should be found in loaded graph", foundNewEdge);
+        
+        // Clean up
+        deleteTestFiles(baseName);
+    }
+
+    /**
+     * Test adding a new node with multiple incoming edges.
+     */
+    @Test
+    public void testAddNodeWithMultipleIncomingEdges() throws IOException {
+        // Arrange - save initial graph
+        String baseName = TEST_BASE_NAME + "_addnode3";
+        GraphMapper.saveGraph(testGraph, MLST_LENGTH, baseName);
+        
+        // Create new node with multiple incoming edges
+        Node newNode = new Node("AACCAACCAACCAACCAACC", 4);
+        Node node0 = new Node("ATCGATCGATCGATCGATCG", 0);
+        Node node1 = new Node("GCTAGCTAGCTAGCTAGCTA", 1);
+        Node node2 = new Node("TGACTGACTGACTGACTGAC", 2);
+        
+        List<Edge> incomingEdges = new ArrayList<>();
+        incomingEdges.add(new Edge(node0, newNode, 50));
+        incomingEdges.add(new Edge(node1, newNode, 60));
+        incomingEdges.add(new Edge(node2, newNode, 70));
+        
+        // Act
+        GraphMapper.addNode(newNode, incomingEdges, baseName, MLST_LENGTH);
+        
+        // Assert - reload graph and verify
+        Graph loadedGraph = GraphMapper.loadGraph(baseName);
+        Assert.assertEquals("Should have 5 nodes", 5, loadedGraph.getNumNodes());
+        Assert.assertEquals("Should have 9 edges (6 original + 3 new)", 
+                          9, loadedGraph.getNumEdges());
+        
+        // Verify all new edges exist
+        int newEdgesFound = 0;
+        for (Edge edge : loadedGraph.getEdges()) {
+            if (edge.getDestination().getID() == 4) {
+                newEdgesFound++;
+                Assert.assertTrue("Weight should be 50, 60, or 70", 
+                    edge.getWeight() == 50 || edge.getWeight() == 60 || edge.getWeight() == 70);
+            }
+        }
+        Assert.assertEquals("Should find all 3 new edges", 3, newEdgesFound);
+        
+        // Clean up
+        deleteTestFiles(baseName);
+    }
+
+    /**
+     * Test adding multiple nodes sequentially.
+     */
+    @Test
+    public void testAddMultipleNodesSequentially() throws IOException {
+        // Arrange - save initial graph
+        String baseName = TEST_BASE_NAME + "_addnode4";
+        GraphMapper.saveGraph(testGraph, MLST_LENGTH, baseName);
+        
+        // Add first new node
+        Node newNode1 = new Node("AAATAAATAAATAAATAAAT", 4);
+        List<Edge> edges1 = new ArrayList<>();
+        edges1.add(new Edge(new Node("ATCGATCGATCGATCGATCG", 0), newNode1, 10));
+        GraphMapper.addNode(newNode1, edges1, baseName, MLST_LENGTH);
+        
+        // Add second new node
+        Node newNode2 = new Node("AAAGAAAGAAAGAAAGAAAG", 5);
+        List<Edge> edges2 = new ArrayList<>();
+        edges2.add(new Edge(new Node("GCTAGCTAGCTAGCTAGCTA", 1), newNode2, 20));
+        GraphMapper.addNode(newNode2, edges2, baseName, MLST_LENGTH);
+        
+        // Add third new node
+        Node newNode3 = new Node("AAACAAACAAACAAACAAAC", 6);
+        List<Edge> edges3 = new ArrayList<>();
+        edges3.add(new Edge(newNode1, newNode3, 30)); // Edge from first new node
+        GraphMapper.addNode(newNode3, edges3, baseName, MLST_LENGTH);
+        
+        // Assert - reload graph and verify
+        Graph loadedGraph = GraphMapper.loadGraph(baseName);
+        Assert.assertEquals("Should have 7 nodes (4 original + 3 new)", 
+                          7, loadedGraph.getNumNodes());
+        Assert.assertEquals("Should have 9 edges (6 original + 3 new)", 
+                          9, loadedGraph.getNumEdges());
+        
+        // Verify all new nodes exist
+        int newNodesFound = 0;
+        for (Node node : loadedGraph.getNodes()) {
+            if (node.getID() >= 4 && node.getID() <= 6) {
+                newNodesFound++;
+            }
+        }
+        Assert.assertEquals("Should find all 3 new nodes", 3, newNodesFound);
+        
+        // Clean up
+        deleteTestFiles(baseName);
+    }
+
+    /**
+     * Test adding a node with edges of various weights.
+     */
+    @Test
+    public void testAddNodeWithVariousEdgeWeights() throws IOException {
+        // Arrange - save initial graph
+        String baseName = TEST_BASE_NAME + "_addnode5";
+        GraphMapper.saveGraph(testGraph, MLST_LENGTH, baseName);
+        
+        // Create new node with edges of various weights
+        Node newNode = new Node("AAAAAAAAAAAAAAAAAAAA", 4);
+        List<Edge> incomingEdges = new ArrayList<>();
+        incomingEdges.add(new Edge(new Node("ATCGATCGATCGATCGATCG", 0), newNode, 0));
+        incomingEdges.add(new Edge(new Node("GCTAGCTAGCTAGCTAGCTA", 1), newNode, Integer.MAX_VALUE));
+        incomingEdges.add(new Edge(new Node("TGACTGACTGACTGACTGAC", 2), newNode, Integer.MIN_VALUE));
+        incomingEdges.add(new Edge(new Node("CGATCGATCGATCGATCGAT", 3), newNode, -999));
+        
+        // Act
+        GraphMapper.addNode(newNode, incomingEdges, baseName, MLST_LENGTH);
+        
+        // Assert - reload graph and verify
+        Graph loadedGraph = GraphMapper.loadGraph(baseName);
+        Assert.assertEquals("Should have 5 nodes", 5, loadedGraph.getNumNodes());
+        Assert.assertEquals("Should have 10 edges (6 original + 4 new)", 
+                          10, loadedGraph.getNumEdges());
+        
+        // Verify edge weights are preserved
+        boolean foundZeroWeight = false;
+        boolean foundMaxWeight = false;
+        boolean foundMinWeight = false;
+        boolean foundNegativeWeight = false;
+        
+        for (Edge edge : loadedGraph.getEdges()) {
+            if (edge.getDestination().getID() == 4) {
+                if (edge.getWeight() == 0) foundZeroWeight = true;
+                if (edge.getWeight() == Integer.MAX_VALUE) foundMaxWeight = true;
+                if (edge.getWeight() == Integer.MIN_VALUE) foundMinWeight = true;
+                if (edge.getWeight() == -999) foundNegativeWeight = true;
+            }
+        }
+        
+        Assert.assertTrue("Should find edge with weight 0", foundZeroWeight);
+        Assert.assertTrue("Should find edge with MAX weight", foundMaxWeight);
+        Assert.assertTrue("Should find edge with MIN weight", foundMinWeight);
+        Assert.assertTrue("Should find edge with negative weight", foundNegativeWeight);
+        
+        // Clean up
+        deleteTestFiles(baseName);
+    }
+
+    /**
+     * Test adding a node to empty graph.
+     */
+    @Test
+    public void testAddNodeToEmptyGraph() throws IOException {
+        // Arrange - create and save empty graph
+        String baseName = TEST_BASE_NAME + "_addnode6";
+        Graph emptyGraph = new Graph(new ArrayList<>());
+        GraphMapper.saveGraph(emptyGraph, MLST_LENGTH, baseName);
+        
+        // Create new node with no incoming edges
+        Node newNode = new Node("ACGTACGTACGTACGTACGT", 0);
+        List<Edge> incomingEdges = new ArrayList<>();
+        
+        // Act
+        GraphMapper.addNode(newNode, incomingEdges, baseName, MLST_LENGTH);
+        
+        // Assert - reload graph and verify
+        Graph loadedGraph = GraphMapper.loadGraph(baseName);
+        Assert.assertEquals("Should have 1 node", 1, loadedGraph.getNumNodes());
+        Assert.assertEquals("Should have 0 edges", 0, loadedGraph.getNumEdges());
+        Assert.assertEquals("Node ID should be 0", 0, loadedGraph.getNodes().get(0).getID());
+        Assert.assertEquals("Node MLST should match", "ACGTACGTACGTACGTACGT", 
+                          loadedGraph.getNodes().get(0).getMLSTdata());
+        
+        // Clean up
+        deleteTestFiles(baseName);
+    }
     
     // Helper methods
     
@@ -402,10 +652,10 @@ public class GraphMapperTest {
      * Create a test graph with known structure.
      */
     private Graph createTestGraph() {
-        Node n0 = new Node("ATCG", 0);
-        Node n1 = new Node("GCTA", 1);
-        Node n2 = new Node("TGAC", 2);
-        Node n3 = new Node("CGAT", 3);
+        Node n0 = new Node("ATCGATCGATCGATCGATCG", 0);
+        Node n1 = new Node("GCTAGCTAGCTAGCTAGCTA", 1);
+        Node n2 = new Node("TGACTGACTGACTGACTGAC", 2);
+        Node n3 = new Node("CGATCGATCGATCGATCGAT", 3);
         
         List<Edge> edges = new ArrayList<>();
         edges.add(new Edge(n0, n1, 5));
