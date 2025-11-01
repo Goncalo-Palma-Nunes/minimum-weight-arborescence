@@ -260,6 +260,12 @@ public class NodeIndexMapper {
      * @throws IOException
      */
     public static void addNode(Node node, String nodeIndexFile, String mlstDataFile, int mlstLength) throws IOException {
+        // First, update the num_nodes metadata in the node index file
+        int[] currentIndices = IntArrayMapper.loadArrayFromMappedFile(nodeIndexFile);
+        int currentNumNodes = currentIndices[0];
+        IntArrayMapper.saveElementToFileAtPosition(nodeIndexFile, currentNumNodes + 1, 0);
+        
+        // Append the new node ID
         IntArrayMapper.appendElementToFile(nodeIndexFile, node.getID());
 
         // Append MLST data and offset
