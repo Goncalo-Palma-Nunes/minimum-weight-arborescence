@@ -422,6 +422,11 @@ public class EdgeListMapper {
      * @throws IOException
      */
     public static void addEdges(List<Edge> edges, Node node, String fileName) throws IOException {
+        // Handle empty edge list - nothing to add
+        if (edges == null || edges.isEmpty()) {
+            return;
+        }
+        
         Node dest = node;
         
 
@@ -452,6 +457,19 @@ public class EdgeListMapper {
                 );
             } 
             else {    // Insert at the specified offset (shifting subsequent edges)
+                // If offset equals or exceeds fileSize, there are no edges after this position, so just append
+                if (offset >= fileSize) {
+                    channel.position(fileSize);
+                    MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, fileSize, edges.size() * BYTES_PER_EDGE);
+                    mbb.order(ByteOrder.nativeOrder());
+                    
+                    for (Edge edge : edges) {
+                        writeEdge(mbb, edge);
+                    }
+                    
+                    mbb.force();
+                    return; // No need to update offset since it's already set
+                }
 
                 // seek to offset and read edges until we find the right position to insert
                 channel.position(offset);
