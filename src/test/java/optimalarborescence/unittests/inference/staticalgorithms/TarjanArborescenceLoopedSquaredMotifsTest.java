@@ -81,7 +81,8 @@ public class TarjanArborescenceLoopedSquaredMotifsTest {
 
         Assert.assertNotNull(result);
         Assert.assertEquals(expectedEdges.size(), result.getEdges().size());
-        Assert.assertTrue(isValidArborescence(originalGraph, result));
+        Assert.assertTrue("The resulting graph is not a valid arborescence.",
+            isValidArborescence(originalGraph, result));
 
         int expectedCost = expectedEdges.stream().mapToInt(Edge::getWeight).sum();
         int resultCost = result.getEdges().stream().mapToInt(Edge::getWeight).sum();

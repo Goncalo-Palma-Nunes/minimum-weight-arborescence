@@ -45,25 +45,20 @@ public class GraphMapperTest {
         // Assert - verify all three files were created
         File edgeFile = new File(TEST_BASE_NAME + "_edges.dat");
         File nodeFile = new File(TEST_BASE_NAME + "_nodes.dat");
-        File mlstFile = new File(TEST_BASE_NAME + "_mlst.dat");
         
         Assert.assertTrue("Edge file should exist", edgeFile.exists());
         Assert.assertTrue("Node file should exist", nodeFile.exists());
-        Assert.assertTrue("MLST file should exist", mlstFile.exists());
         
         // Verify file sizes are reasonable
         Assert.assertTrue("Edge file should not be empty", edgeFile.length() > 0);
         Assert.assertTrue("Node file should not be empty", nodeFile.length() > 0);
-        Assert.assertTrue("MLST file should not be empty", mlstFile.length() > 0);
         
         // Edge file: 6 edges * 12 bytes = 72 bytes
         Assert.assertEquals("Edge file size should be 72 bytes", 72, edgeFile.length());
         
-        // Node file: 2 metadata ints + 4 node IDs = 6 ints * 4 bytes = 24 bytes
-        Assert.assertEquals("Node file size should be 24 bytes", 24, nodeFile.length());
-        
-        // MLST file: 4 nodes * (20 bytes MLST + 8 bytes offset) = 112 bytes
-        Assert.assertEquals("MLST file size should be 112 bytes", 112, mlstFile.length());
+        // Node file: header (8 bytes) + 4 nodes × (20 bytes MLST + 8 bytes offset) = 8 + 4×28 = 120 bytes
+        Assert.assertEquals("Node file size should be 120 bytes", 120, nodeFile.length());
+
     }
     
     /**
@@ -154,19 +149,19 @@ public class GraphMapperTest {
         
         // Act & Assert
         // Node 0 has 1 incoming edge (from node 3)
-        long offset0 = GraphMapper.getIncomingEdgeOffset(TEST_BASE_NAME, 0, MLST_LENGTH);
+        long offset0 = GraphMapper.getIncomingEdgeOffset(TEST_BASE_NAME, 0);
         Assert.assertEquals("Node 0 should have offset 0", 0, offset0);
         
         // Node 1 has 1 incoming edge (from node 0)
-        long offset1 = GraphMapper.getIncomingEdgeOffset(TEST_BASE_NAME, 1, MLST_LENGTH);
+        long offset1 = GraphMapper.getIncomingEdgeOffset(TEST_BASE_NAME, 1);
         Assert.assertEquals("Node 1 should have offset 12", 12, offset1);
         
         // Node 2 has 2 incoming edges (from nodes 0 and 1)
-        long offset2 = GraphMapper.getIncomingEdgeOffset(TEST_BASE_NAME, 2, MLST_LENGTH);
+        long offset2 = GraphMapper.getIncomingEdgeOffset(TEST_BASE_NAME, 2);
         Assert.assertEquals("Node 2 should have offset 24", 24, offset2);
         
         // Node 3 has 2 incoming edges (from nodes 1 and 2)
-        long offset3 = GraphMapper.getIncomingEdgeOffset(TEST_BASE_NAME, 3, MLST_LENGTH);
+        long offset3 = GraphMapper.getIncomingEdgeOffset(TEST_BASE_NAME, 3);
         Assert.assertEquals("Node 3 should have offset 48", 48, offset3);
     }
     
@@ -191,7 +186,7 @@ public class GraphMapperTest {
         GraphMapper.saveGraph(graph, MLST_LENGTH, baseName);
         
         // Act
-        long offset = GraphMapper.getIncomingEdgeOffset(baseName, 0, MLST_LENGTH);
+        long offset = GraphMapper.getIncomingEdgeOffset(baseName, 0);
         
         // Assert
         Assert.assertEquals("Node with no incoming edges should have offset -1", -1, offset);
@@ -208,12 +203,12 @@ public class GraphMapperTest {
         // Arrange
         GraphMapper.saveGraph(testGraph, MLST_LENGTH, TEST_BASE_NAME);
         Map<Integer, Node> nodeMap = NodeIndexMapper.loadNodes(
-            TEST_BASE_NAME + "_nodes.dat", TEST_BASE_NAME + "_mlst.dat");
+            TEST_BASE_NAME + "_nodes.dat");
         
         // Act - get incoming edges for node 2 (should have 2 edges)
         List<Edge> incomingEdges = GraphMapper.getIncomingEdges(
-            TEST_BASE_NAME, 2, MLST_LENGTH, nodeMap);
-        
+            TEST_BASE_NAME, 2, nodeMap);
+
         // Assert
         Assert.assertNotNull("Incoming edges list should not be null", incomingEdges);
         Assert.assertEquals("Node 2 should have 2 incoming edges", 2, incomingEdges.size());
@@ -244,12 +239,12 @@ public class GraphMapperTest {
         // Arrange
         GraphMapper.saveGraph(testGraph, MLST_LENGTH, TEST_BASE_NAME);
         Map<Integer, Node> nodeMap = NodeIndexMapper.loadNodes(
-            TEST_BASE_NAME + "_nodes.dat", TEST_BASE_NAME + "_mlst.dat");
+            TEST_BASE_NAME + "_nodes.dat");
         
         // Act - get incoming edges for node 1 (should have 1 edge)
         List<Edge> incomingEdges = GraphMapper.getIncomingEdges(
-            TEST_BASE_NAME, 1, MLST_LENGTH, nodeMap);
-        
+            TEST_BASE_NAME, 1, nodeMap);
+
         // Assert
         Assert.assertNotNull("Incoming edges list should not be null", incomingEdges);
         Assert.assertEquals("Node 1 should have 1 incoming edge", 1, incomingEdges.size());
@@ -278,11 +273,11 @@ public class GraphMapperTest {
         
         GraphMapper.saveGraph(graph, MLST_LENGTH, baseName);
         Map<Integer, Node> nodeMap = NodeIndexMapper.loadNodes(
-            baseName + "_nodes.dat", baseName + "_mlst.dat");
+            baseName + "_nodes.dat");
         
         // Act
         List<Edge> incomingEdges = GraphMapper.getIncomingEdges(
-            baseName, 0, MLST_LENGTH, nodeMap);
+            baseName, 0, nodeMap);
         
         // Assert
         Assert.assertNotNull("Incoming edges list should not be null", incomingEdges);
@@ -674,6 +669,5 @@ public class GraphMapperTest {
     private void deleteTestFiles(String baseName) {
         new File(baseName + "_edges.dat").delete();
         new File(baseName + "_nodes.dat").delete();
-        new File(baseName + "_mlst.dat").delete();
     }
 }

@@ -15,8 +15,7 @@ import java.util.Map;
  * 
  * File Structure:
  * - {baseName}_edges.dat: Edge list sorted by destination
- * - {baseName}_nodes.dat: Node index array
- * - {baseName}_mlst.dat: MLST data and incoming edge offsets
+ * - {baseName}_nodes.dat: Node data (header + MLST data and incoming edge offsets)
  */
 public class GraphMapper {
     
@@ -30,15 +29,14 @@ public class GraphMapper {
      */
     public static void saveGraph(Graph graph, int mlstLength, String baseName) throws IOException {
         String edgeFile = baseName + "_edges.dat";
-        String nodeIndexFile = baseName + "_nodes.dat";
-        String mlstDataFile = baseName + "_mlst.dat";
+        String nodeFile = baseName + "_nodes.dat";
         
         // Save edges (sorted by destination) and get incoming edge offsets
         Map<Integer, Long> incomingEdgeOffsets = EdgeListMapper.saveEdgesToMappedFile(
             graph.getEdges(), edgeFile);
         
         // Save nodes with MLST data and offsets
-        NodeIndexMapper.saveGraph(graph, mlstLength, incomingEdgeOffsets, nodeIndexFile, mlstDataFile);
+        NodeIndexMapper.saveGraph(graph, mlstLength, incomingEdgeOffsets, nodeFile);
     }
     
     /**
@@ -50,11 +48,10 @@ public class GraphMapper {
      */
     public static Graph loadGraph(String baseName) throws IOException {
         String edgeFile = baseName + "_edges.dat";
-        String nodeIndexFile = baseName + "_nodes.dat";
-        String mlstDataFile = baseName + "_mlst.dat";
+        String nodeFile = baseName + "_nodes.dat";
         
         // Load nodes
-        Map<Integer, Node> nodeMap = NodeIndexMapper.loadNodes(nodeIndexFile, mlstDataFile);
+        Map<Integer, Node> nodeMap = NodeIndexMapper.loadNodes(nodeFile);
         
         // Load edges
         List<Edge> edges = EdgeListMapper.loadEdgesFromMappedFile(edgeFile, nodeMap);
@@ -76,13 +73,12 @@ public class GraphMapper {
      * 
      * @param baseName Base name for files
      * @param nodeId Node ID to query
-     * @param mlstLength Fixed length of MLST data
      * @return Byte offset to first incoming edge, or -1 if none
      * @throws IOException if file operations fail
      */
-    public static long getIncomingEdgeOffset(String baseName, int nodeId, int mlstLength) throws IOException {
-        String mlstDataFile = baseName + "_mlst.dat";
-        return NodeIndexMapper.getIncomingEdgeOffset(mlstDataFile, nodeId, mlstLength);
+    public static long getIncomingEdgeOffset(String baseName, int nodeId) throws IOException {
+        String nodeFile = baseName + "_nodes.dat";
+        return NodeIndexMapper.getIncomingEdgeOffset(nodeFile, nodeId);
     }
     
     /**
@@ -90,17 +86,16 @@ public class GraphMapper {
      * 
      * @param baseName Base name for files
      * @param nodeId Node ID to query
-     * @param mlstLength Fixed length of MLST data
      * @param nodeMap Map of all nodes (for edge reconstruction)
      * @return List of incoming edges for the node
      * @throws IOException if file operations fail
      */
-    public static List<Edge> getIncomingEdges(String baseName, int nodeId, int mlstLength, 
+    public static List<Edge> getIncomingEdges(String baseName, int nodeId, 
                                                Map<Integer, Node> nodeMap) throws IOException {
         String edgeFile = baseName + "_edges.dat";
-        String mlstDataFile = baseName + "_mlst.dat";
+        String nodeFile = baseName + "_nodes.dat";
         
-        long offset = NodeIndexMapper.getIncomingEdgeOffset(mlstDataFile, nodeId, mlstLength);
+        long offset = NodeIndexMapper.getIncomingEdgeOffset(nodeFile, nodeId);
         if (offset < 0) {
             return List.of(); // No incoming edges
         }
@@ -122,11 +117,10 @@ public class GraphMapper {
     }
 
     public static void addNode(Node node, List<Edge> incomingEdges, String baseName, int mlstLength) throws IOException {
-        String nodeIndexFile = baseName + "_nodes.dat";
-        String mlstDataFile = baseName + "_mlst.dat";
+        String nodeFile = baseName + "_nodes.dat";
         String edgeFile = baseName + "_edges.dat";
 
-        NodeIndexMapper.addNode(node, nodeIndexFile, mlstDataFile, mlstLength);
+        NodeIndexMapper.addNode(node, nodeFile, mlstLength);
         EdgeListMapper.addEdges(incomingEdges, node, edgeFile);
     }
 }

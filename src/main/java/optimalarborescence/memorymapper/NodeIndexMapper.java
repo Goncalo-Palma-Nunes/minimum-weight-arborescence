@@ -15,42 +15,34 @@ import java.util.Map;
 
 /**
  * The NodeIndexMapper class offers several static methods to save and load a graph's 
- * nodes to and from memory-mapped files.
+ * nodes to and from a memory-mapped file.
  * <p>
  * 
- * The node index file represents an array of node indices, where the first element
- * indicates the number of nodes, the second element the MLST data length,
- * and the remaining elements represent the node IDs.
- * <p>
+ * File Format:
  * 
- * Additionally, the NodeIndexMapper saves each node's MLST data and an
- * offset to the start of its incoming edges in a separate memory-mapped file.
+ * Header:
+ *    [num_nodes (4 bytes), mlst_length (4 bytes)]
  * 
- * File Formats:
- * 
- * 1. Node Index File (using IntArrayMapper):
- *    [num_nodes (4 bytes), mlst_length (4 bytes), node_id_0 (4 bytes), node_id_1 (4 bytes), ...]
- * 
- * 2. MLST Data File:
- *    For each node (ordered by node ID from 0 to maxNodeId):
+ * For each node (ordered by node ID from 0 to maxNodeId):
  *    [mlst_data (mlst_length bytes), incoming_edge_offset (8 bytes)]
+ * 
+ * Node IDs are implicit based on position in the file.
  */
 public class NodeIndexMapper {
 
-    private static final int META_DATA_SIZE = 2; 
+    private static final int HEADER_SIZE = 2 * Integer.BYTES; // num_nodes + mlst_length 
 
     /**
-     * Save graph nodes to memory-mapped files.
+     * Save graph nodes to a memory-mapped file.
      * 
      * @param nodes List of nodes to save
      * @param mlstLength Fixed length of MLST data for all nodes
      * @param incomingEdgeOffsets Map of node ID to byte offset of first incoming edge
-     * @param nodeIndexFile Path to the node index file
-     * @param mlstDataFile Path to the MLST data file
+     * @param fileName Path to the output file
      * @throws IOException if file operations fail
      */
     public static void saveGraph(List<Node> nodes, int mlstLength, Map<Integer, Long> incomingEdgeOffsets, 
-                                  String nodeIndexFile, String mlstDataFile) throws IOException {
+                                  String fileName) throws IOException {
         // Find max node ID to determine array size
         int maxNodeId = -1;
         Map<Integer, Node> nodeMap = new HashMap<>();
@@ -59,53 +51,9 @@ public class NodeIndexMapper {
             nodeMap.put(node.getID(), node);
         }
         
-        // Save node index array (metadata + node IDs)
-        int[] nodeIndices = new int[maxNodeId + 1 + META_DATA_SIZE];
-        nodeIndices[0] = nodes.size();
-        nodeIndices[1] = mlstLength;
-        
-        // Populate with node IDs (using -1 for missing nodes)
-        for (int i = 0; i <= maxNodeId; i++) {
-            nodeIndices[i + META_DATA_SIZE] = nodeMap.containsKey(i) ? i : -1;
-        }
-        
-        IntArrayMapper.saveArrayToMappedFile(nodeIndices, nodeIndexFile);
-        
-        // Save MLST data and offsets
-        saveMlstDataToMappedFile(nodeMap, maxNodeId, mlstLength, incomingEdgeOffsets, mlstDataFile);
-    }
-
-    /**
-     * Save graph using Graph object.
-     * 
-     * @param graph Graph to save
-     * @param mlstLength Fixed length of MLST data
-     * @param incomingEdgeOffsets Map of node ID to incoming edge offset
-     * @param nodeIndexFile Path to node index file
-     * @param mlstDataFile Path to MLST data file
-     * @throws IOException if file operations fail
-     */
-    public static void saveGraph(Graph graph, int mlstLength, Map<Integer, Long> incomingEdgeOffsets,
-                                  String nodeIndexFile, String mlstDataFile) throws IOException {
-        saveGraph(graph.getNodes(), mlstLength, incomingEdgeOffsets, nodeIndexFile, mlstDataFile);
-    }
-    
-    /**
-     * Save MLST data and incoming edge offsets to a memory-mapped file.
-     * Each node gets a fixed-size entry: mlst_data (mlstLength bytes) + offset (8 bytes)
-     * 
-     * @param nodeMap Map of node ID to Node
-     * @param maxNodeId Maximum node ID
-     * @param mlstLength Fixed length for MLST data
-     * @param incomingEdgeOffsets Map of node ID to incoming edge offset
-     * @param fileName Path to output file
-     * @throws IOException if file operations fail
-     */
-    private static void saveMlstDataToMappedFile(Map<Integer, Node> nodeMap, int maxNodeId, int mlstLength,
-                                                  Map<Integer, Long> incomingEdgeOffsets, String fileName) throws IOException {
-        // Calculate entry size: mlst_data + offset
+        // Calculate file size: header + entries
         int entrySize = mlstLength + Long.BYTES;
-        long fileSize = (long) (maxNodeId + 1) * entrySize;
+        long fileSize = HEADER_SIZE + (long) (maxNodeId + 1) * entrySize;
         
         try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
              FileChannel channel = raf.getChannel()) {
@@ -113,6 +61,10 @@ public class NodeIndexMapper {
             raf.setLength(fileSize);
             MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, fileSize);
             mbb.order(ByteOrder.nativeOrder());
+            
+            // Write header
+            mbb.putInt(nodes.size());     // num_nodes
+            mbb.putInt(mlstLength);       // mlst_length
             
             // Write data for each node ID from 0 to maxNodeId
             for (int nodeId = 0; nodeId <= maxNodeId; nodeId++) {
@@ -145,55 +97,51 @@ public class NodeIndexMapper {
             mbb.force();
         }
     }
-    
+
     /**
-     * Load graph nodes from memory-mapped files.
+     * Save graph using Graph object.
      * 
-     * @param nodeIndexFile Path to node index file
-     * @param mlstDataFile Path to MLST data file
-     * @return Map of node ID to Node object
+     * @param graph Graph to save
+     * @param mlstLength Fixed length of MLST data
+     * @param incomingEdgeOffsets Map of node ID to incoming edge offset
+     * @param fileName Path to output file
      * @throws IOException if file operations fail
      */
-    public static Map<Integer, Node> loadNodes(String nodeIndexFile, String mlstDataFile) throws IOException {
-        // Load node indices
-        int[] nodeIndices = IntArrayMapper.loadArrayFromMappedFile(nodeIndexFile);
-        
-        if (nodeIndices.length < META_DATA_SIZE) {
-            throw new IOException("Invalid node index file format");
-        }
-        
-        int mlstLength = nodeIndices[1];
-        int maxNodeId = nodeIndices.length - META_DATA_SIZE - 1;
-        
-        // Load MLST data and offsets
-        return loadMlstDataFromMappedFile(mlstDataFile, maxNodeId, mlstLength);
+    public static void saveGraph(Graph graph, int mlstLength, Map<Integer, Long> incomingEdgeOffsets,
+                                  String fileName) throws IOException {
+        saveGraph(graph.getNodes(), mlstLength, incomingEdgeOffsets, fileName);
     }
     
+
+    
     /**
-     * Load MLST data and incoming edge offsets from memory-mapped file.
+     * Load graph nodes from memory-mapped file.
      * 
-     * @param fileName Path to MLST data file
-     * @param maxNodeId Maximum node ID
-     * @param mlstLength Fixed length of MLST data
+     * @param fileName Path to the node data file
      * @return Map of node ID to Node object
      * @throws IOException if file operations fail
      */
-    private static Map<Integer, Node> loadMlstDataFromMappedFile(String fileName, int maxNodeId, int mlstLength) throws IOException {
+    public static Map<Integer, Node> loadNodes(String fileName) throws IOException {
         Map<Integer, Node> nodeMap = new HashMap<>();
-        
-        int entrySize = mlstLength + Long.BYTES;
-        long expectedSize = (long) (maxNodeId + 1) * entrySize;
         
         try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
              FileChannel channel = raf.getChannel()) {
             
             long fileSize = channel.size();
-            if (fileSize != expectedSize) {
-                throw new IOException("MLST data file size mismatch. Expected: " + expectedSize + ", got: " + fileSize);
+            if (fileSize < HEADER_SIZE) {
+                throw new IOException("Invalid file format: file too small for header");
             }
             
             MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, fileSize);
             mbb.order(ByteOrder.nativeOrder());
+            
+            // Read header
+            mbb.getInt(); // skip num_nodes
+            int mlstLength = mbb.getInt();
+            
+            // Calculate maxNodeId from file size
+            int entrySize = mlstLength + Long.BYTES;
+            int maxNodeId = (int) ((fileSize - HEADER_SIZE) / entrySize) - 1;
             
             // Read data for each node ID
             for (int nodeId = 0; nodeId <= maxNodeId; nodeId++) {
@@ -223,21 +171,33 @@ public class NodeIndexMapper {
         return nodeMap;
     }
     
+
+    
     /**
      * Get the incoming edge offset for a specific node.
      * 
-     * @param mlstDataFile Path to MLST data file
+     * @param fileName Path to the node data file
      * @param nodeId Node ID to query
-     * @param mlstLength Fixed length of MLST data
      * @return Byte offset to first incoming edge, or -1 if none
      * @throws IOException if file operations fail
      */
-    public static long getIncomingEdgeOffset(String mlstDataFile, int nodeId, int mlstLength) throws IOException {
-        int entrySize = mlstLength + Long.BYTES;
-        long position = (long) nodeId * entrySize + mlstLength; // Skip to offset field
-        
-        try (RandomAccessFile raf = new RandomAccessFile(mlstDataFile, "r");
+    public static long getIncomingEdgeOffset(String fileName, int nodeId) throws IOException {
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
              FileChannel channel = raf.getChannel()) {
+            
+            if (channel.size() < HEADER_SIZE) {
+                throw new IOException("Invalid file format: file too small for header");
+            }
+            
+            // Read mlstLength from header
+            MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
+            headerMbb.order(ByteOrder.nativeOrder());
+            headerMbb.getInt(); // skip num_nodes
+            int mlstLength = headerMbb.getInt();
+            
+            // Calculate position of the offset field for this node
+            int entrySize = mlstLength + Long.BYTES;
+            long position = HEADER_SIZE + (long) nodeId * entrySize + mlstLength;
             
             if (position + Long.BYTES > channel.size()) {
                 throw new IOException("Node ID " + nodeId + " out of range");
@@ -251,31 +211,41 @@ public class NodeIndexMapper {
     }
 
     /**
-     * Add a single node to the memory-mapped files.
+     * Add a single node to the memory-mapped file.
+     * Note: This appends a node entry at the end. The node ID is implicit based on position.
      * 
-     * @param node
-     * @param nodeIndexFile
-     * @param mlstDataFile
-     * @param mlstLength
-     * @throws IOException
+     * @param node The node to add
+     * @param fileName Path to the node data file
+     * @param mlstLength Fixed length of MLST data
+     * @throws IOException if file operations fail
      */
-    public static void addNode(Node node, String nodeIndexFile, String mlstDataFile, int mlstLength) throws IOException {
-        // First, update the num_nodes metadata in the node index file
-        int[] currentIndices = IntArrayMapper.loadArrayFromMappedFile(nodeIndexFile);
-        int currentNumNodes = currentIndices[0];
-        IntArrayMapper.saveElementToFileAtPosition(nodeIndexFile, currentNumNodes + 1, 0);
-        
-        // Append the new node ID
-        IntArrayMapper.appendElementToFile(nodeIndexFile, node.getID());
-
-        // Append MLST data and offset
-        try (RandomAccessFile raf = new RandomAccessFile(mlstDataFile, "rw");
-            FileChannel channel = raf.getChannel()) {
+    public static void addNode(Node node, String fileName, int mlstLength) throws IOException {
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
+             FileChannel channel = raf.getChannel()) {
+            
+            // Update num_nodes in header
+            MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, Integer.BYTES);
+            headerMbb.order(ByteOrder.nativeOrder());
+            int currentNumNodes = headerMbb.getInt();
+            headerMbb.position(0);
+            headerMbb.putInt(currentNumNodes + 1);
+            headerMbb.force();
+            
+            // Append MLST data and offset at the end of file
             long position = channel.size();
             String mlstData = node.getMLSTdata();
             MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, position, mlstLength + Long.BYTES);
             mbb.order(ByteOrder.nativeOrder());
-            mbb.put(mlstData.getBytes(StandardCharsets.UTF_8));
+            
+            byte[] mlstBytes = mlstData.getBytes(StandardCharsets.UTF_8);
+            int bytesToWrite = Math.min(mlstBytes.length, mlstLength);
+            mbb.put(mlstBytes, 0, bytesToWrite);
+            
+            // Pad with zeros if needed
+            for (int i = bytesToWrite; i < mlstLength; i++) {
+                mbb.put((byte) 0);
+            }
+            
             mbb.putLong(-1L); // New node has no incoming edges initially
             mbb.force();
         }
@@ -284,18 +254,28 @@ public class NodeIndexMapper {
     /**
      * Update the incoming edge offset for a specific node.
      * 
-     * @param mlstDataFile
-     * @param nodeId
-     * @param mlstLength
-     * @param newOffset
-     * @throws IOException
+     * @param fileName Path to the node data file
+     * @param nodeId Node ID to update
+     * @param newOffset New offset value
+     * @throws IOException if file operations fail
      */
-    public static void updateIncomingEdgeOffset(String mlstDataFile, int nodeId, int mlstLength, long newOffset) throws IOException {
-        int entrySize = mlstLength + Long.BYTES;
-        long position = (long) nodeId * entrySize + mlstLength; // Skip to offset field
-
-        try (RandomAccessFile raf = new RandomAccessFile(mlstDataFile, "rw");
+    public static void updateIncomingEdgeOffset(String fileName, int nodeId, long newOffset) throws IOException {
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
              FileChannel channel = raf.getChannel()) {
+
+            if (channel.size() < HEADER_SIZE) {
+                throw new IOException("Invalid file format: file too small for header");
+            }
+            
+            // Read mlstLength from header
+            MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
+            headerMbb.order(ByteOrder.nativeOrder());
+            headerMbb.getInt(); // skip num_nodes
+            int mlstLength = headerMbb.getInt();
+            
+            // Calculate position of the offset field for this node
+            int entrySize = mlstLength + Long.BYTES;
+            long position = HEADER_SIZE + (long) nodeId * entrySize + mlstLength;
 
             if (position + Long.BYTES > channel.size()) { 
                 throw new IOException("Node ID " + nodeId + " out of range"); 
@@ -308,17 +288,34 @@ public class NodeIndexMapper {
         }
     }
 
-    public static void updateIncomingEdgeOffsets(String mlstDataFile, int mlstLength, Map<Integer, Long> updatedOffsets) throws IOException {
-        
-        try (RandomAccessFile raf = new RandomAccessFile(mlstDataFile, "rw");
-            FileChannel channel = raf.getChannel()) {
+    /**
+     * Update multiple incoming edge offsets in a single operation.
+     * 
+     * @param fileName Path to the node data file
+     * @param updatedOffsets Map of node ID to new offset value
+     * @throws IOException if file operations fail
+     */
+    public static void updateIncomingEdgeOffsets(String fileName, Map<Integer, Long> updatedOffsets) throws IOException {
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
+             FileChannel channel = raf.getChannel()) {
+
+            if (channel.size() < HEADER_SIZE) {
+                throw new IOException("Invalid file format: file too small for header");
+            }
+            
+            // Read mlstLength from header once
+            MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
+            headerMbb.order(ByteOrder.nativeOrder());
+            headerMbb.getInt(); // skip num_nodes
+            int mlstLength = headerMbb.getInt();
+            
+            int entrySize = mlstLength + Long.BYTES;
 
             for (Map.Entry<Integer, Long> entry : updatedOffsets.entrySet()) {
                 int nodeId = entry.getKey();
                 long newOffset = entry.getValue();
                 
-                int entrySize = mlstLength + Long.BYTES;
-                long position = (long) nodeId * entrySize + mlstLength; // Skip to offset field
+                long position = HEADER_SIZE + (long) nodeId * entrySize + mlstLength;
 
                 if (position + Long.BYTES > channel.size()) { 
                     throw new IOException("Node ID " + nodeId + " out of range"); 

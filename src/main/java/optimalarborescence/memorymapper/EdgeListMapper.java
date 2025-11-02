@@ -243,7 +243,7 @@ public class EdgeListMapper {
         Node dest = edge.getDestination();
         
 
-        long offset = NodeIndexMapper.getIncomingEdgeOffset(fileName.replace("_edges.dat", "_mlst.dat"), dest.getID(), dest.getMLSTdata().length());
+        long offset = NodeIndexMapper.getIncomingEdgeOffset(fileName.replace("_edges.dat", "_nodes.dat"), dest.getID());
         try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
             FileChannel channel = raf.getChannel()) {
             long fileSize = channel.size();
@@ -258,11 +258,10 @@ public class EdgeListMapper {
                 
                 mbb.force();
 
-                // update offset in mlst index file
+                // update offset in node index file
                 NodeIndexMapper.updateIncomingEdgeOffset(
-                    fileName.replace("_edges.dat", "_mlst.dat"),
+                    fileName.replace("_edges.dat", "_nodes.dat"),
                     dest.getID(),
-                    dest.getMLSTdata().length(),
                     fileSize
                 );
             } 
@@ -288,7 +287,7 @@ public class EdgeListMapper {
                 long shiftBy = BYTES_PER_EDGE;
                 Map<Integer, Long> updatedOffsets = shiftEdges(channel, insertPosition, shiftBy);
                 writeEdgeAtPosition(channel, insertPosition, edge);
-                NodeIndexMapper.updateIncomingEdgeOffsets(fileName.replace("_edges.dat", "_mlst.dat"), dest.getMLSTdata().length(), updatedOffsets);
+                NodeIndexMapper.updateIncomingEdgeOffsets(fileName.replace("_edges.dat", "_nodes.dat"), updatedOffsets);
             }
         }
     }
@@ -430,7 +429,7 @@ public class EdgeListMapper {
         Node dest = node;
         
 
-        long offset = NodeIndexMapper.getIncomingEdgeOffset(fileName.replace("_edges.dat", "_mlst.dat"), dest.getID(), dest.getMLSTdata().length());
+        long offset = NodeIndexMapper.getIncomingEdgeOffset(fileName.replace("_edges.dat", "_nodes.dat"), dest.getID());
         try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
             FileChannel channel = raf.getChannel()) {
             long fileSize = channel.size();
@@ -448,11 +447,10 @@ public class EdgeListMapper {
                 
                 mbb.force();
 
-                // update offset in mlst index file
+                // update offset in node index file
                 NodeIndexMapper.updateIncomingEdgeOffset(
-                    fileName.replace("_edges.dat", "_mlst.dat"),
+                    fileName.replace("_edges.dat", "_nodes.dat"),
                     dest.getID(),
-                    dest.getMLSTdata().length(),
                     fileSize
                 );
             } 
@@ -491,7 +489,7 @@ public class EdgeListMapper {
                 long shiftBy = (long) edges.size() * BYTES_PER_EDGE;
                 Map<Integer, Long> updatedOffsets = shiftEdges(channel, insertPosition, shiftBy);
                 writeEdges(channel, insertPosition, edges);
-                NodeIndexMapper.updateIncomingEdgeOffsets(fileName.replace("_edges.dat", "_mlst.dat"), dest.getMLSTdata().length(), updatedOffsets);
+                NodeIndexMapper.updateIncomingEdgeOffsets(fileName.replace("_edges.dat", "_nodes.dat"), updatedOffsets);
             }
         }
     }

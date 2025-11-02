@@ -9,7 +9,6 @@ import optimalarborescence.graph.Node;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
-import java.util.HashMap;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -21,8 +20,7 @@ public class EdgeListMapperTest {
     );
 
     private static final String EDGES_FILE_NAME = "test_edgelist_mapper_edges.dat";
-    private static final String MLST_FILE_NAME = "test_edgelist_mapper_mlst.dat";
-    private static final String NODE_INDEX_FILE_NAME = "test_edgelist_mapper_nodeindex.dat";
+    private static final String NODES_FILE_NAME = "test_edgelist_mapper_nodes.dat";
 
     private static final List<Node> TEST_NODES = new ArrayList<>();
     static {
@@ -42,7 +40,7 @@ public class EdgeListMapperTest {
         Map<Integer, Long> offsets = EdgeListMapper.saveEdgesToMappedFile(initialEdges, EDGES_FILE_NAME);
         
         // Save nodes with these offsets
-        NodeIndexMapper.saveGraph(TEST_NODES, mlstLength, offsets, NODE_INDEX_FILE_NAME, MLST_FILE_NAME);
+        NodeIndexMapper.saveGraph(TEST_NODES, mlstLength, offsets, NODES_FILE_NAME);
     }
 
     @Test
