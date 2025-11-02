@@ -50,7 +50,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         return currentArborescence;
     }
 
-    protected Graph getGraph() {
+    public Graph getGraph() {
         return graph;
     }
 

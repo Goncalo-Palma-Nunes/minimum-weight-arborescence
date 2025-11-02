@@ -407,8 +407,7 @@ public class ATreeMapper {
             }
             
             // Create the node (without parent and children initially)
-            // Use a dummy ID since it's not used algorithmically
-            ATreeNode node = new ATreeNode(edge, cost, isSimpleNode, contractedEdges, 0);
+            ATreeNode node = new ATreeNode(edge, cost, isSimpleNode, contractedEdges);
             
             // Store in cache IMMEDIATELY to prevent infinite recursion
             loadedNodes.put(offset, node);

@@ -33,7 +33,6 @@ public class TarjanArborescence extends StaticAlgorithm {
     private TarjanForestNode[] leaves;
 
     /** A list of the maximum weight edge for each SCC */
-    // private List<Node> max; // Q_max in Joaquim's thesis
     private List<Edge> max; // Q_max in Joaquim's thesis
 
     /** A union-find data structure to maintain the strongly connected components of 𝐻 */
@@ -60,8 +59,6 @@ public class TarjanArborescence extends StaticAlgorithm {
 
     /** A stack of strongly connected disjoint-sets S, representing the contractions */
     private List<UnionFindStronglyConnected> sccStacks;
-
-    // private List<Node> nodes;
 
     public TarjanArborescence() {
         this.roots = new ArrayList<>();
@@ -165,12 +162,7 @@ public class TarjanArborescence extends StaticAlgorithm {
             Node vRep = sccFind(v);
             int reduction = map.get(vRep).getWeight() - sigma;
             ((PairingHeap) getQueue(vRep)).decreaseAllKeys(reduction);
-        }
-
-        // // Add the cycle edges to the SCC representative (do this only once after all nodes are merged)
-        // Node cycleRep = sccFind(cycle.get(0).getDestination());
-        // getCycleEdges(cycleRep).addAll(cycle); // TODO - do I need this?
-        
+        }        
     }
 
     private Edge getMaxWeightEdgeInCycle(List<Edge> cycle) {

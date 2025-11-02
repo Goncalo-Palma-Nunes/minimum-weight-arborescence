@@ -73,7 +73,7 @@ public class ATreeMapperTest {
     @Test
     public void testSaveAndLoadSingleRootNode() throws IOException {
         // Create a root node (no edge, simple node)
-        ATreeNode root = new ATreeNode(null, 0, true, null, 0);
+        ATreeNode root = new ATreeNode(null, 0, true, null);
         List<ATreeNode> roots = new ArrayList<>();
         roots.add(root);
         
@@ -101,11 +101,11 @@ public class ATreeMapperTest {
         Edge edge2 = new Edge(graphNodes.get(0), graphNodes.get(2), 3);
         
         // Create root (no edge)
-        ATreeNode root = new ATreeNode(null, 0, true, null, 0);
+        ATreeNode root = new ATreeNode(null, 0, true, null);
         
         // Create children
-        ATreeNode child1 = new ATreeNode(edge1, 5, root, true, null, 1);
-        ATreeNode child2 = new ATreeNode(edge2, 3, root, true, null, 2);
+        ATreeNode child1 = new ATreeNode(edge1, 5, root, true, null);
+        ATreeNode child2 = new ATreeNode(edge2, 3, root, true, null);
         
         root.setChildren(List.of(child1, child2));
         
@@ -155,10 +155,10 @@ public class ATreeMapperTest {
         contractedEdges.add(contractedEdge2);
         
         // Create root (no edge)
-        ATreeNode root = new ATreeNode(null, 0, true, null, 0);
+        ATreeNode root = new ATreeNode(null, 0, true, null);
         
         // Create c-node child
-        ATreeNode cNode = new ATreeNode(edge1, 5, root, false, contractedEdges, 1);
+        ATreeNode cNode = new ATreeNode(edge1, 5, root, false, contractedEdges);
         root.setChildren(List.of(cNode));
         
         List<ATreeNode> roots = new ArrayList<>();
@@ -201,14 +201,14 @@ public class ATreeMapperTest {
     public void testSaveAndLoadMultipleRoots() throws IOException {
         // Create first tree
         Edge edge1 = new Edge(graphNodes.get(0), graphNodes.get(1), 5);
-        ATreeNode root1 = new ATreeNode(null, 0, true, null, 0);
-        ATreeNode child1 = new ATreeNode(edge1, 5, root1, true, null, 1);
+        ATreeNode root1 = new ATreeNode(null, 0, true, null);
+        ATreeNode child1 = new ATreeNode(edge1, 5, root1, true, null);
         root1.setChildren(List.of(child1));
         
         // Create second tree
         Edge edge2 = new Edge(graphNodes.get(2), graphNodes.get(3), 3);
-        ATreeNode root2 = new ATreeNode(null, 0, true, null, 2);
-        ATreeNode child2 = new ATreeNode(edge2, 3, root2, true, null, 3);
+        ATreeNode root2 = new ATreeNode(null, 0, true, null);
+        ATreeNode child2 = new ATreeNode(edge2, 3, root2, true, null);
         root2.setChildren(List.of(child2));
         
         List<ATreeNode> roots = new ArrayList<>();
@@ -244,11 +244,11 @@ public class ATreeMapperTest {
         Edge edge3 = new Edge(graphNodes.get(2), graphNodes.get(3), 2);
         
         // Create tree: root -> child1 -> grandchild1 -> greatGrandchild1
-        ATreeNode root = new ATreeNode(null, 0, true, null, 0);
-        ATreeNode child1 = new ATreeNode(edge1, 5, root, true, null, 1);
-        ATreeNode grandchild1 = new ATreeNode(edge2, 3, child1, true, null, 2);
-        ATreeNode greatGrandchild1 = new ATreeNode(edge3, 2, grandchild1, true, null, 3);
-        
+        ATreeNode root = new ATreeNode(null, 0, true, null);
+        ATreeNode child1 = new ATreeNode(edge1, 5, root, true, null);
+        ATreeNode grandchild1 = new ATreeNode(edge2, 3, child1, true, null);
+        ATreeNode greatGrandchild1 = new ATreeNode(edge3, 2, grandchild1, true, null);
+
         root.setChildren(List.of(child1));
         child1.setChildren(List.of(grandchild1));
         grandchild1.setChildren(List.of(greatGrandchild1));
@@ -293,13 +293,13 @@ public class ATreeMapperTest {
     @Test
     public void testSaveAndLoadWideTree() throws IOException {
         // Create root
-        ATreeNode root = new ATreeNode(null, 0, true, null, 0);
+        ATreeNode root = new ATreeNode(null, 0, true, null);
         
         // Create many children
         List<ATreeNode> children = new ArrayList<>();
         for (int i = 1; i <= 5; i++) {
             Edge edge = new Edge(graphNodes.get(0), graphNodes.get(i), i);
-            ATreeNode child = new ATreeNode(edge, i, root, true, null, i);
+            ATreeNode child = new ATreeNode(edge, i, root, true, null);
             children.add(child);
         }
         root.setChildren(children);
@@ -338,9 +338,9 @@ public class ATreeMapperTest {
         Edge edge1 = new Edge(graphNodes.get(0), graphNodes.get(1), 5);
         Edge edge2 = new Edge(graphNodes.get(0), graphNodes.get(2), 3);
         
-        ATreeNode root = new ATreeNode(null, 0, true, null, 0);
-        ATreeNode child1 = new ATreeNode(edge1, 5, root, true, null, 1);
-        ATreeNode child2 = new ATreeNode(edge2, 3, root, true, null, 2);
+        ATreeNode root = new ATreeNode(null, 0, true, null);
+        ATreeNode child1 = new ATreeNode(edge1, 5, root, true, null);
+        ATreeNode child2 = new ATreeNode(edge2, 3, root, true, null);
         root.setChildren(List.of(child1, child2));
         
         List<ATreeNode> roots = new ArrayList<>();
@@ -375,10 +375,10 @@ public class ATreeMapperTest {
         Edge edge1 = new Edge(graphNodes.get(0), graphNodes.get(1), 5);
         Edge edge2 = new Edge(graphNodes.get(1), graphNodes.get(2), 3);
         
-        ATreeNode root = new ATreeNode(null, 0, true, null, 0);
-        ATreeNode child = new ATreeNode(edge1, 5, root, true, null, 1);
-        ATreeNode grandchild = new ATreeNode(edge2, 3, child, true, null, 2);
-        
+        ATreeNode root = new ATreeNode(null, 0, true, null);
+        ATreeNode child = new ATreeNode(edge1, 5, root, true, null);
+        ATreeNode grandchild = new ATreeNode(edge2, 3, child, true, null);
+
         root.setChildren(List.of(child));
         child.setChildren(List.of(grandchild));
         

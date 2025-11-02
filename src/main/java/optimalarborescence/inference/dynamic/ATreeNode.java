@@ -18,8 +18,6 @@ import optimalarborescence.inference.TarjanForestNode;
  */
 public class ATreeNode extends TarjanForestNode {
 
-    private int id; // Unique identifier for the ATreeNode (for debugging purposes)
-
     /** The edge selected by the algorithm for the represented vertex. 
      * If no edge was selected then this.edge = null and this is a root node.
      * */
@@ -59,7 +57,7 @@ public class ATreeNode extends TarjanForestNode {
                                         // Gabow et al. "Efficient algorithms for finding minimum spanning trees in undirected and directed graphs."
 
 
-    public ATreeNode(Edge edge, int y, ATreeNode parent, List<ATreeNode> children, boolean simpleNode, List<Edge> contractedEdges, int id) {
+    public ATreeNode(Edge edge, int y, ATreeNode parent, List<ATreeNode> children, boolean simpleNode, List<Edge> contractedEdges) {
         super(edge);
         this.edge = edge; // Set our shadowed field too
         this.y = y;
@@ -67,15 +65,14 @@ public class ATreeNode extends TarjanForestNode {
         this.children = children;
         this.simpleNode = simpleNode;
         this.contractedEdges = contractedEdges;
-        this.id = id;
     }
 
-    public ATreeNode(Edge edge, int y, ATreeNode parent, boolean simpleNode, List<Edge> contractedEdges, int id) {
-        this(edge, y, parent, new ArrayList<>(), simpleNode, contractedEdges, id);
+    public ATreeNode(Edge edge, int y, ATreeNode parent, boolean simpleNode, List<Edge> contractedEdges) {
+        this(edge, y, parent, new ArrayList<>(), simpleNode, contractedEdges);
     }
 
-    public ATreeNode(Edge edge, int y, boolean simpleNode, List<Edge> contractedEdges, int id) {
-        this(edge, y, null, new ArrayList<>(), simpleNode, contractedEdges, id);
+    public ATreeNode(Edge edge, int y, boolean simpleNode, List<Edge> contractedEdges) {
+        this(edge, y, null, new ArrayList<>(), simpleNode, contractedEdges);
     }
 
     public Edge getEdge() {
@@ -92,10 +89,6 @@ public class ATreeNode extends TarjanForestNode {
 
     public void setCost(int y) {
         this.y = y;
-    }
-
-    public int getId() {
-        return id;
     }
 
     public ATreeNode getParent() {

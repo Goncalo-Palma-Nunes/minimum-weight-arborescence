@@ -3,7 +3,7 @@ package optimalarborescence.unittests.inference.staticalgorithms;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
 import optimalarborescence.graph.Graph;
-import optimalarborescence.inference.TarjanArborescence;
+import optimalarborescence.inference.CameriniForest;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -12,12 +12,13 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Based on the graph used in the examples of section 2.2.4 of 
+ * Unit tests for CameriniForest algorithm based on the simple graph used in 
+ * section 2.2.4 of Espada et al. (2023).
  * <p>
  * Espada, J.; Francisco, A.P.; Rocher, T.; Russo, L.M.S.; Vaz, C. On Finding Optimal (Dynamic) Arborescences. 
  * Algorithms 2023, 16, 559. https://doi.org/10.3390/a16120559 
  */
-public class TarjanArborescenceSimpleGraphTest {
+public class CameriniForestSimpleGraphTest {
 
     private static final String ALLELIC_PROFILE = "ACGT";
 
@@ -44,9 +45,9 @@ public class TarjanArborescenceSimpleGraphTest {
     private Graph originalGraph = new Graph(edges);
 
     @Test
-    public void testTarjanArborescenceSimpleGraph() {
-        TarjanArborescence tarjan = new TarjanArborescence(originalGraph);
-        Graph result = tarjan.inferPhylogeny(originalGraph);
+    public void testCameriniForestSimpleGraph() {
+        CameriniForest camerini = new CameriniForest(originalGraph);
+        Graph result = camerini.inferPhylogeny(originalGraph);
 
         Assert.assertNotNull(result);
         Assert.assertEquals(originalGraph.getNumNodes(), result.getNumNodes());
