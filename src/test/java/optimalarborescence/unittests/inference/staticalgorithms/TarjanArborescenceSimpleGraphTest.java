@@ -72,5 +72,10 @@ public class TarjanArborescenceSimpleGraphTest {
                 )
             );
         }
+
+        int expectedCost = expectedEdges.stream().mapToInt(Edge::getWeight).sum();
+        int resultCost = result.getEdges().stream().mapToInt(Edge::getWeight).sum();
+        Assert.assertEquals("Total cost of the arborescence does not match expected value.",
+            expectedCost, resultCost);
     }
 }

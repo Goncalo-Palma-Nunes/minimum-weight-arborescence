@@ -180,7 +180,10 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         r.val = -1;
 
         // Turn values negative (each child should now be a head of a heap)
-        while (n1 != r) {
+        // Use a HashSet to detect cycles in the brother chain
+        java.util.HashSet<HeapNode> visited = new java.util.HashSet<>();
+        while (n1 != null && n1 != r && !visited.contains(n1)) {
+            visited.add(n1);
             n1.val = -Math.abs(n1.val);
             n1 = n1.brother;
             // System.out.println("11111111111111111111111111111111");
@@ -188,14 +191,19 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
 
         // First pass left to right, joining two by two
         n1 = head;
-        if ((n2 = head.brother) != r) {
+        visited.clear();
+        n2 = head.brother;
+        if (n2 != null && n2 != r && !visited.contains(n2)) {
             next = n2.brother;
             head = prev = meld(head, n2);
             n1 = next;
+            visited.add(head);
         }
-        while (n1 != r) {
+        while (n1 != null && n1 != r && !visited.contains(n1)) {
+            visited.add(n1);
             // System.out.println("222222222222222222222222222");
-            if ((n2 = n1.brother) != r) {
+            n2 = n1.brother;
+            if (n2 != null && n2 != r && !visited.contains(n2)) {
                 next = n2.brother;
                 n1 = meld(n1, n2);
                 if (prev != null) prev.brother = n1;
@@ -210,7 +218,11 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         // Second pass left to right (foldl)
         n1 = head;
         next = n1.brother;
-        while ((n2 = next) != r) {
+        visited.clear();
+        visited.add(n1);
+        while (next != null && next != r && !visited.contains(next)) {
+            n2 = next;
+            visited.add(n2);
             // System.out.println("33333333333333333333333333333");
             next = n2.brother;
             n1 = meld(n1, n2);
