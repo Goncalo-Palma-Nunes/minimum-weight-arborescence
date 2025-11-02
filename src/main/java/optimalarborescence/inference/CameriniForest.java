@@ -17,7 +17,6 @@ import optimalarborescence.datastructure.heap.PairingHeap;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Node;
 import optimalarborescence.graph.Edge;
-import optimalarborescence.inference.StaticAlgorithm;
 
 public class CameriniForest extends StaticAlgorithm {
 
@@ -66,7 +65,7 @@ public class CameriniForest extends StaticAlgorithm {
         this.cycleEdgeNodes = new ArrayList<>();
         this.ufSCC = new UnionFindStronglyConnected(graph.getNumNodes());
         this.ufWCC = new UnionFind(graph.getNumNodes());
-        this.queues = new ArrayList<>(); // TODO - inicializar as queues
+        this.queues = new ArrayList<>();
 
         for (int i = 0; i < graph.getNumNodes(); i++) {
             inEdgeNode.add(null);
