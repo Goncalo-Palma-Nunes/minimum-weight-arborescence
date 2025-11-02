@@ -68,9 +68,9 @@ public class CameriniForestLoopedSquaredMotifsTest {
     );
 
     @Test
-    public void testTarjanArborescenceLoopedSquaredMotifs() {
-        TarjanArborescence tarjan = new TarjanArborescence(originalGraph);
-        Graph result = tarjan.inferPhylogeny(originalGraph);
+    public void testCameriniForestLoopedSquaredMotifs() {
+        CameriniForest camerini = new CameriniForest(originalGraph);
+        Graph result = camerini.inferPhylogeny(originalGraph);
 
         System.out.println("################### Result ###################");
         System.out.println(result);
