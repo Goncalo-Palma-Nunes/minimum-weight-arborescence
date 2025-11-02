@@ -93,14 +93,39 @@ public class TarjanArborescenceSimpleGraphInsertionsTest {
             new Edge(nodes.get(1), nodes.get(0), 2)
         );
 
-        System.err.println("Second Phylogeny Edges: " + secondPhylogeny.getEdges());
-
         Assert.assertTrue(isValidArborescence(modifiedGraph, secondPhylogeny));
         int expectedCost = expectedEdgesAfterOptimalInsertion.stream().mapToInt(Edge::getWeight).sum();
         int resultCost = secondPhylogeny.getEdges().stream().mapToInt(Edge::getWeight).sum();
         // Assert.assertEquals(expectedEdgesAfterOptimalInsertion, secondPhylogeny.getEdges());
         Assert.assertEquals("Total cost of the arborescence does not match expected value after optimal edge insertion.",
             expectedCost, resultCost);
+    }
+
+    @Test
+    public void testInsertOneSuboptimalTwoOptimalEdge() {
+        // Insert suboptimal edge
+        Edge suboptimalEdge = new Edge(nodes.get(1), nodes.get(2), 10);
+        // Insert optimal edge
+        Edge optimalEdge = new Edge(nodes.get(2), nodes.get(1), 1);
+        Graph modifiedGraph = new Graph(originalGraph.getEdges());
+        modifiedGraph.addEdge(suboptimalEdge);
+        modifiedGraph.addEdge(optimalEdge);
+
+        optimalEdge = new Edge(nodes.get(2), nodes.get(3), 1);
+        modifiedGraph.addEdge(optimalEdge);
+
+        List<Edge> expectedEdgesAfterOptimalInsertion = List.of(
+            new Edge(nodes.get(2), nodes.get(3), 1),
+            new Edge(nodes.get(2), nodes.get(1), 1),
+            new Edge(nodes.get(1), nodes.get(0), 2)
+        );
+
+        Graph finalPhylogeny = new TarjanArborescence(modifiedGraph).inferPhylogeny(modifiedGraph);
+        Assert.assertTrue(isValidArborescence(modifiedGraph, finalPhylogeny));
+        int expectedCost = expectedEdgesAfterOptimalInsertion.stream().mapToInt(Edge::getWeight).sum();
+        int resultCost = finalPhylogeny.getEdges().stream().mapToInt(Edge::getWeight).sum();
+        Assert.assertEquals("Total cost of the arborescence does not match expected value after optimal edge insertion.",
+            expectedCost, resultCost); 
     }
 
 
