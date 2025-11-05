@@ -87,6 +87,10 @@ public class CameriniForest extends StaticAlgorithm {
         return this.graph.getNodes();
     }
 
+    public TarjanForestNode[] getLeaves() {
+        return this.leaves;
+    }
+
     private MergeableHeapInterface<HeapNode> getQueue(Node v) {
         return queues.get(v.getId());
     }

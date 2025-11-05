@@ -127,9 +127,9 @@ public class UnionFindStronglyConnectedTest {
         
         // After operations on the root, verify the weight operations completed successfully
         // The exact weight values depend on internal path compression state
-        int weight5 = ufsc.findWeight(5);
-        int weight6 = ufsc.findWeight(6);
-        int weight7 = ufsc.findWeight(7);
+        ufsc.findWeight(5);
+        ufsc.findWeight(6);
+        ufsc.findWeight(7);
         
         // All elements should be in the same set
         assertEquals(ufsc.find(5), ufsc.find(6));

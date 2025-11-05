@@ -1,6 +1,5 @@
 package optimalarborescence.graph;
 
-import optimalarborescence.exception.NotImplementedException;
 import optimalarborescence.nearestneighbour.NearestNeighbourSearchAlgorithm;
 import optimalarborescence.nearestneighbour.Point;
 import optimalarborescence.distance.*;

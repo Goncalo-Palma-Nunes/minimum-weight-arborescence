@@ -11,7 +11,7 @@ public class Node extends Point implements Serializable, Comparable<Node> {
 
     private String MLSTdata;
     private Map<Node, Integer> neighbors = new TreeMap<>();
-    private static final int serialVersionUID = 1;
+    // private static final int serialVersionUID = 1;
     private int pointID; // Unique identifier for the node
 
     @Override

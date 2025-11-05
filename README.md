@@ -2,9 +2,9 @@
 
 ## About
 
-This repository is part of an initial exploratory phase for a master's thesis in Computer Science at Instituto Superior Técnico (University of Lisbon). The thesis' title is "Online methods for analyzing core genomic relationships among 1 billion bacterial pathogens" and it is supervised by professors Alexandre Francisco and Cátia Vaz.
+This repository is part of an initial phase of a master's thesis in Computer Science at Instituto Superior Técnico (University of Lisbon). The thesis' title is "Online methods for analyzing core genomic relationships among 1 billion bacterial pathogens" and it is supervised by professors Alexandre Francisco and Cátia Vaz.
 
-The problem this thesis aims to solve is **how to efficiently update a phylogenetic tree**.
+The problem this thesis aims to tackle is **how to efficiently update a phylogenetic tree**.
 
 ## Compiling the project
 
@@ -30,7 +30,7 @@ To run all the unit tests with maven, just run the following maven command at th
 
 `mvn test`
 
-To run a specific class of tests, add the `-Dtest` flag. For example, to run the NodeIndexMapperTests run:
+To run a specific class of tests, add the `-Dtest` flag. For example, to run the NodeIndexMapperTest run:
 
 `mvn test -Dtest=NodeIndexMapperTest`
 

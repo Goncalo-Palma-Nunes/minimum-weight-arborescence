@@ -1,6 +1,6 @@
 package optimalarborescence.inference.dynamic;
 
-import optimalarborescence.inference.TarjanArborescence;
+import optimalarborescence.inference.CameriniForest;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Edge;
 
@@ -19,7 +19,7 @@ import java.util.Map;
  * It leverages the existing contraction state to avoid redundant work by creating
  * a modified graph with edges having reduced costs and then running Tarjan's algorithm.
  */
-public class DynamicTarjanArborescence extends TarjanArborescence {
+public class DynamicTarjanArborescence extends CameriniForest {
 
     private List<ATreeNode> aTreeRoots;
     private Map<Edge, Integer> reducedCosts;

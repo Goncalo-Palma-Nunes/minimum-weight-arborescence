@@ -3,7 +3,6 @@ import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.inference.CameriniForest;
-import optimalarborescence.inference.TarjanArborescence;
 
 import java.util.List;
 import java.util.Map;

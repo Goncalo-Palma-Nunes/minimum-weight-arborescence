@@ -3,7 +3,7 @@ package optimalarborescence.unittests.inference.dynamicalgorithms;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
 import optimalarborescence.graph.Graph;
-import optimalarborescence.inference.TarjanArborescence;
+import optimalarborescence.inference.CameriniForest;
 import optimalarborescence.inference.dynamic.FullyDynamicArborescence;
 import optimalarborescence.inference.dynamic.ATreeNode;
 
@@ -59,8 +59,8 @@ public class FullyDynamicArborescenceSimpleGraphTest {
         
         // Initialize with empty ATrees for now
         List<ATreeNode> roots = new ArrayList<>();
-        TarjanArborescence tarjan = new TarjanArborescence(originalGraph);
-        dynamicAlgorithm = new FullyDynamicArborescence(originalGraph, roots, tarjan);
+        CameriniForest camerini = new CameriniForest(originalGraph);
+        dynamicAlgorithm = new FullyDynamicArborescence(originalGraph, roots, camerini);
     }
 
     @Test

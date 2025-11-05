@@ -28,15 +28,15 @@ public class CompleteGraph implements Serializable {
     /**
      * Connects all nodes in the graph to each other.
      */
-    private void connectAllNodes() {
-        for (Node node : getNodes()) {
-            for (Node neighbor : getNodes()) {
-                if (!node.equals(neighbor)) {
-                    node.addNeighbor(neighbor);
-                }
-            }
-        }
-    }
+    // private void connectAllNodes() {
+    //     for (Node node : getNodes()) {
+    //         for (Node neighbor : getNodes()) {
+    //             if (!node.equals(neighbor)) {
+    //                 node.addNeighbor(neighbor);
+    //             }
+    //         }
+    //     }
+    // }
 
     /**
      * Connects one node to all existing nodes in the graph.

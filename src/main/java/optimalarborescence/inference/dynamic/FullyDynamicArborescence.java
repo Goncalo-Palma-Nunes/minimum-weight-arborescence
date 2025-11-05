@@ -1,7 +1,7 @@
 package optimalarborescence.inference.dynamic;
 
 import optimalarborescence.inference.OnlineAlgorithm;
-import optimalarborescence.inference.TarjanArborescence;
+import optimalarborescence.inference.CameriniForest;
 import optimalarborescence.inference.TarjanForestNode;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Edge;
@@ -22,7 +22,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
     /* Note: A Digraph is another term for a directed graph */
 
     List<ATreeNode> roots;
-    TarjanArborescence tarjan;
+    CameriniForest camerini;
     List<Edge> currentArborescence; // TODO - formar eficiente de indexar as arestas para não percorrer linearmente durante o DELETE
 
     /**
@@ -30,20 +30,20 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
      * 
      * @param graph The original graph
      * @param roots The list of ATree root nodes representing the partially contracted vertices
-     * @param tarjan An instance of Tarjan's algorithm to be used for inference
+     * @param camerini An instance of camerini's algorithm to be used for inference
      */
-    public FullyDynamicArborescence(Graph graph, List<ATreeNode> roots, TarjanArborescence tarjan) {
+    public FullyDynamicArborescence(Graph graph, List<ATreeNode> roots, CameriniForest camerini) {
         super(graph);
         this.roots = roots;
-        this.tarjan = tarjan;
+        this.camerini = camerini;
     }
 
     public List<ATreeNode> getRoots() {
         return roots;
     }
 
-    private TarjanArborescence getInferenceAlgorithm() {
-        return tarjan;
+    private CameriniForest getInferenceAlgorithm() {
+        return camerini;
     }
 
     public List<Edge> getCurrentArborescence() {
@@ -243,8 +243,8 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             // Check if ATree structure exists
             if (this.getRoots().isEmpty()) {
                 // No ATree structure - fallback to running full Tarjan
-                TarjanArborescence freshTarjan = new TarjanArborescence(this.getGraph());
-                Graph updatedArborescence = freshTarjan.inferPhylogeny(this.getGraph());
+                CameriniForest freshcamerini = new CameriniForest(this.getGraph());
+                Graph updatedArborescence = freshcamerini.inferPhylogeny(this.getGraph());
                 this.currentArborescence = updatedArborescence.getEdges();
             } else {
                 List<ATreeNode> V = new LinkedList<>(this.getRoots()); // V' in Joaquim's thesis
@@ -289,9 +289,30 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         Node source = edge.getSource();
         Node destination = edge.getDestination();
 
-        TarjanForestNode[] leaves = this.tarjan.getLeaves();
+        TarjanForestNode[] leaves = this.camerini.getLeaves();
+        
+        // Check if leaves are initialized and accessible
+        if (leaves == null || source.getId() >= leaves.length || destination.getId() >= leaves.length) {
+            // Leaves not initialized - need to run full algorithm
+            CameriniForest freshCamerini = new CameriniForest(this.getGraph());
+            Graph updatedArborescence = freshCamerini.inferPhylogeny(this.getGraph());
+            this.currentArborescence = updatedArborescence.getEdges();
+            this.camerini = freshCamerini; // Update camerini reference
+            return this.getCurrentArborescence();
+        }
+        
         TarjanForestNode sourceLeaf = leaves[source.getId()];
         TarjanForestNode destLeaf = leaves[destination.getId()];
+        
+        // Check if the specific leaves for these nodes are null
+        if (sourceLeaf == null || destLeaf == null) {
+            // Leaves not properly initialized for these nodes - run full algorithm
+            CameriniForest freshCamerini = new CameriniForest(this.getGraph());
+            Graph updatedArborescence = freshCamerini.inferPhylogeny(this.getGraph());
+            this.currentArborescence = updatedArborescence.getEdges();
+            this.camerini = freshCamerini; // Update camerini reference
+            return this.getCurrentArborescence();
+        }
 
         TarjanForestNode candidateForRemoval = this.findCandidateForRemoval(destLeaf, edge);
         if (candidateForRemoval != null) {
@@ -322,8 +343,8 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                 if (this.getRoots().isEmpty()) {
                     // No ATree structure - fallback to running full Tarjan
                     // Note: Must create a new Tarjan instance since it maintains internal state
-                    TarjanArborescence freshTarjan = new TarjanArborescence(this.getGraph());
-                    Graph updatedArborescence = freshTarjan.inferPhylogeny(this.getGraph());
+                    CameriniForest freshcamerini = new CameriniForest(this.getGraph());
+                    Graph updatedArborescence = freshcamerini.inferPhylogeny(this.getGraph());
                     this.currentArborescence = updatedArborescence.getEdges();
                 } else {
                     // Virtual deletion: recognize G(V', E') without actually removing the edge

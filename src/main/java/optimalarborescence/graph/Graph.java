@@ -1,6 +1,5 @@
 package optimalarborescence.graph;
 
-import optimalarborescence.graph.Edge;
 
 import java.io.*;
 import java.util.List;
