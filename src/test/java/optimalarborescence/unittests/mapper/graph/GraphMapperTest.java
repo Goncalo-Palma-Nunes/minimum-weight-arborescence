@@ -3,6 +3,7 @@ package optimalarborescence.unittests.mapper.graph;
 import java.io.File;
 import java.io.IOException;
 import optimalarborescence.graph.Graph;
+import optimalarborescence.memorymapper.EdgeListMapper;
 import optimalarborescence.memorymapper.GraphMapper;
 import optimalarborescence.memorymapper.NodeIndexMapper;
 import optimalarborescence.graph.Edge;
@@ -53,8 +54,8 @@ public class GraphMapperTest {
         Assert.assertTrue("Edge file should not be empty", edgeFile.length() > 0);
         Assert.assertTrue("Node file should not be empty", nodeFile.length() > 0);
         
-        // Edge file: 6 edges * 12 bytes = 72 bytes
-        Assert.assertEquals("Edge file size should be 72 bytes", 72, edgeFile.length());
+        // Edge file: 4 bytes (header = num edges) + 6 edges * 28 bytes = 172 bytes
+        Assert.assertEquals("Edge file size should be 172 bytes", 172, edgeFile.length());
         
         // Node file: header (8 bytes) + 4 nodes × (20 bytes MLST + 8 bytes offset) = 8 + 4×28 = 120 bytes
         Assert.assertEquals("Node file size should be 120 bytes", 120, nodeFile.length());
@@ -140,32 +141,6 @@ public class GraphMapperTest {
     }
     
     /**
-     * Test getIncomingEdgeOffset method - retrieves offset for node's incoming edges.
-     */
-    @Test
-    public void testGetIncomingEdgeOffset() throws IOException {
-        // Arrange
-        GraphMapper.saveGraph(testGraph, MLST_LENGTH, TEST_BASE_NAME);
-        
-        // Act & Assert
-        // Node 0 has 1 incoming edge (from node 3)
-        long offset0 = GraphMapper.getIncomingEdgeOffset(TEST_BASE_NAME, 0);
-        Assert.assertEquals("Node 0 should have offset 0", 0, offset0);
-        
-        // Node 1 has 1 incoming edge (from node 0)
-        long offset1 = GraphMapper.getIncomingEdgeOffset(TEST_BASE_NAME, 1);
-        Assert.assertEquals("Node 1 should have offset 12", 12, offset1);
-        
-        // Node 2 has 2 incoming edges (from nodes 0 and 1)
-        long offset2 = GraphMapper.getIncomingEdgeOffset(TEST_BASE_NAME, 2);
-        Assert.assertEquals("Node 2 should have offset 24", 24, offset2);
-        
-        // Node 3 has 2 incoming edges (from nodes 1 and 2)
-        long offset3 = GraphMapper.getIncomingEdgeOffset(TEST_BASE_NAME, 3);
-        Assert.assertEquals("Node 3 should have offset 48", 48, offset3);
-    }
-    
-    /**
      * Test getIncomingEdgeOffset for node with no incoming edges.
      */
     @Test
@@ -202,6 +177,9 @@ public class GraphMapperTest {
     public void testGetIncomingEdges() throws IOException {
         // Arrange
         GraphMapper.saveGraph(testGraph, MLST_LENGTH, TEST_BASE_NAME);
+        System.out.println("graph edges = " + testGraph.getEdges());
+
+
         Map<Integer, Node> nodeMap = NodeIndexMapper.loadNodes(
             TEST_BASE_NAME + "_nodes.dat");
         
@@ -209,6 +187,7 @@ public class GraphMapperTest {
         List<Edge> incomingEdges = GraphMapper.getIncomingEdges(
             TEST_BASE_NAME, 2, nodeMap);
 
+        System.out.println("incoming edges for node 2: " + incomingEdges);
         // Assert
         Assert.assertNotNull("Incoming edges list should not be null", incomingEdges);
         Assert.assertEquals("Node 2 should have 2 incoming edges", 2, incomingEdges.size());

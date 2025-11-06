@@ -100,20 +100,7 @@ public class GraphMapper {
             return List.of(); // No incoming edges
         }
         
-        List<Edge> incomingEdges = new java.util.ArrayList<>();
-        
-        // Read edges starting at offset until we find an edge with a different destination
-        long currentOffset = offset;
-        Edge edge;
-        while ((edge = EdgeListMapper.readEdgeAtOffset(edgeFile, currentOffset, nodeMap)) != null) {
-            if (edge.getDestination().getID() != nodeId) {
-                break; // Different destination, stop reading
-            }
-            incomingEdges.add(edge);
-            currentOffset += 12; // 12 bytes per edge
-        }
-        
-        return incomingEdges;
+        return EdgeListMapper.loadLinkedList(edgeFile, offset);
     }
 
     public static void addNode(Node node, List<Edge> incomingEdges, String baseName, int mlstLength) throws IOException {

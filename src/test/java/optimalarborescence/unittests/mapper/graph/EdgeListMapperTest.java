@@ -57,10 +57,6 @@ public class EdgeListMapperTest {
         List<Edge> loadedEdges = EdgeListMapper.loadEdgesFromMappedFile(EDGES_FILE_NAME);
         Assert.assertEquals(originalEdges.size(), loadedEdges.size());
 
-        // Edges are saved sorted by destination id, so we should sort the originalEdges for comparison
-        originalEdges.sort((e1, e2) -> Integer.compare(
-            e1.getDestination().getID(), e2.getDestination().getID()));
-
         for (int i = 0; i < originalEdges.size(); i++) {
             Edge orig = originalEdges.get(i);
             Edge loaded = loadedEdges.get(i);
@@ -377,5 +373,67 @@ public class EdgeListMapperTest {
         Assert.assertTrue("Edge with MAX weight should be found", foundMax);
         Assert.assertTrue("Edge with MIN weight should be found", foundMin);
         Assert.assertTrue("Edge with negative weight should be found", foundNegative);
+    }
+
+    @Test
+    public void testReadEdgeAtOffset() throws IOException {
+
+        List<Edge> newEdges = new ArrayList<>();
+        newEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(4), 0));
+        newEdges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(4), 20));
+        newEdges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(4), 30));
+        EdgeListMapper.saveEdgesToMappedFile(newEdges, EDGES_FILE_NAME);
+
+        Edge newEdge = new Edge(TEST_NODES.get(4), TEST_NODES.get(3), 40);
+        EdgeListMapper.addEdge(newEdge, EDGES_FILE_NAME);
+
+        // Read edge at specific offset (should be the second edge)
+        long offset = EdgeListMapper.HEADER_SIZE + newEdges.size() * EdgeListMapper.BYTES_PER_EDGE;
+        Edge readEdge = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, offset);
+
+        Assert.assertNotNull("Read edge should not be null", readEdge);
+        Assert.assertEquals(newEdge.getSource().getId(), readEdge.getSource().getId());
+        Assert.assertEquals(newEdge.getDestination().getId(), readEdge.getDestination().getId());
+        Assert.assertEquals(newEdge.getWeight(), readEdge.getWeight());
+    }
+
+    @Test
+    public void testReadEdgeAtOffsetOutOfBounds() throws IOException {
+
+        List<Edge> newEdges = new ArrayList<>();
+        newEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(4), 0));
+        EdgeListMapper.saveEdgesToMappedFile(newEdges, EDGES_FILE_NAME);
+
+        // Read edge at out-of-bounds offset
+        long offset = EdgeListMapper.HEADER_SIZE + 10 * EdgeListMapper.BYTES_PER_EDGE; // Beyond file size
+        Edge readEdge = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, offset);
+
+        Assert.assertNull("Read edge should be null for out-of-bounds offset", readEdge);
+    }
+
+    @Test
+    public void testLoadLinkedList() throws IOException {
+        List<Edge> newEdges = new ArrayList<>();
+        newEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(4), 0));
+        newEdges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(4), 20));
+        newEdges.add(new Edge(TEST_NODES.get(3), TEST_NODES.get(2), 20));
+        newEdges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(4), 30));
+        newEdges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        EdgeListMapper.saveEdgesToMappedFile(newEdges, EDGES_FILE_NAME);
+
+        List<Edge> expectedEdges = newEdges.stream().filter(e -> e.getDestination().getId() == TEST_NODES.get(2).getId()).toList();
+
+        // Load linked list of edges
+        long offset = EdgeListMapper.HEADER_SIZE +  2 * EdgeListMapper.BYTES_PER_EDGE; // Start from 3rd edge (first incidence in node 2)
+        List<Edge> loadedEdges = EdgeListMapper.loadLinkedList(EDGES_FILE_NAME, offset);
+
+        Assert.assertEquals("Loaded edges size should match", expectedEdges.size(), loadedEdges.size());
+        for (int i = 0; i < expectedEdges.size(); i++) {
+            Edge expected = expectedEdges.get(i);
+            Edge actual = loadedEdges.get(i);
+            Assert.assertEquals(expected.getSource().getId(), actual.getSource().getId());
+            Assert.assertEquals(expected.getDestination().getId(), actual.getDestination().getId());
+            Assert.assertEquals(expected.getWeight(), actual.getWeight());
+        }
     }
 }

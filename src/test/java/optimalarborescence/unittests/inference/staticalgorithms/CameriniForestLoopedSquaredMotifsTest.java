@@ -71,12 +71,17 @@ public class CameriniForestLoopedSquaredMotifsTest {
         CameriniForest camerini = new CameriniForest(originalGraph);
         Graph result = camerini.inferPhylogeny(originalGraph);
 
-        System.out.println("################### Result ###################");
-        System.out.println(result);
-        System.out.println("Cost of result: " + result.getEdges().stream().mapToInt(Edge::getWeight).sum());
-        System.out.println("################### Expected ###################");
-        System.out.println(new Graph(expectedEdges));
-        System.out.println("Cost of expected: " + new Graph(expectedEdges).getEdges().stream().mapToInt(Edge::getWeight).sum());
+        // System.out.println("################### Result ###################");
+        // System.out.println(result);
+        // System.out.println("Cost of result: " + result.getEdges().stream().mapToInt(Edge::getWeight).sum());
+        // System.out.println("################### Expected ###################");
+        // System.out.println(new Graph(expectedEdges));
+        // System.out.println("Cost of expected: " + new Graph(expectedEdges).getEdges().stream().mapToInt(Edge::getWeight).sum());
+
+        System.out.println("Result = " + result.getEdges());
+        System.out.println("####################################################################");
+        System.out.println("Expected = " + expectedEdges);
+
 
         Assert.assertNotNull(result);
         Assert.assertEquals(expectedEdges.size(), result.getEdges().size());
