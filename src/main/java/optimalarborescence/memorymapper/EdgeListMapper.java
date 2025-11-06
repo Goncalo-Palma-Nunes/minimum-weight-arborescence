@@ -389,11 +389,6 @@ public class EdgeListMapper {
         }
     }
 
-
-    
-
-
-
     /**
      * Add multiple edges for a node to the memory-mapped edge list file using linked list structure.
      * <p>
@@ -441,5 +436,127 @@ public class EdgeListMapper {
             e.printStackTrace();
         }
         return edges;
+    }
+
+    private static void updateLinkedList(String filename, long prev, long next, FileChannel channel) throws IOException {
+        if (prev >= 0) {
+            MappedByteBuffer prevMbb = channel.map(FileChannel.MapMode.READ_WRITE, prev + 12, 8);
+            prevMbb.order(ByteOrder.nativeOrder());
+            prevMbb.putLong(next);
+            prevMbb.force();
+        }
+        if (next >= 0) {
+            MappedByteBuffer nextMbb = channel.map(FileChannel.MapMode.READ_WRITE, next + 20, 8);
+            nextMbb.order(ByteOrder.nativeOrder());
+            nextMbb.putLong(prev);
+            nextMbb.force();
+        }
+    }
+
+    private static void invalidateEntryAndCompactFile(String filename, long offset, FileChannel channel) throws IOException {
+        // get the last edge in the file and write it at offset
+        long fileSize = channel.size();
+        long lastEdgeOffset = fileSize - BYTES_PER_EDGE;
+
+        if (lastEdgeOffset != offset) {
+            MappedByteBuffer lastMbb = channel.map(FileChannel.MapMode.READ_ONLY, lastEdgeOffset, BYTES_PER_EDGE);
+            lastMbb.order(ByteOrder.nativeOrder());
+
+            int srcId = lastMbb.getInt();
+            int destId = lastMbb.getInt();
+            int weight = lastMbb.getInt();
+            long next = lastMbb.getLong();
+            long prev = lastMbb.getLong();
+
+            // Write last edge data to the removed edge's position
+            MappedByteBuffer targetMbb = channel.map(FileChannel.MapMode.READ_WRITE, offset, BYTES_PER_EDGE);
+            targetMbb.order(ByteOrder.nativeOrder());
+            targetMbb.putInt(srcId);
+            targetMbb.putInt(destId);
+            targetMbb.putInt(weight);
+            targetMbb.putLong(next);
+            targetMbb.putLong(prev);
+            targetMbb.force();
+        }
+        // Truncate the file to remove the last edge
+        channel.truncate(fileSize - BYTES_PER_EDGE);
+    }
+
+    private static void decrementHeader(String filename, FileChannel channel, int count) throws IOException {
+        MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, HEADER_SIZE);
+        headerMbb.order(ByteOrder.nativeOrder());
+        int edgeCount = headerMbb.getInt();
+        headerMbb.rewind();
+        headerMbb.putInt(edgeCount - count);
+        headerMbb.force();
+    }
+
+    public static void removeEdgeAtOffset(String filename, long offset) throws IOException {
+        if (offset < 0) {
+            return; // Nothing to remove
+        }
+
+        try (RandomAccessFile raf = new RandomAccessFile(filename, "rw")) {
+            FileChannel channel = raf.getChannel();
+
+            if (offset > channel.size() - BYTES_PER_EDGE || offset % BYTES_PER_EDGE != HEADER_SIZE) {
+                throw new IOException("Invalid offset: " + offset);
+            }
+
+            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, offset, BYTES_PER_EDGE);
+            mbb.order(ByteOrder.nativeOrder());
+
+            mbb.getInt();
+            int destId = mbb.getInt();
+            mbb.getInt();
+            long next = mbb.getLong();
+            long prev = mbb.getLong();
+
+            updateLinkedList(filename, prev, next, channel);
+            invalidateEntryAndCompactFile(filename, offset, channel);
+
+            if (prev == -1L) {
+                // If this was the only edge for the destination, update node index
+                String nodeFileName = filename.replace("_edges.dat", "_nodes.dat");
+                NodeIndexMapper.updateIncomingEdgeOffset(nodeFileName, destId, next);
+            }
+            decrementHeader(filename, channel, 1);
+        }
+    }
+
+    public static void removeLinkedList(String filename, long offset) throws IOException {
+        if (offset < 0) {
+            return; // Nothing to remove
+        }
+
+        try (RandomAccessFile raf = new RandomAccessFile(filename, "rw")) {
+            FileChannel channel = raf.getChannel();
+
+            if (offset > channel.size() - BYTES_PER_EDGE || offset % BYTES_PER_EDGE != HEADER_SIZE) {
+                throw new IOException("Invalid offset: " + offset);
+            }
+
+            long currentOffset = offset;
+            int count = 0;
+            int destId = -1;
+            while (currentOffset >= 0) {
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, currentOffset, BYTES_PER_EDGE);
+                mbb.order(ByteOrder.nativeOrder());
+
+                mbb.getInt();
+                destId = mbb.getInt();
+                mbb.getInt();
+                long next = mbb.getLong();
+                long prev = mbb.getLong();
+
+                updateLinkedList(filename, prev, next, channel);
+                invalidateEntryAndCompactFile(filename, currentOffset, channel);
+
+                currentOffset = next;
+                count++;
+            }
+            decrementHeader(filename, channel, count);
+            NodeIndexMapper.updateIncomingEdgeOffset(filename.replace("_edges.dat", "_nodes.dat"), destId, -1L);
+        }
     }
 }

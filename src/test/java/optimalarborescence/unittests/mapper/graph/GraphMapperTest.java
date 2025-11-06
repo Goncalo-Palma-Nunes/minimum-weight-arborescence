@@ -3,7 +3,6 @@ package optimalarborescence.unittests.mapper.graph;
 import java.io.File;
 import java.io.IOException;
 import optimalarborescence.graph.Graph;
-import optimalarborescence.memorymapper.EdgeListMapper;
 import optimalarborescence.memorymapper.GraphMapper;
 import optimalarborescence.memorymapper.NodeIndexMapper;
 import optimalarborescence.graph.Edge;
