@@ -131,19 +131,16 @@ public class GraphMapper {
 
         List<Long> outgoingEdgeOffsets = EdgeListMapper.getOutgoingEdgeOffsets(edgeFile, node.getId());
 
+        // TODO - já que tenho de percorrer o ficheiro para obter as outgoing edges
+        // talvez seja melhor não usar removeLinkedList, mas simplesmente 
+        // criar um array das arestas sem incidências/fonte no nó e guardar isso
+
         int iterator = outgoingEdgeOffsets.size() - 1;
         while (iterator >= 0) {
             EdgeListMapper.removeEdgeAtOffset(edgeFile, outgoingEdgeOffsets.get(iterator));
             iterator--;
         }
 
-        // for (long offset : outgoingEdgeOffsets) {
-        //     EdgeListMapper.removeEdgeAtOffset(edgeFile, offset);
-        // }
         NodeIndexMapper.removeNode(node, nodeFile);
-
-        // TODO - corrigir erros
-        // throw new IOException("Isto não funciona bem. Ao remover as arestas, o algoritmo compacta o ficheiro, invalidando offsets guardados noutros nós.");
-        // TODO - ao compactar o ficheiro, estou a atualizar o offset relativo à aresta que passou para a posição "vazia"?
     }
 }

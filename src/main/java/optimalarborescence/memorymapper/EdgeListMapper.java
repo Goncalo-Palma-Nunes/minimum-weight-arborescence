@@ -528,6 +528,17 @@ public class EdgeListMapper {
     //     }
     // }
 
+    /**
+     * Maintain the target list offset and pointers when compacting the edge list file.
+     * If the list head was pointing to the edge being moved (lastEdgeOffset),
+     * update it to point to the new location (targetOffset).
+     * @param filename Path to the edge list file
+     * @param lastEdgeOffset Byte offset of the last edge being moved
+     * @param destId Destination node ID of the edge
+     * @param targetOffset Byte offset of the target location
+     * @param channel The file channel for the edge list file
+     * @throws IOException
+     */
     private static void maintainTargetListOffsetAndPointers(String filename, long lastEdgeOffset, int destId,
                                                     long targetOffset, FileChannel channel) throws IOException {
         String nodeFileName = filename.replace("_edges.dat", "_nodes.dat");
