@@ -66,6 +66,32 @@ public class EdgeListMapperTest {
         }
     }
 
+    @Test
+    public void testGetNumEdgesWithEdges() throws IOException {
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        edges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(3), 30));
+        edges.add(new Edge(TEST_NODES.get(3), TEST_NODES.get(4), 40));
+
+        // Save edges to file
+        EdgeListMapper.saveEdgesToMappedFile(edges, EDGES_FILE_NAME);
+
+        // Get number of edges
+        int numEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(edges.size(), numEdges);
+    }
+
+    @Test
+    public void testGetNumEdgesWithNoEdges() throws IOException {
+        // Create an empty edge list file
+        EdgeListMapper.saveEdgesToMappedFile(new ArrayList<>(), EDGES_FILE_NAME);
+
+        // Get number of edges
+        int numEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(0, numEdges);
+    }
+
     // ===== Tests for addEdge method =====
 
     @Test
@@ -435,5 +461,329 @@ public class EdgeListMapperTest {
             Assert.assertEquals(expected.getDestination().getId(), actual.getDestination().getId());
             Assert.assertEquals(expected.getWeight(), actual.getWeight());
         }
+    }
+
+    // ===== Tests for getOutgoingEdgeOffsets method =====
+
+    /**
+     * Test getting outgoing edges for node with no outgoing edges.
+     */
+    @Test
+    public void testGetOutgoingEdgeOffsetsNoOutgoingEdges() throws IOException {
+        // Arrange - create edges where node 2 has no outgoing edges
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        edges.add(new Edge(TEST_NODES.get(3), TEST_NODES.get(2), 30));
+        EdgeListMapper.saveEdgesToMappedFile(edges, EDGES_FILE_NAME);
+
+        // Act - get outgoing edges for node 2 (has no outgoing edges)
+        List<Long> offsets = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 2);
+
+        // Assert
+        Assert.assertNotNull("Offsets list should not be null", offsets);
+        Assert.assertEquals("Node 2 should have no outgoing edges", 0, offsets.size());
+    }
+
+    /**
+     * Test getting outgoing edges for node with single outgoing edge.
+     */
+    @Test
+    public void testGetOutgoingEdgeOffsetsSingleEdge() throws IOException {
+        // Arrange - create edges where node 0 has one outgoing edge
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        edges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(3), 20));
+        edges.add(new Edge(TEST_NODES.get(3), TEST_NODES.get(4), 30));
+        EdgeListMapper.saveEdgesToMappedFile(edges, EDGES_FILE_NAME);
+
+        // Act - get outgoing edges for node 0
+        List<Long> offsets = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 0);
+
+        // Assert
+        Assert.assertNotNull("Offsets list should not be null", offsets);
+        Assert.assertEquals("Node 0 should have 1 outgoing edge", 1, offsets.size());
+
+        // Verify the offset points to the correct edge
+        long offset = offsets.get(0);
+        Edge edge = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, offset);
+        Assert.assertNotNull("Edge should be readable at offset", edge);
+        Assert.assertEquals("Source should be node 0", 0, edge.getSource().getID());
+        Assert.assertEquals("Destination should be node 1", 1, edge.getDestination().getID());
+        Assert.assertEquals("Weight should be 10", 10, edge.getWeight());
+    }
+
+    /**
+     * Test getting outgoing edges for node with multiple outgoing edges.
+     */
+    @Test
+    public void testGetOutgoingEdgeOffsetsMultipleEdges() throws IOException {
+        // Arrange - create edges where node 0 has multiple outgoing edges
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(2), 20));
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(3), 30));
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(4), 40));
+        EdgeListMapper.saveEdgesToMappedFile(edges, EDGES_FILE_NAME);
+
+        // Act - get outgoing edges for node 0
+        List<Long> offsets = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 0);
+
+        // Assert
+        Assert.assertNotNull("Offsets list should not be null", offsets);
+        Assert.assertEquals("Node 0 should have 3 outgoing edges", 3, offsets.size());
+
+        // Verify each offset points to an edge from node 0
+        for (long offset : offsets) {
+            Edge edge = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, offset);
+            Assert.assertNotNull("Edge should be readable at offset", edge);
+            Assert.assertEquals("All edges should originate from node 0", 0, edge.getSource().getID());
+        }
+
+        // Verify the destinations are correct
+        List<Integer> destinations = new ArrayList<>();
+        for (long offset : offsets) {
+            Edge edge = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, offset);
+            destinations.add(edge.getDestination().getID());
+        }
+        Assert.assertTrue("Should have edge to node 1", destinations.contains(1));
+        Assert.assertTrue("Should have edge to node 2", destinations.contains(2));
+        Assert.assertTrue("Should have edge to node 3", destinations.contains(3));
+    }
+
+    /**
+     * Test getting outgoing edges for all nodes in a graph.
+     */
+    @Test
+    public void testGetOutgoingEdgeOffsetsAllNodes() throws IOException {
+        // Arrange - create a complete graph structure
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(2), 20));
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 30));
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(3), 40));
+        edges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(3), 50));
+        EdgeListMapper.saveEdgesToMappedFile(edges, EDGES_FILE_NAME);
+
+        // Act & Assert - check each node
+        List<Long> offsets0 = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 0);
+        Assert.assertEquals("Node 0 should have 2 outgoing edges", 2, offsets0.size());
+
+        List<Long> offsets1 = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 1);
+        Assert.assertEquals("Node 1 should have 2 outgoing edges", 2, offsets1.size());
+
+        List<Long> offsets2 = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 2);
+        Assert.assertEquals("Node 2 should have 1 outgoing edge", 1, offsets2.size());
+
+        List<Long> offsets3 = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 3);
+        Assert.assertEquals("Node 3 should have 0 outgoing edges", 0, offsets3.size());
+    }
+
+    /**
+     * Test getting outgoing edges with self-loop.
+     */
+    @Test
+    public void testGetOutgoingEdgeOffsetsWithSelfLoop() throws IOException {
+        // Arrange - create edges including a self-loop
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(1), 20)); // self-loop
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 30));
+        EdgeListMapper.saveEdgesToMappedFile(edges, EDGES_FILE_NAME);
+
+        // Act - get outgoing edges for node 1
+        List<Long> offsets = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 1);
+
+        // Assert
+        Assert.assertNotNull("Offsets list should not be null", offsets);
+        Assert.assertEquals("Node 1 should have 2 outgoing edges (including self-loop)", 2, offsets.size());
+
+        // Verify one of them is a self-loop
+        boolean foundSelfLoop = false;
+        for (long offset : offsets) {
+            Edge edge = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, offset);
+            if (edge.getSource().getID() == 1 && edge.getDestination().getID() == 1) {
+                foundSelfLoop = true;
+                Assert.assertEquals("Self-loop weight should be 20", 20, edge.getWeight());
+            }
+        }
+        Assert.assertTrue("Should find self-loop edge", foundSelfLoop);
+    }
+
+    /**
+     * Test getting outgoing edges from empty file.
+     */
+    @Test
+    public void testGetOutgoingEdgeOffsetsEmptyFile() throws IOException {
+        // Arrange - create empty edge file
+        List<Edge> edges = new ArrayList<>();
+        EdgeListMapper.saveEdgesToMappedFile(edges, EDGES_FILE_NAME);
+
+        // Act - get outgoing edges for any node
+        List<Long> offsets = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 0);
+
+        // Assert
+        Assert.assertNotNull("Offsets list should not be null", offsets);
+        Assert.assertEquals("Should have no outgoing edges in empty file", 0, offsets.size());
+    }
+
+    /**
+     * Test getting outgoing edges for non-existent node.
+     */
+    @Test
+    public void testGetOutgoingEdgeOffsetsNonExistentNode() throws IOException {
+        // Arrange - create edges for nodes 0-3
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        edges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(3), 30));
+        EdgeListMapper.saveEdgesToMappedFile(edges, EDGES_FILE_NAME);
+
+        // Act - get outgoing edges for non-existent node 999
+        List<Long> offsets = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 999);
+
+        // Assert
+        Assert.assertNotNull("Offsets list should not be null", offsets);
+        Assert.assertEquals("Non-existent node should have no outgoing edges", 0, offsets.size());
+    }
+
+    /**
+     * Test getting outgoing edges verifying offset values are correct.
+     */
+    @Test
+    public void testGetOutgoingEdgeOffsetsVerifyOffsetValues() throws IOException {
+        // Arrange - create edges with known positions
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10)); // offset = 4
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20)); // offset = 32
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(2), 30)); // offset = 60
+        EdgeListMapper.saveEdgesToMappedFile(edges, EDGES_FILE_NAME);
+
+        // Act - get outgoing edges for node 0
+        List<Long> offsets = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 0);
+
+        // Assert
+        Assert.assertEquals("Node 0 should have 2 outgoing edges", 2, offsets.size());
+
+        // Expected offsets: 4 (first edge) and 60 (third edge)
+        Assert.assertTrue("Should contain offset 4", offsets.contains(4L));
+        Assert.assertTrue("Should contain offset 60", offsets.contains(60L));
+    }
+
+    /**
+     * Test getting outgoing edges after adding edges dynamically.
+     */
+    @Test
+    public void testGetOutgoingEdgeOffsetsAfterAddingEdges() throws IOException {
+        // Arrange - create initial edges
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        initializeNodeIndexMapper(initialEdges);
+
+        // Act - get initial outgoing edges for node 0
+        List<Long> offsetsBefore = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 0);
+        Assert.assertEquals("Initially node 0 should have 1 outgoing edge", 1, offsetsBefore.size());
+
+        // Add more edges from node 0
+        EdgeListMapper.addEdge(new Edge(TEST_NODES.get(0), TEST_NODES.get(2), 20), EDGES_FILE_NAME);
+        EdgeListMapper.addEdge(new Edge(TEST_NODES.get(0), TEST_NODES.get(3), 30), EDGES_FILE_NAME);
+
+        // Get updated outgoing edges for node 0
+        List<Long> offsetsAfter = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 0);
+
+        // Assert
+        Assert.assertEquals("After adding, node 0 should have 3 outgoing edges", 3, offsetsAfter.size());
+    }
+
+    /**
+     * Test getting outgoing edges with various edge weights.
+     */
+    @Test
+    public void testGetOutgoingEdgeOffsetsVariousWeights() throws IOException {
+        // Arrange - create edges with various weights
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 0));
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(2), Integer.MAX_VALUE));
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(3), Integer.MIN_VALUE));
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(4), -100));
+        EdgeListMapper.saveEdgesToMappedFile(edges, EDGES_FILE_NAME);
+
+        // Act - get outgoing edges for node 0
+        List<Long> offsets = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 0);
+
+        // Assert
+        Assert.assertEquals("Node 0 should have 4 outgoing edges", 4, offsets.size());
+
+        // Verify all weights are preserved
+        List<Integer> weights = new ArrayList<>();
+        for (long offset : offsets) {
+            Edge edge = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, offset);
+            weights.add(edge.getWeight());
+        }
+
+        Assert.assertTrue("Should have edge with weight 0", weights.contains(0));
+        Assert.assertTrue("Should have edge with MAX weight", weights.contains(Integer.MAX_VALUE));
+        Assert.assertTrue("Should have edge with MIN weight", weights.contains(Integer.MIN_VALUE));
+        Assert.assertTrue("Should have edge with negative weight", weights.contains(-100));
+    }
+
+    /**
+     * Test getting outgoing edges in a graph with cycles.
+     */
+    @Test
+    public void testGetOutgoingEdgeOffsetsWithCycle() throws IOException {
+        // Arrange - create a cycle: 0->1->2->0
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        edges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(0), 30));
+        EdgeListMapper.saveEdgesToMappedFile(edges, EDGES_FILE_NAME);
+
+        // Act - get outgoing edges for each node in the cycle
+        List<Long> offsets0 = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 0);
+        List<Long> offsets1 = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 1);
+        List<Long> offsets2 = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 2);
+
+        // Assert - each node in the cycle should have exactly 1 outgoing edge
+        Assert.assertEquals("Node 0 should have 1 outgoing edge", 1, offsets0.size());
+        Assert.assertEquals("Node 1 should have 1 outgoing edge", 1, offsets1.size());
+        Assert.assertEquals("Node 2 should have 1 outgoing edge", 1, offsets2.size());
+
+        // Verify the cycle structure
+        Edge edge0 = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, offsets0.get(0));
+        Edge edge1 = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, offsets1.get(0));
+        Edge edge2 = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, offsets2.get(0));
+
+        Assert.assertEquals("Edge from 0 should go to 1", 1, edge0.getDestination().getID());
+        Assert.assertEquals("Edge from 1 should go to 2", 2, edge1.getDestination().getID());
+        Assert.assertEquals("Edge from 2 should go to 0", 0, edge2.getDestination().getID());
+    }
+
+    /**
+     * Test getting outgoing edges returns offsets in order they appear in file.
+     */
+    @Test
+    public void testGetOutgoingEdgeOffsetsOrderPreserved() throws IOException {
+        // Arrange - create multiple edges from node 0 in specific order
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10)); // First
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 15)); // Not from 0
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(2), 20)); // Second
+        edges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(3), 25)); // Not from 0
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(3), 30)); // Third
+        EdgeListMapper.saveEdgesToMappedFile(edges, EDGES_FILE_NAME);
+
+        // Act - get outgoing edges for node 0
+        List<Long> offsets = EdgeListMapper.getOutgoingEdgeOffsets(EDGES_FILE_NAME, 0);
+
+        // Assert - offsets should be in ascending order (file order)
+        Assert.assertEquals("Node 0 should have 3 outgoing edges", 3, offsets.size());
+        Assert.assertTrue("Offsets should be in ascending order", 
+            offsets.get(0) < offsets.get(1) && offsets.get(1) < offsets.get(2));
+
+        // Expected offsets: 4, 60, 116
+        Assert.assertEquals("First offset should be 4", 4L, offsets.get(0).longValue());
+        Assert.assertEquals("Second offset should be 60", 60L, offsets.get(1).longValue());
+        Assert.assertEquals("Third offset should be 116", 116L, offsets.get(2).longValue());
     }
 }

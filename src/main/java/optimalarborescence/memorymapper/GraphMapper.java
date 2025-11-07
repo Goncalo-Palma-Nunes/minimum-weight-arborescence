@@ -103,11 +103,47 @@ public class GraphMapper {
         return EdgeListMapper.loadLinkedList(edgeFile, offset);
     }
 
+    /**
+     * Add a single node and its incoming edges to the graph files.
+     *
+     * @param node
+     * @param incomingEdges
+     * @param baseName
+     * @param mlstLength
+     * @throws IOException
+     */
     public static void addNode(Node node, List<Edge> incomingEdges, String baseName, int mlstLength) throws IOException {
         String nodeFile = baseName + "_nodes.dat";
         String edgeFile = baseName + "_edges.dat";
 
         NodeIndexMapper.addNode(node, nodeFile, mlstLength);
         EdgeListMapper.addEdges(incomingEdges, node, edgeFile);
+    }
+
+    public static void removeNode(Node node, String baseName, int mlstLength) throws IOException {
+        String nodeFile = baseName + "_nodes.dat";
+        String edgeFile = baseName + "_edges.dat";
+
+        long incomingEdgeOffset = NodeIndexMapper.getIncomingEdgeOffset(nodeFile, node.getId());
+        if (incomingEdgeOffset >= 0) {
+            EdgeListMapper.removeLinkedList(edgeFile, incomingEdgeOffset);
+        }
+
+        List<Long> outgoingEdgeOffsets = EdgeListMapper.getOutgoingEdgeOffsets(edgeFile, node.getId());
+
+        int iterator = outgoingEdgeOffsets.size() - 1;
+        while (iterator >= 0) {
+            EdgeListMapper.removeEdgeAtOffset(edgeFile, outgoingEdgeOffsets.get(iterator));
+            iterator--;
+        }
+
+        // for (long offset : outgoingEdgeOffsets) {
+        //     EdgeListMapper.removeEdgeAtOffset(edgeFile, offset);
+        // }
+        NodeIndexMapper.removeNode(node, nodeFile);
+
+        // TODO - corrigir erros
+        // throw new IOException("Isto não funciona bem. Ao remover as arestas, o algoritmo compacta o ficheiro, invalidando offsets guardados noutros nós.");
+        // TODO - ao compactar o ficheiro, estou a atualizar o offset relativo à aresta que passou para a posição "vazia"?
     }
 }

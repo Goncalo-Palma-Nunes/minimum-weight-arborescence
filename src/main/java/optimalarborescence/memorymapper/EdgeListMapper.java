@@ -223,6 +223,23 @@ public class EdgeListMapper {
         
         return edges;
     }
+
+    /**
+     * Get the number of edges stored in the edge list file.
+     * 
+     * @param fileName Path to the edge list file
+     * @return Number of edges in the file
+     * @throws IOException if file operations fail
+     */
+    public static int getNumEdges(String fileName) throws IOException {
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
+             FileChannel channel = raf.getChannel()) {
+            
+            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
+            mbb.order(ByteOrder.nativeOrder());
+            return mbb.getInt();
+        }
+    }
     
     /**
      * Read a specific edge from the file at a given byte offset.
@@ -412,6 +429,14 @@ public class EdgeListMapper {
         }
     }
 
+    /**
+     * Load a linked list of edges starting from a given offset in the file.
+     * Follows the next pointers to retrieve all edges in the list.
+     * 
+     * @param filename Path to the edge list file
+     * @param offset Byte offset of the first edge in the linked list
+     * @return List of edges in the linked list
+     */
     public static List<Edge> loadLinkedList(String filename, long offset) {
         List<Edge> edges = new ArrayList<>();
         try (RandomAccessFile raf = new RandomAccessFile(filename, "r")) {
@@ -438,6 +463,15 @@ public class EdgeListMapper {
         return edges;
     }
 
+    /**
+     * Update the linked list pointers for the previous and next edges.
+     * 
+     * @param filename Path to the edge list file
+     * @param prev Offset of the previous edge in the list (-1 if none)
+     * @param next Offset of the next edge in the list (-1 if none)
+     * @param channel The file channel for the edge list file
+     * @throws IOException if file operations fail
+     */
     private static void updateLinkedList(String filename, long prev, long next, FileChannel channel) throws IOException {
         if (prev >= 0) {
             MappedByteBuffer prevMbb = channel.map(FileChannel.MapMode.READ_WRITE, prev + 12, 8);
@@ -453,6 +487,15 @@ public class EdgeListMapper {
         }
     }
 
+    /**
+     * Invalidate an edge entry at the given offset and compact the file by moving
+     * the last edge into the removed edge's position.
+     * 
+     * @param filename Path to the edge list file
+     * @param offset Byte offset of the edge to invalidate
+     * @param channel The file channel for the edge list file
+     * @throws IOException if file operations fail
+     */
     private static void invalidateEntryAndCompactFile(String filename, long offset, FileChannel channel) throws IOException {
         // get the last edge in the file and write it at offset
         long fileSize = channel.size();
@@ -482,6 +525,14 @@ public class EdgeListMapper {
         channel.truncate(fileSize - BYTES_PER_EDGE);
     }
 
+    /**
+     * Decrement the edge count in the file header by the specified count.
+     * 
+     * @param filename Path to the edge list file
+     * @param channel The file channel for the edge list file
+     * @param count Number of edges to decrement
+     * @throws IOException if file operations fail
+     */
     private static void decrementHeader(String filename, FileChannel channel, int count) throws IOException {
         MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, HEADER_SIZE);
         headerMbb.order(ByteOrder.nativeOrder());
@@ -491,6 +542,14 @@ public class EdgeListMapper {
         headerMbb.force();
     }
 
+    /**
+     * Remove a single edge at the specified offset from the edge list file.
+     * Updates linked list pointers and node index as necessary.
+     * 
+     * @param filename Path to the edge list file
+     * @param offset Byte offset of the edge to remove
+     * @throws IOException if file operations fail
+     */
     public static void removeEdgeAtOffset(String filename, long offset) throws IOException {
         if (offset < 0) {
             return; // Nothing to remove
@@ -524,6 +583,14 @@ public class EdgeListMapper {
         }
     }
 
+    /**
+     * Remove a single edge at the specified offset from the edge list file.
+     * Updates linked list pointers and node index as necessary.
+     *
+     * @param filename Path to the edge list file
+     * @param offset Byte offset of the edge to remove
+     * @throws IOException if file operations fail
+     */
     public static void removeLinkedList(String filename, long offset) throws IOException {
         if (offset < 0) {
             return; // Nothing to remove
@@ -558,5 +625,36 @@ public class EdgeListMapper {
             decrementHeader(filename, channel, count);
             NodeIndexMapper.updateIncomingEdgeOffset(filename.replace("_edges.dat", "_nodes.dat"), destId, -1L);
         }
+    }
+
+    public static List<Long> getOutgoingEdgeOffsets(String filename, int sourceId) throws IOException {
+        List<Long> offsets = new ArrayList<>();
+
+        try (RandomAccessFile raf = new RandomAccessFile(filename, "r");
+             FileChannel channel = raf.getChannel()) {
+
+            long size = channel.size();
+            if (size % BYTES_PER_EDGE != HEADER_SIZE) {
+                throw new IOException("Edge file size is not a multiple of edge size (28 bytes)");
+            }
+
+            int edgeCount = (int) (size / BYTES_PER_EDGE);
+            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, HEADER_SIZE, size - HEADER_SIZE);
+            mbb.order(ByteOrder.nativeOrder());
+
+            for (int i = 0; i < edgeCount; i++) {
+                long edgeOffset = HEADER_SIZE + (long) i * BYTES_PER_EDGE;
+                int srcId = mbb.getInt();
+                mbb.getInt();  // Skip dest ID
+                mbb.getInt();  // Skip weight
+                mbb.getLong(); // Skip nextOffset
+                mbb.getLong(); // Skip prevOffset
+
+                if (srcId == sourceId) {
+                    offsets.add(edgeOffset);
+                }
+            }
+        }
+        return offsets;
     }
 }

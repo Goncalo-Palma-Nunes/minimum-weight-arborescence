@@ -328,4 +328,59 @@ public class NodeIndexMapper {
             }
         }
     }
+
+    /**
+     * Remove a node from the memory-mapped file and places the last node entry into its position.
+     * 
+     * @param node The node to remove
+     * @param fileName Path to the node data file
+     * @throws IOException if file operations fail
+     */
+    public static void removeNode(Node node, String fileName) throws IOException {
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
+             FileChannel channel = raf.getChannel()) {
+
+            if (channel.size() < HEADER_SIZE) {
+                throw new IOException("Invalid file format: file too small for header");
+            }
+            
+            // Read mlstLength from header
+            MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
+            headerMbb.order(ByteOrder.nativeOrder());
+            int numNodes = headerMbb.getInt();
+            int mlstLength = headerMbb.getInt();
+            
+            int entrySize = mlstLength + Long.BYTES;
+            int maxNodeId = (int) ((channel.size() - HEADER_SIZE) / entrySize) - 1;
+
+            int nodeIdToRemove = node.getID();
+            if (nodeIdToRemove < 0 || nodeIdToRemove > maxNodeId) {
+                throw new IOException("Node ID " + nodeIdToRemove + " out of range");
+            }
+
+            if (nodeIdToRemove != maxNodeId) {
+                // Move last node entry into the removed node's position
+                long lastNodePosition = HEADER_SIZE + (long) maxNodeId * entrySize;
+                long removeNodePosition = HEADER_SIZE + (long) nodeIdToRemove * entrySize;
+
+                MappedByteBuffer lastNodeMbb = channel.map(FileChannel.MapMode.READ_ONLY, lastNodePosition, entrySize);
+                MappedByteBuffer removeNodeMbb = channel.map(FileChannel.MapMode.READ_WRITE, removeNodePosition, entrySize);
+
+                byte[] buffer = new byte[entrySize];
+                lastNodeMbb.get(buffer);
+                removeNodeMbb.put(buffer);
+                removeNodeMbb.force();
+            }
+
+            // Truncate the file to remove the last node entry
+            channel.truncate(channel.size() - entrySize);
+
+            // Update num_nodes in header
+            headerMbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, Integer.BYTES);
+            headerMbb.order(ByteOrder.nativeOrder());
+            headerMbb.position(0);
+            headerMbb.putInt(numNodes - 1);
+            headerMbb.force();
+        }
+    }
 }

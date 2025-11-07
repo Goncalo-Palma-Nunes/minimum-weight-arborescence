@@ -1,6 +1,7 @@
 package optimalarborescence.unittests.mapper.graph;
 
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import optimalarborescence.memorymapper.EdgeListMapper;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.memorymapper.NodeIndexMapper;
@@ -418,5 +419,233 @@ public class NodeIndexMapperTest {
         // Verify large offsets were stored correctly
         Assert.assertEquals(Long.MAX_VALUE - 1000, NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1));
         Assert.assertEquals(Long.MAX_VALUE / 2, NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2));
+    }
+
+    // ===== Tests for removeNode method =====
+
+    @Test
+    public void testRemoveNodeMiddle() throws IOException {
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        originalEdges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        originalEdges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(3), 30));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        // Save initial graph with nodes 0, 1, 2, 3
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Get initial offsets
+        long offset1Before = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
+        long offset3Before = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 3);
+
+        // Remove node 2 (middle node)
+        Node nodeToRemove = TEST_NODES.get(2);
+        NodeIndexMapper.removeNode(nodeToRemove, NODES_FILE_NAME);
+
+        // Verify node count decreased
+        Map<Integer, Node> loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertEquals("Node count should decrease by 1", 3, loadedNodes.size());
+
+        // Verify node 2 position now contains what was node 3 (last node moved to fill gap)
+        long offset2After = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
+        Assert.assertEquals("Node 3 data moved to position 2", offset3Before, offset2After);
+
+        // Verify other nodes remain intact
+        long offset1After = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
+        Assert.assertEquals("Node 1 offset unchanged", offset1Before, offset1After);
+    }
+
+    @Test
+    public void testRemoveNodeLast() throws IOException {
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        originalEdges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        originalEdges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(3), 30));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        // Save initial graph
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Get offsets before removal
+        long offset0Before = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 0);
+        long offset1Before = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
+        long offset2Before = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
+
+        // Remove last node (node 3)
+        Node nodeToRemove = TEST_NODES.get(3);
+        NodeIndexMapper.removeNode(nodeToRemove, NODES_FILE_NAME);
+
+        // Verify node count decreased
+        Map<Integer, Node> loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertEquals("Node count should decrease by 1", 3, loadedNodes.size());
+
+        // Verify other nodes remain intact
+        Assert.assertEquals("Node 0 offset unchanged", offset0Before, NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 0));
+        Assert.assertEquals("Node 1 offset unchanged", offset1Before, NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1));
+        Assert.assertEquals("Node 2 offset unchanged", offset2Before, NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2));
+    }
+
+    @Test
+    public void testRemoveNodeFirst() throws IOException {
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        originalEdges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        originalEdges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(3), 30));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        // Save initial graph
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Get offset of last node before removal
+        long offset3Before = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 3);
+
+        // Remove first node (node 0)
+        Node nodeToRemove = TEST_NODES.get(0);
+        NodeIndexMapper.removeNode(nodeToRemove, NODES_FILE_NAME);
+
+        // Verify node count decreased
+        Map<Integer, Node> loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertEquals("Node count should decrease by 1", 3, loadedNodes.size());
+
+        // Verify node 0 position now contains what was node 3 (last node moved to fill gap)
+        long offset0After = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 0);
+        Assert.assertEquals("Node 3 data moved to position 0", offset3Before, offset0After);
+    }
+
+    @Test
+    public void testRemoveNodeMultipleTimes() throws IOException {
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        originalEdges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        originalEdges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(3), 30));
+        originalEdges.add(new Edge(TEST_NODES.get(3), TEST_NODES.get(4), 40));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        // Save initial graph with nodes 0, 1, 2, 3, 4
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Verify initial count
+        Map<Integer, Node> loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertEquals("Initial node count", 5, loadedNodes.size());
+
+        // Remove node 1
+        NodeIndexMapper.removeNode(TEST_NODES.get(1), NODES_FILE_NAME);
+        loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertEquals("After first removal", 4, loadedNodes.size());
+
+        // Remove node 3 (note: node 4 moved to position 1 after first removal)
+        NodeIndexMapper.removeNode(TEST_NODES.get(3), NODES_FILE_NAME);
+        loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertEquals("After second removal", 3, loadedNodes.size());
+
+        // Remove node 0
+        NodeIndexMapper.removeNode(TEST_NODES.get(0), NODES_FILE_NAME);
+        loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertEquals("After third removal", 2, loadedNodes.size());
+    }
+
+    @Test
+    public void testRemoveNodeOnlyNode() throws IOException {
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(0), 10)); // Self-loop
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        // Save graph with only one node
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Verify initial count
+        Map<Integer, Node> loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertEquals("Should have 1 node", 1, loadedNodes.size());
+
+        // Remove the only node
+        NodeIndexMapper.removeNode(TEST_NODES.get(0), NODES_FILE_NAME);
+
+        // Verify no nodes remain
+        loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertEquals("Should have 0 nodes", 0, loadedNodes.size());
+    }
+
+    @Test(expected = IOException.class)
+    public void testRemoveNodeOutOfRangeBeyondMax() throws IOException {
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        // Save initial graph with nodes 0, 1 (maxNodeId = 1)
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Try to remove node with ID just beyond max (maxNodeId is 1, try to remove 2)
+        Node nodeJustBeyondMax = TEST_NODES.get(2);
+        NodeIndexMapper.removeNode(nodeJustBeyondMax, NODES_FILE_NAME);
+    }
+
+    @Test(expected = IOException.class)
+    public void testRemoveNodeOutOfRangeTooLarge() throws IOException {
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        originalEdges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        // Save initial graph with nodes 0, 1, 2
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Try to remove node with ID beyond max (maxNodeId is 2, try to remove 999)
+        Node invalidNode = new Node("AAAA", 999);
+        NodeIndexMapper.removeNode(invalidNode, NODES_FILE_NAME);
+    }
+
+    @Test(expected = IOException.class)
+    public void testRemoveNodeInvalidFile() throws IOException {
+        // Create a corrupted/invalid file (too small)
+        try (RandomAccessFile raf = new RandomAccessFile(NODES_FILE_NAME, "rw")) {
+            raf.setLength(2); // Less than HEADER_SIZE (8 bytes)
+        }
+
+        // Try to remove node from invalid file
+        Node node = TEST_NODES.get(0);
+        NodeIndexMapper.removeNode(node, NODES_FILE_NAME);
+    }
+
+    @Test
+    public void testRemoveNodePreservesMLSTData() throws IOException {
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        originalEdges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        originalEdges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(3), 30));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        // Save initial graph
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Get MLST data before removal
+        Map<Integer, Node> nodesBefore = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        String mlst0 = nodesBefore.get(0).getMLSTdata();
+        String mlst1 = nodesBefore.get(1).getMLSTdata();
+        String mlst3 = nodesBefore.get(3).getMLSTdata();
+
+        // Remove node 2 (middle node, so node 3 moves to position 2)
+        NodeIndexMapper.removeNode(TEST_NODES.get(2), NODES_FILE_NAME);
+
+        // Verify MLST data preserved
+        Map<Integer, Node> nodesAfter = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertEquals("Node 0 MLST preserved", mlst0, nodesAfter.get(0).getMLSTdata());
+        Assert.assertEquals("Node 1 MLST preserved", mlst1, nodesAfter.get(1).getMLSTdata());
+        Assert.assertEquals("Node 3 MLST moved to position 2", mlst3, nodesAfter.get(2).getMLSTdata());
     }
 }
