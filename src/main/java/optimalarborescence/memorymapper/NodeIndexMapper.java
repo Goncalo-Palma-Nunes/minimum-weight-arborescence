@@ -112,6 +112,27 @@ public class NodeIndexMapper {
         saveGraph(graph.getNodes(), mlstLength, incomingEdgeOffsets, fileName);
     }
     
+    
+    /**
+     * Get the number of nodes stored in the memory-mapped file.
+     * 
+     * @param fileName Path to the node data file
+     * @return Number of nodes
+     * @throws IOException if file operations fail
+     */
+    public static int getNumNodes(String fileName) throws IOException {
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
+             FileChannel channel = raf.getChannel()) {
+            
+            if (channel.size() < HEADER_SIZE) {
+                throw new IOException("Invalid file format: file too small for header");
+            }
+            
+            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, Integer.BYTES);
+            mbb.order(ByteOrder.nativeOrder());
+            return mbb.getInt();
+        }
+    }
 
     
     /**

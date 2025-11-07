@@ -619,13 +619,123 @@ public class GraphMapperTest {
         // Clean up
         deleteTestFiles(baseName);
     }
+
+    // ===== Remove Node Tests =====
+
+    @Test
+    public void testRemoveNodeWithNoIncomingNorOutgoingEdges() throws IOException {
+        // Arrange - save initial graph
+        String baseName = TEST_BASE_NAME + "_removenode1";
+        GraphMapper.saveGraph(testGraph, MLST_LENGTH, baseName);
+        
+        // Add a new isolated node
+        Node isolatedNode = new Node("CCCCCCCCCCCCCCCCCCCC", 4);
+        GraphMapper.addNode(isolatedNode, new ArrayList<>(), baseName, MLST_LENGTH);
+        
+        // Act - remove the isolated node
+        GraphMapper.removeNode(isolatedNode, baseName, MLST_LENGTH);
+        
+        // Assert - reload graph and verify
+        Graph loadedGraph = GraphMapper.loadGraph(baseName);
+        Assert.assertEquals("Should have 4 nodes after removal", 4, loadedGraph.getNumNodes());
+        Assert.assertEquals("Should have 6 edges after removal", 6, loadedGraph.getNumEdges());
+        
+        // Verify the isolated node is gone
+        for (Node node : loadedGraph.getNodes()) {
+            Assert.assertNotEquals("Isolated node should be removed", 4, node.getID());
+        }
+        
+        // Clean up
+        deleteTestFiles(baseName);
+    }
+
+    @Test
+    public void testRemoveNodeWithIncomingAndNoOutgoingEdges() throws IOException {
+        // Arrange - save initial graph
+        String baseName = TEST_BASE_NAME + "_removenode2";
+        GraphMapper.saveGraph(testGraph, MLST_LENGTH, baseName);
+
+        // Add a new node with incoming edges
+        Node newNode = new Node("CCCCCCCCCCCCCCCCCCCC", 4);
+        List<Edge> incomingEdges = new ArrayList<>();
+        incomingEdges.add(new Edge(testGraph.getNodes().get(0), newNode, 1));
+        GraphMapper.addNode(newNode, incomingEdges, baseName, MLST_LENGTH);
+
+        // Act - remove the new node
+        GraphMapper.removeNode(newNode, baseName, MLST_LENGTH);
+
+        // Assert - reload graph and verify
+        Graph loadedGraph = GraphMapper.loadGraph(baseName);
+        Assert.assertEquals("Should have 4 nodes after removal", 4, loadedGraph.getNumNodes());
+        Assert.assertEquals("Should have 6 edges after removal", 6, loadedGraph.getNumEdges());
+
+        // Verify the new node is gone
+        for (Node node : loadedGraph.getNodes()) {
+            Assert.assertNotEquals("New node should be removed", 4, node.getID());
+        }
+
+        // Clean up
+        deleteTestFiles(baseName);
+    }
+
+    @Test
+    public void testRemoveNodeWithNoIncomingAndWithOutgoingEdges() throws IOException {
+        // Arrange - save initial graph
+        String baseName = TEST_BASE_NAME + "_removenode3";
+        Graph g = createTestGraphWithNodeWithoutIncomingEdges();
+        GraphMapper.saveGraph(g, MLST_LENGTH, baseName);
+
+        // Act - remove the new node
+        GraphMapper.removeNode(g.getNodes().get(g.getNumNodes() - 1), baseName, MLST_LENGTH);
+
+        // Assert - reload graph and verify
+        Graph loadedGraph = GraphMapper.loadGraph(baseName);
+        Assert.assertEquals("Should have 4 nodes after removal", 4, loadedGraph.getNumNodes());
+        Assert.assertEquals("Should have 6 edges after removal", 6, loadedGraph.getNumEdges());
+
+        // Verify the new node is gone
+        for (Node node : loadedGraph.getNodes()) {
+            Assert.assertNotEquals("New node should be removed", 4, node.getID());
+        }
+
+        // Clean up
+        deleteTestFiles(baseName);
+    }
+
+    // @Test
+    // public void testRemoveNodeWithIncomingAndOutgoingEdges() throws IOException {
+    // }
+
+    // @Test
+    // public void testRemoveNodeThatDoesNotExist() throws IOException {
+    // }
+
+    // @Test
+    // public void testRemoveNodeFromEmptyGraph() throws IOException {
+    //     // Arrange - create and save empty graph
+    //     String baseName = TEST_BASE_NAME + "_removenode_empty";;
+    //     Graph emptyGraph = new Graph(new ArrayList<>());
+    //     GraphMapper.saveGraph(emptyGraph, MLST_LENGTH, baseName);
+
+    //     // Create a node that does not exist in the graph
+    //     Node nonExistentNode = new Node("ACGTACGTACGTACGTACGT", 0);
+    //     // Act - attempt to remove the non-existent node
+    //     GraphMapper.removeNode(nonExistentNode, baseName, MLST_LENGTH);
+    //     // Assert - reload graph and verify it is still empty
+    //     Graph loadedGraph = GraphMapper.loadGraph(baseName);
+    //     Assert.assertEquals("Should still have 0 nodes", 0, loadedGraph.getNumNodes());
+    //     Assert.assertEquals("Should still have 0 edges", 0, loadedGraph.getNumEdges());
+    //     // Clean up
+    //     deleteTestFiles(baseName);
+    // }
+
+    @Test
+    public void testRemoveAllNodes() throws IOException {
+    }
     
     // Helper methods
-    
-    /**
-     * Create a test graph with known structure.
-     */
-    private Graph createTestGraph() {
+
+    private List<Edge> prepareEdges() {
         Node n0 = new Node("ATCGATCGATCGATCGATCG", 0);
         Node n1 = new Node("GCTAGCTAGCTAGCTAGCTA", 1);
         Node n2 = new Node("TGACTGACTGACTGACTGAC", 2);
@@ -638,10 +748,59 @@ public class GraphMapperTest {
         edges.add(new Edge(n1, n3, 4));
         edges.add(new Edge(n2, n3, 1));
         edges.add(new Edge(n3, n0, 6));
+
+        return edges;
+    }
+    
+    /**
+     * Create a test graph with known structure.
+     */
+    private Graph createTestGraph() {
+        return new Graph(prepareEdges());
+    }
+
+    /**
+     * Create a test graph with a node that has no incoming edges, but has outgoing edges.
+     */
+    private Graph createTestGraphWithNodeWithoutIncomingEdges() {
+        List<Edge> edges = prepareEdges();
+        Node n4 = new Node("TTTTTTTTTTTTTTTTTTTT", 4);
+        // No edges to n4
+        Edge e1 = new Edge(n4, edges.get(0).getSource(), 7);
+        Edge e2 = new Edge(n4, edges.get(3).getSource(), 8);
+        edges.add(e1);
+        edges.add(e2);
+        return new Graph(edges);
+    }
+
+    /**
+     * Create a test graph with a cycle.
+     */
+    private Graph createTestGraphWithCycle() {
+        Node n0 = new Node("AAAA", 0);
+        Node n1 = new Node("TTTT", 1);
+        Node n2 = new Node("GGGG", 2);
+        
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(n0, n1, 10));
+        edges.add(new Edge(n1, n2, 20));
+        edges.add(new Edge(n2, n0, 30));
         
         return new Graph(edges);
     }
-    
+
+    private Graph createTestGraphWithNodeWithIncomingEdgesAndOutgoingEdges() {
+        List<Edge> edges = prepareEdges();
+        Node n4 = new Node("TTTTTTTTTTTTTTTTTTTT", 4);
+        Edge e1 = new Edge(edges.get(0).getDestination(), n4, 7);
+        Edge e3 = new Edge(n4, edges.get(1).getDestination(), 5);
+        Edge e2 = new Edge(edges.get(2).getDestination(), n4, 8);
+        edges.add(e1);
+        edges.add(e2);
+        edges.add(e3);
+        return new Graph(edges);
+    }
+
     /**
      * Delete test files created during testing.
      */
