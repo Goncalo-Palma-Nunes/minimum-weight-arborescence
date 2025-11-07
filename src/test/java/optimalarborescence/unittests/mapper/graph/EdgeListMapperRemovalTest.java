@@ -78,6 +78,37 @@ public class EdgeListMapperRemovalTest {
         new File(baseName + "_nodes.dat").delete();
     }
 
+    /** Reads the memory mapped file sequentially and prints the edge information
+     * and respective offsets for debugging purposes.
+     */
+    private void printOffsetPerEach(String fileName) throws IOException {
+        try (var raf = new java.io.RandomAccessFile(fileName, "r")) {
+            var channel = raf.getChannel();
+            long fileSize = channel.size();
+            long offset = EdgeListMapper.HEADER_SIZE;
+            System.out.println("Edges in file " + fileName + ":");
+            while (offset < fileSize) {
+                var mbb = channel.map(java.nio.channels.FileChannel.MapMode.READ_ONLY, offset, EdgeListMapper.BYTES_PER_EDGE);
+                mbb.order(java.nio.ByteOrder.nativeOrder());
+                int src = mbb.getInt();
+                int destId = mbb.getInt();
+                int weight = mbb.getInt();
+                long next = mbb.getLong();
+                long prev = mbb.getLong();
+                System.out.println("Offset: " + offset + " | Edge: " + src + " -> " + destId + " (weight " + weight + ") | Next: " + next + " | Prev: " + prev);
+                offset += EdgeListMapper.BYTES_PER_EDGE;
+            }
+        }
+    }
+
+    private void printOffsets() {
+        System.out.println(" <----- Current Offsets -----> ");
+        for (var entry : offsetMap.entrySet()) {
+            System.out.println("Node ID: " + entry.getKey() + " | Offset: " + entry.getValue());
+        }
+        System.out.println(" <--------------------------> ");
+    }
+
     @Before
     public void setUp() throws IOException {
         Graph testGraph = createTestGraph();
@@ -144,5 +175,110 @@ public class EdgeListMapperRemovalTest {
             long incomingOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, id);
             Assert.assertNotEquals((long) offsetMap.get(nodesToRemoveEdgesFrom.indexOf(id)), incomingOffset);
         }
+    }
+
+    @Test
+    public void testRemoveNonExistentEdge() throws IOException {
+        
+        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long invalidOffset = EdgeListMapper.HEADER_SIZE + (initialNumEdges + 1) * EdgeListMapper.BYTES_PER_EDGE; // An offset that does not exist
+
+        // check exception is thrown
+        boolean exceptionThrown = false;
+        try {
+            EdgeListMapper.removeEdgeAtOffset(EDGES_FILE_NAME, invalidOffset);
+        } catch (IOException e) {
+            exceptionThrown = true;
+        }
+        Assert.assertTrue(exceptionThrown);
+    }
+
+    @Test
+    public void testRemoveEdgeFromEmptyFile() throws IOException {
+        deleteTestFiles(BASE_FILE_NAME);
+        initializeNodeIndexMapper(new Graph(new ArrayList<>()));
+
+        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long invalidOffset = EdgeListMapper.HEADER_SIZE; // No edges exist
+        
+        EdgeListMapper.removeEdgeAtOffset(EDGES_FILE_NAME, invalidOffset);
+        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(initialNumEdges, newNumEdges);
+
+        invalidOffset = -10; // Negative offset
+        EdgeListMapper.removeEdgeAtOffset(EDGES_FILE_NAME, invalidOffset);
+        newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(initialNumEdges, newNumEdges);
+    }
+
+    @Test
+    public void testRemoveInvalidOffset() throws IOException {
+        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long invalidOffset = EdgeListMapper.HEADER_SIZE + 1L; // Misaligned offset
+
+        // check no exception is thrown
+        EdgeListMapper.removeEdgeAtOffset(EDGES_FILE_NAME, invalidOffset);
+        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(initialNumEdges, newNumEdges);
+    }
+
+    @Test
+    public void testRemoveEdgeAtEndOfFile() throws IOException {
+        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long edgeOffset = EdgeListMapper.HEADER_SIZE + (initialNumEdges - 1) * EdgeListMapper.BYTES_PER_EDGE; // Offset of last edge
+        EdgeListMapper.removeEdgeAtOffset(EDGES_FILE_NAME, edgeOffset);
+        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(initialNumEdges - 1, newNumEdges);
+    }
+
+    @Test
+    public void testRemoveLinkedList() throws IOException {
+        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long startOffset = offsetMap.get(1); // Example offset for start of linked list
+        EdgeListMapper.removeLinkedList(EDGES_FILE_NAME, startOffset);
+        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertTrue(newNumEdges < initialNumEdges);
+
+        long newStartOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
+        Assert.assertEquals(-1, newStartOffset);
+    }
+
+    @Test
+    public void testRemoveLinkedListFromEmptyFile() throws IOException {
+        deleteTestFiles(BASE_FILE_NAME);
+        initializeNodeIndexMapper(new Graph(new ArrayList<>()));
+
+        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long startOffset = EdgeListMapper.HEADER_SIZE; // Start of linked list
+        EdgeListMapper.removeLinkedList(EDGES_FILE_NAME, startOffset);
+        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(initialNumEdges, newNumEdges);
+        Assert.assertEquals(0, newNumEdges);
+    }
+
+    @Test
+    public void testRemoveLinkedListWithInvalidOffset() throws IOException {
+        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long invalidOffset = EdgeListMapper.HEADER_SIZE + 1L; // Misaligned offset
+        // check no exception is thrown
+        EdgeListMapper.removeLinkedList(EDGES_FILE_NAME, invalidOffset);
+        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(initialNumEdges, newNumEdges);
+    }
+
+    @Test
+    public void testRemoveAllLinkedLists() throws IOException {
+        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        // printOffsets();
+        for (int nodeId : offsetMap.keySet()) {
+            // printOffsetPerEach(EDGES_FILE_NAME);
+            long startOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, nodeId);
+            if (startOffset >= 0) {
+                EdgeListMapper.removeLinkedList(EDGES_FILE_NAME, startOffset);
+            }
+        }
+        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(0, newNumEdges);
+        Assert.assertTrue(newNumEdges <= initialNumEdges);
     }
 }

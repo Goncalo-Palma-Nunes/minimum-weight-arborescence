@@ -32,6 +32,7 @@ public class EdgeListMapper {
     
     public static final int HEADER_SIZE = 4; // num_edges (1 int)
     public static final int BYTES_PER_EDGE = 28; // 3 ints + 2 longs per edge
+    private static final long NO_CHANGE = -2L;
     
     /**
      * Save edges to a memory-mapped file with linked list structure.
@@ -487,6 +488,58 @@ public class EdgeListMapper {
         }
     }
 
+    private static void updatePrevAndNextOffsets(FileChannel channel, long offset, long newNext, long newPrev) throws IOException {
+        MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, offset, BYTES_PER_EDGE);
+        mbb.order(ByteOrder.nativeOrder());
+
+        mbb.getInt(); // skip source ID
+        mbb.getInt(); // skip dest ID
+        mbb.getInt(); // skip weight
+        if (newNext != NO_CHANGE) {
+            mbb.putLong(newNext);
+        } else {
+            mbb.getLong(); // skip next
+        }
+        if (newPrev != NO_CHANGE) {
+            mbb.putLong(newPrev);
+        } else {
+            mbb.getLong(); // skip prev
+        }
+        mbb.force();
+    }
+
+    // private static void maintainTargetListOffsetAndPointers(String filename, long targetOffset, int destId,
+    //                                                 long prevOffset, FileChannel channel) throws IOException {
+    //     if (prevOffset < 0) {
+    //         return; // Only one edge in the list
+    //     }
+    //     String nodeFileName = filename.replace("_edges.dat", "_nodes.dat");
+    //     long listHeadOffset = NodeIndexMapper.getIncomingEdgeOffset(nodeFileName, destId);
+    //     System.out.println("Current list head offset for node " + destId + " is " + listHeadOffset);
+    //     if (listHeadOffset > targetOffset) {
+    //         // New head of list
+    //         NodeIndexMapper.updateIncomingEdgeOffset(nodeFileName, destId, targetOffset);
+    //         System.out.println("Updated incoming edge offset for node " + destId + " to " + targetOffset);
+
+    //         System.out.println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    //         updatePrevAndNextOffsets(channel, targetOffset, listHeadOffset, -1L);
+    //         updatePrevAndNextOffsets(channel, listHeadOffset, NO_CHANGE, targetOffset);
+    //         updatePrevAndNextOffsets(channel, prevOffset, -1L, NO_CHANGE);
+    //     }
+    // }
+
+    private static void maintainTargetListOffsetAndPointers(String filename, long lastEdgeOffset, int destId,
+                                                    long targetOffset, FileChannel channel) throws IOException {
+        String nodeFileName = filename.replace("_edges.dat", "_nodes.dat");
+        long listHeadOffset = NodeIndexMapper.getIncomingEdgeOffset(nodeFileName, destId);
+        
+        // If the list head was pointing to the edge being moved (lastEdgeOffset),
+        // update it to point to the new location (targetOffset)
+        if (listHeadOffset == lastEdgeOffset) {
+            NodeIndexMapper.updateIncomingEdgeOffset(nodeFileName, destId, targetOffset);
+        }
+    }
+
     /**
      * Invalidate an edge entry at the given offset and compact the file by moving
      * the last edge into the removed edge's position.
@@ -520,6 +573,25 @@ public class EdgeListMapper {
             targetMbb.putLong(next);
             targetMbb.putLong(prev);
             targetMbb.force();
+
+            maintainTargetListOffsetAndPointers(filename, lastEdgeOffset, destId, offset, channel);
+            
+            // Update the linked list pointers of adjacent edges
+            // If there's a previous edge, update its next pointer to point to the new location
+            if (prev >= 0) {
+                MappedByteBuffer prevMbb = channel.map(FileChannel.MapMode.READ_WRITE, prev + 12, 8);
+                prevMbb.order(ByteOrder.nativeOrder());
+                prevMbb.putLong(offset);
+                prevMbb.force();
+            }
+            
+            // If there's a next edge, update its prev pointer to point to the new location
+            if (next >= 0) {
+                MappedByteBuffer nextMbb = channel.map(FileChannel.MapMode.READ_WRITE, next + 20, 8);
+                nextMbb.order(ByteOrder.nativeOrder());
+                nextMbb.putLong(offset);
+                nextMbb.force();
+            }
         }
         // Truncate the file to remove the last edge
         channel.truncate(fileSize - BYTES_PER_EDGE);
@@ -551,8 +623,12 @@ public class EdgeListMapper {
      * @throws IOException if file operations fail
      */
     public static void removeEdgeAtOffset(String filename, long offset) throws IOException {
-        if (offset < 0) {
+        if (offset < 0 || offset % BYTES_PER_EDGE != HEADER_SIZE ||
+            getNumEdges(filename) == 0) {
             return; // Nothing to remove
+        }
+        if (offset > getNumEdges(filename) * BYTES_PER_EDGE + HEADER_SIZE - BYTES_PER_EDGE) {
+            throw new IOException("Invalid offset: " + offset);
         }
 
         try (RandomAccessFile raf = new RandomAccessFile(filename, "rw")) {
@@ -592,8 +668,12 @@ public class EdgeListMapper {
      * @throws IOException if file operations fail
      */
     public static void removeLinkedList(String filename, long offset) throws IOException {
-        if (offset < 0) {
+        if (offset < 0 || offset % BYTES_PER_EDGE != HEADER_SIZE ||
+            getNumEdges(filename) == 0) {
             return; // Nothing to remove
+        }
+        if (offset > getNumEdges(filename) * BYTES_PER_EDGE + HEADER_SIZE - BYTES_PER_EDGE) {
+            throw new IOException("Invalid offset: " + offset);
         }
 
         try (RandomAccessFile raf = new RandomAccessFile(filename, "rw")) {
