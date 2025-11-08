@@ -4,7 +4,6 @@ import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
 import optimalarborescence.inference.dynamic.ATreeNode;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteOrder;
@@ -23,51 +22,64 @@ import java.util.Queue;
  * An ATree forest consists of multiple ATree root nodes, where each ATree represents
  * a partially contracted subgraph in the fully dynamic arborescence algorithm.
  * 
- * File Structure:
- * - {baseName}_atree_index.dat: ATree node data with parent/children/contracted edges offsets
- * - {baseName}_atree_children.dat: Variable-length children lists
- * - {baseName}_atree_contracted.dat: Variable-length contracted edge lists
+ * Single File Structure ({baseName}_atree.dat):
+ * 
+ * Header:
+ *   - num_nodes (4 bytes)
+ *   - num_roots (4 bytes)
+ *   - root_offsets[] (num_roots × 8 bytes)
+ * 
+ * Node Entry (variable length):
+ *   - edge_src (4 bytes)
+ *   - edge_dst (4 bytes)
+ *   - edge_weight (4 bytes)
+ *   - cost (4 bytes)
+ *   - parent_offset (8 bytes)
+ *   - num_children (4 bytes)
+ *   - children_offsets[] (num_children × 8 bytes)
+ *   - num_contracted_edges (4 bytes)
+ *   - contracted_edges[] (num_contracted_edges × 12 bytes: src, dst, weight)
  * 
  * Design Notes:
  * - Uses offsets instead of IDs for parent references (direct O(1) access)
- * - Nodes stored consecutively without gaps (no wasted space)
- * - Simple vs complex nodes distinguished by contracted_edges_offset (-1 = simple)
+ * - Variable-length arrays stored inline (no separate files)
+ * - Simple nodes have num_contracted_edges = 0
  * - Root nodes have parent_offset = -1
  */
 public class ATreeMapper {
     
-    private static final int BYTES_PER_NODE = 40;
-    // Node format: [edge_src(4), edge_dst(4), edge_wt(4), cost(4), 
-    //               parent_offset(8), children_offset(8), contracted_offset(8)]
-    // Total: 12 + 4 + 8 + 8 + 8 = 40 bytes
-    
     private static final int BYTES_PER_EDGE = 12; // source(4), dest(4), weight(4)
     
+    // Fixed-size portion of each node (before variable-length arrays)
+    private static final int NODE_FIXED_SIZE = 32; 
+    // edge_src(4) + edge_dst(4) + edge_weight(4) + cost(4) + parent_offset(8) + num_children(4) + num_contracted(4)
+    
     /**
-     * Save an ATree forest to memory-mapped files.
+     * Save an ATree forest to a single memory-mapped file.
      * 
      * @param roots List of ATree root nodes
      * @param graphNodes Map of node IDs to Node objects (for edge reconstruction)
-     * @param baseName Base name for output files
+     * @param baseName Base name for output file
      * @throws IOException if file operations fail
      */
     public static void saveATreeForest(List<ATreeNode> roots, Map<Integer, Node> graphNodes, 
                                        String baseName) throws IOException {
-        String indexFile = baseName + "_atree_index.dat";
-        String childrenFile = baseName + "_atree_children.dat";
-        String contractedFile = baseName + "_atree_contracted.dat";
+        String fileName = baseName + "_atree.dat";
         
-        // Step 1: Collect all nodes in the forest using BFS
+        // Step 1: Collect all nodes in the forest using BFS and calculate their sizes
         List<ATreeNode> allNodes = new ArrayList<>();
         Map<ATreeNode, Long> nodeOffsets = new HashMap<>();
+        Map<ATreeNode, Integer> nodeSizes = new HashMap<>();
         
         Queue<ATreeNode> queue = new LinkedList<>(roots);
         while (!queue.isEmpty()) {
             ATreeNode current = queue.poll();
             if (!nodeOffsets.containsKey(current)) {
-                long offset = calculateNodeOffset(allNodes.size());
-                nodeOffsets.put(current, offset);
                 allNodes.add(current);
+                
+                // Calculate size for this node
+                int nodeSize = calculateNodeSize(current);
+                nodeSizes.put(current, nodeSize);
                 
                 @SuppressWarnings("unchecked")
                 List<ATreeNode> children = (List<ATreeNode>) (List<?>) current.getChildren();
@@ -77,182 +89,18 @@ public class ATreeMapper {
             }
         }
         
-        // Calculate header size (needed for absolute offsets)
-        int headerSize = 8 + (roots.size() * 8);
-        
-        // Step 2: Write children lists and get offsets
-        Map<ATreeNode, Long> childrenOffsets = writeChildrenLists(allNodes, nodeOffsets, 
-                                                                   headerSize, childrenFile);
-        
-        // Step 3: Write contracted edges and get offsets
-        Map<ATreeNode, Long> contractedOffsets = writeContractedEdges(allNodes, contractedFile);
-        
-        // Step 4: Write node data to index file
-        writeNodeIndex(roots, allNodes, nodeOffsets, childrenOffsets, contractedOffsets, indexFile);
-    }
-    
-    /**
-     * Load an ATree forest from memory-mapped files.
-     * 
-     * @param baseName Base name for input files
-     * @param graphNodes Map of node IDs to Node objects (for edge reconstruction)
-     * @return List of ATree root nodes
-     * @throws IOException if file operations fail
-     */
-    public static List<ATreeNode> loadATreeForest(String baseName, Map<Integer, Node> graphNodes) 
-            throws IOException {
-        String indexFile = baseName + "_atree_index.dat";
-        String childrenFile = baseName + "_atree_children.dat";
-        String contractedFile = baseName + "_atree_contracted.dat";
-        
-        // Read header to get root offsets
-        List<Long> rootOffsets = readRootOffsets(indexFile);
-        
-        // Load all nodes and build the forest
-        Map<Long, ATreeNode> loadedNodes = new HashMap<>();
-        List<ATreeNode> roots = new ArrayList<>();
-        
-        for (Long rootOffset : rootOffsets) {
-            ATreeNode root = loadATreeNode(rootOffset, indexFile, childrenFile, contractedFile, 
-                                          graphNodes, loadedNodes);
-            roots.add(root);
-        }
-        
-        return roots;
-    }
-    
-    /**
-     * Calculate the byte offset for a node at the given index in the node array.
-     */
-    private static long calculateNodeOffset(int nodeIndex) {
-        // Header size: num_nodes(4) + num_roots(4) + root_offsets(num_roots * 8)
-        // We'll calculate this dynamically when writing
-        // For now, return relative offset from start of node data
-        return (long) nodeIndex * BYTES_PER_NODE;
-    }
-    
-    /**
-     * Write children lists to file and return offsets for each node.
-     */
-    private static Map<ATreeNode, Long> writeChildrenLists(List<ATreeNode> allNodes, 
-                                                           Map<ATreeNode, Long> nodeOffsets,
-                                                           int headerSize,
-                                                           String fileName) throws IOException {
-        Map<ATreeNode, Long> childrenOffsets = new HashMap<>();
-        
-        try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
-             FileChannel channel = raf.getChannel()) {
-            
-            long currentOffset = 0;
-            
-            for (ATreeNode node : allNodes) {
-                @SuppressWarnings("unchecked")
-                List<ATreeNode> children = (List<ATreeNode>) (List<?>) node.getChildren();
-                
-                if (children == null || children.isEmpty()) {
-                    childrenOffsets.put(node, -1L);
-                    continue;
-                }
-                
-                // Record offset for this node's children list
-                childrenOffsets.put(node, currentOffset);
-                
-                // Calculate size: num_children(4) + child_offsets(n * 8)
-                int numChildren = children.size();
-                long listSize = 4 + ((long) numChildren * 8);
-                
-                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, 
-                                                   currentOffset, listSize);
-                mbb.order(ByteOrder.nativeOrder());
-                
-                // Write number of children
-                mbb.putInt(numChildren);
-                
-                // Write child offsets (convert relative to absolute)
-                for (ATreeNode child : children) {
-                    Long relativeChildOffset = nodeOffsets.get(child);
-                    if (relativeChildOffset != null) {
-                        long absoluteChildOffset = headerSize + relativeChildOffset;
-                        mbb.putLong(absoluteChildOffset);
-                    } else {
-                        mbb.putLong(-1L);
-                    }
-                }
-                
-                mbb.force();
-                currentOffset += listSize;
-            }
-            
-            raf.setLength(currentOffset);
-        }
-        
-        return childrenOffsets;
-    }
-    
-    /**
-     * Write contracted edges to file and return offsets for each node.
-     */
-    private static Map<ATreeNode, Long> writeContractedEdges(List<ATreeNode> allNodes, 
-                                                             String fileName) throws IOException {
-        Map<ATreeNode, Long> contractedOffsets = new HashMap<>();
-        
-        try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
-             FileChannel channel = raf.getChannel()) {
-            
-            long currentOffset = 0;
-            
-            for (ATreeNode node : allNodes) {
-                List<Edge> contractedEdges = node.getContractedEdges();
-                
-                if (node.isSimpleNode() || contractedEdges == null || contractedEdges.isEmpty()) {
-                    contractedOffsets.put(node, -1L);
-                    continue;
-                }
-                
-                // Record offset for this node's contracted edges
-                contractedOffsets.put(node, currentOffset);
-                
-                // Calculate size: num_edges(4) + edges(n * 12)
-                int numEdges = contractedEdges.size();
-                long listSize = 4 + ((long) numEdges * BYTES_PER_EDGE);
-                
-                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, 
-                                                   currentOffset, listSize);
-                mbb.order(ByteOrder.nativeOrder());
-                
-                // Write number of edges
-                mbb.putInt(numEdges);
-                
-                // Write edges
-                for (Edge edge : contractedEdges) {
-                    mbb.putInt(edge.getSource().getID());
-                    mbb.putInt(edge.getDestination().getID());
-                    mbb.putInt(edge.getWeight());
-                }
-                
-                mbb.force();
-                currentOffset += listSize;
-            }
-            
-            raf.setLength(currentOffset);
-        }
-        
-        return contractedOffsets;
-    }
-    
-    /**
-     * Write node index file with all node data.
-     */
-    private static void writeNodeIndex(List<ATreeNode> roots, List<ATreeNode> allNodes, 
-                                       Map<ATreeNode, Long> nodeOffsets,
-                                       Map<ATreeNode, Long> childrenOffsets,
-                                       Map<ATreeNode, Long> contractedOffsets,
-                                       String fileName) throws IOException {
-        
-        int numNodes = allNodes.size();
+        // Step 2: Calculate offsets for all nodes
         int numRoots = roots.size();
-        int headerSize = 8 + (numRoots * 8);
-        long fileSize = headerSize + ((long) numNodes * BYTES_PER_NODE);
+        long headerSize = 8 + ((long) numRoots * 8);
+        long currentOffset = headerSize;
+        
+        for (ATreeNode node : allNodes) {
+            nodeOffsets.put(node, currentOffset);
+            currentOffset += nodeSizes.get(node);
+        }
+        
+        // Step 3: Write everything to the single file
+        long fileSize = currentOffset;
         
         try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
              FileChannel channel = raf.getChannel()) {
@@ -262,53 +110,17 @@ public class ATreeMapper {
             mbb.order(ByteOrder.nativeOrder());
             
             // Write header
-            mbb.putInt(numNodes);
-            mbb.putInt(numRoots);
+            mbb.putInt(allNodes.size()); // num_nodes
+            mbb.putInt(numRoots);        // num_roots
             
-            // Write root offsets (adjusted for header)
+            // Write root offsets
             for (ATreeNode root : roots) {
-                long relativeOffset = nodeOffsets.get(root);
-                long absoluteOffset = headerSize + relativeOffset;
-                mbb.putLong(absoluteOffset);
+                mbb.putLong(nodeOffsets.get(root));
             }
             
-            // Write node data
-            for (int i = 0; i < allNodes.size(); i++) {
-                ATreeNode node = allNodes.get(i);
-                Edge edge = node.getEdge();
-                
-                // Write edge data (use -1 for null/root)
-                if (edge != null) {
-                    mbb.putInt(edge.getSource().getID());
-                    mbb.putInt(edge.getDestination().getID());
-                    mbb.putInt(edge.getWeight());
-                } else {
-                    mbb.putInt(-1); // source
-                    mbb.putInt(-1); // destination
-                    mbb.putInt(-1); // weight
-                }
-                
-                // Write cost
-                mbb.putInt(node.getCost());
-                
-                // Write parent offset
-                long parentOffset = -1L;
-                ATreeNode parent = node.getParent();
-                if (parent != null) {
-                    Long relativeParentOffset = nodeOffsets.get(parent);
-                    if (relativeParentOffset != null) {
-                        parentOffset = headerSize + relativeParentOffset;
-                    }
-                }
-                mbb.putLong(parentOffset);
-                
-                // Write children offset
-                Long childrenOffset = childrenOffsets.get(node);
-                mbb.putLong(childrenOffset != null ? childrenOffset : -1L);
-                
-                // Write contracted edges offset
-                Long contractedOffset = contractedOffsets.get(node);
-                mbb.putLong(contractedOffset != null ? contractedOffset : -1L);
+            // Write all nodes
+            for (ATreeNode node : allNodes) {
+                writeNode(mbb, node, nodeOffsets);
             }
             
             mbb.force();
@@ -316,214 +128,256 @@ public class ATreeMapper {
     }
     
     /**
-     * Read root offsets from the index file header.
+     * Calculate the size in bytes needed to store a node.
      */
-    private static List<Long> readRootOffsets(String fileName) throws IOException {
-        List<Long> rootOffsets = new ArrayList<>();
+    private static int calculateNodeSize(ATreeNode node) {
+        int size = NODE_FIXED_SIZE; // Fixed part
+        
+        // Add space for children offsets
+        @SuppressWarnings("unchecked")
+        List<ATreeNode> children = (List<ATreeNode>) (List<?>) node.getChildren();
+        if (children != null) {
+            size += children.size() * 8; // 8 bytes per child offset
+        }
+        
+        // Add space for contracted edges
+        List<Edge> contractedEdges = node.getContractedEdges();
+        if (!node.isSimpleNode() && contractedEdges != null) {
+            size += contractedEdges.size() * BYTES_PER_EDGE;
+        }
+        
+        return size;
+    }
+    
+    /**
+     * Write a single node to the buffer.
+     */
+    private static void writeNode(MappedByteBuffer mbb, ATreeNode node, 
+                                  Map<ATreeNode, Long> nodeOffsets) {
+        Edge edge = node.getEdge();
+        
+        // Write edge data (use -1 for null/root)
+        if (edge != null) {
+            mbb.putInt(edge.getSource().getID());
+            mbb.putInt(edge.getDestination().getID());
+            mbb.putInt(edge.getWeight());
+        } else {
+            mbb.putInt(-1); // source
+            mbb.putInt(-1); // destination
+            mbb.putInt(-1); // weight
+        }
+        
+        // Write cost
+        mbb.putInt(node.getCost());
+        
+        // Write parent offset
+        ATreeNode parent = node.getParent();
+        long parentOffset = (parent != null && nodeOffsets.containsKey(parent)) 
+                          ? nodeOffsets.get(parent) : -1L;
+        mbb.putLong(parentOffset);
+        
+        // Write children
+        @SuppressWarnings("unchecked")
+        List<ATreeNode> children = (List<ATreeNode>) (List<?>) node.getChildren();
+        int numChildren = (children != null) ? children.size() : 0;
+        mbb.putInt(numChildren);
+        
+        if (children != null) {
+            for (ATreeNode child : children) {
+                long childOffset = nodeOffsets.getOrDefault(child, -1L);
+                mbb.putLong(childOffset);
+            }
+        }
+        
+        // Write contracted edges
+        List<Edge> contractedEdges = node.getContractedEdges();
+        int numContractedEdges = (!node.isSimpleNode() && contractedEdges != null) 
+                                ? contractedEdges.size() : 0;
+        mbb.putInt(numContractedEdges);
+        
+        if (numContractedEdges > 0) {
+            for (Edge contractedEdge : contractedEdges) {
+                mbb.putInt(contractedEdge.getSource().getID());
+                mbb.putInt(contractedEdge.getDestination().getID());
+                mbb.putInt(contractedEdge.getWeight());
+            }
+        }
+    }
+    
+    /**
+     * Load an ATree forest from a single memory-mapped file.
+     * 
+     * @param baseName Base name for input file
+     * @param graphNodes Map of node IDs to Node objects (for edge reconstruction)
+     * @return List of ATree root nodes
+     * @throws IOException if file operations fail
+     */
+    public static List<ATreeNode> loadATreeForest(String baseName, Map<Integer, Node> graphNodes) 
+            throws IOException {
+        String fileName = baseName + "_atree.dat";
         
         try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
              FileChannel channel = raf.getChannel()) {
             
-            // Read header
-            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, 8);
+            long fileSize = channel.size();
+            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, fileSize);
             mbb.order(ByteOrder.nativeOrder());
             
-            mbb.getInt(); // numNodes - not needed here
+            // Read header
+            mbb.getInt(); // numNodes - not needed for loading
             int numRoots = mbb.getInt();
             
             // Read root offsets
-            if (numRoots > 0) {
-                mbb = channel.map(FileChannel.MapMode.READ_ONLY, 8, (long) numRoots * 8);
-                mbb.order(ByteOrder.nativeOrder());
-                
-                for (int i = 0; i < numRoots; i++) {
-                    rootOffsets.add(mbb.getLong());
+            List<Long> rootOffsets = new ArrayList<>();
+            for (int i = 0; i < numRoots; i++) {
+                rootOffsets.add(mbb.getLong());
+            }
+            
+            // Load all nodes with offset tracking
+            Map<Long, ATreeNode> loadedNodes = new HashMap<>();
+            List<ATreeNode> roots = new ArrayList<>();
+            
+            // First pass: create all nodes without parent/children links
+            for (Long rootOffset : rootOffsets) {
+                loadNodesFromRoot(mbb, rootOffset, graphNodes, loadedNodes);
+            }
+            
+            // Second pass: establish parent-child relationships for ALL nodes
+            for (ATreeNode node : loadedNodes.values()) {
+                long nodeOffset = findNodeOffset(loadedNodes, node);
+                if (nodeOffset != -1) {
+                    linkSingleNodeRelationships(mbb, nodeOffset, loadedNodes);
                 }
             }
+            
+            // Collect roots
+            for (Long rootOffset : rootOffsets) {
+                ATreeNode root = loadedNodes.get(rootOffset);
+                if (root != null) {
+                    roots.add(root);
+                }
+            }
+            
+            return roots;
         }
-        
-        return rootOffsets;
     }
     
     /**
-     * Load a single ATree node from file at the given offset.
+     * Find the offset of a node in the loaded nodes map.
      */
-    private static ATreeNode loadATreeNode(long offset, String indexFile, String childrenFile,
-                                          String contractedFile, Map<Integer, Node> graphNodes,
-                                          Map<Long, ATreeNode> loadedNodes) throws IOException {
-        
-        // Check if already loaded
+    private static long findNodeOffset(Map<Long, ATreeNode> loadedNodes, ATreeNode node) {
+        for (Map.Entry<Long, ATreeNode> entry : loadedNodes.entrySet()) {
+            if (entry.getValue() == node) {
+                return entry.getKey();
+            }
+        }
+        return -1;
+    }
+    
+    /**
+     * Recursively load all nodes reachable from a root, creating node objects without links.
+     */
+    private static void loadNodesFromRoot(MappedByteBuffer mbb, long offset, 
+                                         Map<Integer, Node> graphNodes,
+                                         Map<Long, ATreeNode> loadedNodes) {
         if (loadedNodes.containsKey(offset)) {
-            return loadedNodes.get(offset);
+            return; // Already loaded
         }
         
-        try (RandomAccessFile raf = new RandomAccessFile(indexFile, "r");
-             FileChannel channel = raf.getChannel()) {
+        // Position at node start
+        mbb.position((int) offset);
+        
+        // Read fixed-size portion
+        int edgeSrcId = mbb.getInt();
+        int edgeDstId = mbb.getInt();
+        int edgeWeight = mbb.getInt();
+        int cost = mbb.getInt();
+        mbb.getLong(); // parentOffset - not used here, we link separately
+        int numChildren = mbb.getInt();
+        
+        // Read children offsets
+        List<Long> childOffsets = new ArrayList<>();
+        for (int i = 0; i < numChildren; i++) {
+            childOffsets.add(mbb.getLong());
+        }
+        
+        // Read contracted edges
+        int numContractedEdges = mbb.getInt();
+        List<Edge> contractedEdges = new ArrayList<>();
+        
+        for (int i = 0; i < numContractedEdges; i++) {
+            int srcId = mbb.getInt();
+            int dstId = mbb.getInt();
+            int weight = mbb.getInt();
             
-            // Read node data
-            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, offset, BYTES_PER_NODE);
-            mbb.order(ByteOrder.nativeOrder());
+            Node src = graphNodes.get(srcId);
+            Node dst = graphNodes.get(dstId);
             
-            // Read edge data
-            int edgeSrcId = mbb.getInt();
-            int edgeDstId = mbb.getInt();
-            int edgeWeight = mbb.getInt();
-            
-            Edge edge = null;
-            if (edgeSrcId != -1 && edgeDstId != -1) {
-                Node src = graphNodes.get(edgeSrcId);
-                Node dst = graphNodes.get(edgeDstId);
-                if (src != null && dst != null) {
-                    edge = new Edge(src, dst, edgeWeight);
-                }
+            if (src != null && dst != null) {
+                contractedEdges.add(new Edge(src, dst, weight));
             }
-            
-            // Read cost
-            int cost = mbb.getInt();
-            
-            // Read parent offset
-            long parentOffset = mbb.getLong();
-            
-            // Read children offset
-            long childrenOffset = mbb.getLong();
-            
-            // Read contracted edges offset
-            long contractedOffset = mbb.getLong();
-            
-            // Validate offsets to catch corruption
-            if (parentOffset < -1L || childrenOffset < -1L || contractedOffset < -1L) {
-                throw new IOException(String.format(
-                    "Invalid offsets at position %d: parent=%d, children=%d, contracted=%d",
-                    offset, parentOffset, childrenOffset, contractedOffset));
+        }
+        
+        // Create edge for this node
+        Edge edge = null;
+        if (edgeSrcId != -1 && edgeDstId != -1) {
+            Node src = graphNodes.get(edgeSrcId);
+            Node dst = graphNodes.get(edgeDstId);
+            if (src != null && dst != null) {
+                edge = new Edge(src, dst, edgeWeight);
             }
-            
-            // Determine if simple node
-            boolean isSimpleNode = (contractedOffset == -1L);
-            
-            // Load contracted edges if this is a complex node
-            List<Edge> contractedEdges = null;
-            if (!isSimpleNode && contractedOffset >= 0) {
-                contractedEdges = loadContractedEdges(contractedOffset, contractedFile, graphNodes);
-            }
-            
-            // Create the node (without parent and children initially)
-            ATreeNode node = new ATreeNode(edge, cost, isSimpleNode, contractedEdges);
-            
-            // Store in cache IMMEDIATELY to prevent infinite recursion
-            loadedNodes.put(offset, node);
-            
-            // Load and set parent (may recursively load, but will find this node in cache)
-            if (parentOffset != -1L && parentOffset >= 0) {
-                ATreeNode parentNode = loadATreeNode(parentOffset, indexFile, childrenFile, 
-                                                contractedFile, graphNodes, loadedNodes);
-                node.setParent(parentNode);
-            }
-            
-            // Load and set children (may recursively load, but will find this node in cache)
-            if (childrenOffset != -1L) {
-                List<ATreeNode> children = loadChildren(childrenOffset, childrenFile, indexFile, 
-                                                       contractedFile, graphNodes, loadedNodes);
-                node.setChildren(children);
-            } else {
-                node.setChildren(new ArrayList<>());
-            }
-            
-            return node;
+        }
+        
+        // Create node (without parent and children initially)
+        boolean isSimpleNode = (numContractedEdges == 0);
+        ATreeNode node = new ATreeNode(edge, cost, isSimpleNode, 
+                                      contractedEdges.isEmpty() ? null : contractedEdges);
+        
+        // Store in cache
+        loadedNodes.put(offset, node);
+        
+        // Recursively load children
+        for (Long childOffset : childOffsets) {
+            loadNodesFromRoot(mbb, childOffset, graphNodes, loadedNodes);
         }
     }
     
     /**
-     * Load children list from file.
+     * Link parent-child relationships for a single node (non-recursive).
      */
-    private static List<ATreeNode> loadChildren(long offset, String childrenFile, String indexFile,
-                                                String contractedFile, Map<Integer, Node> graphNodes,
-                                                Map<Long, ATreeNode> loadedNodes) throws IOException {
+    private static void linkSingleNodeRelationships(MappedByteBuffer mbb, long offset,
+                                                   Map<Long, ATreeNode> loadedNodes) {
+        ATreeNode node = loadedNodes.get(offset);
+        if (node == null) {
+            return;
+        }
+        
+        // Position at node start
+        mbb.position((int) offset);
+        
+        // Skip to parent offset field (skip edge data + cost)
+        mbb.position(mbb.position() + 16); // skip edge_src, edge_dst, edge_weight, cost
+        
+        long parentOffset = mbb.getLong();
+        int numChildren = mbb.getInt();
+        
+        // Set parent
+        if (parentOffset != -1) {
+            ATreeNode parent = loadedNodes.get(parentOffset);
+            if (parent != null) {
+                node.setParent(parent);
+            }
+        }
+        
+        // Read and set children
         List<ATreeNode> children = new ArrayList<>();
-        
-        File file = new File(childrenFile);
-        if (!file.exists() || file.length() == 0) {
-            return children; // Empty file means no children
-        }
-        
-        try (RandomAccessFile raf = new RandomAccessFile(childrenFile, "r");
-             FileChannel channel = raf.getChannel()) {
-            
-            long fileSize = channel.size();
-            if (offset >= fileSize) {
-                return children; // Offset beyond file size
-            }
-            
-            // Read number of children
-            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, offset, Math.min(4, fileSize - offset));
-            mbb.order(ByteOrder.nativeOrder());
-            int numChildren = mbb.getInt();
-            
-            if (numChildren > 0) {
-                // Read child offsets
-                mbb = channel.map(FileChannel.MapMode.READ_ONLY, offset + 4, 
-                                 (long) numChildren * 8);
-                mbb.order(ByteOrder.nativeOrder());
-                
-                for (int i = 0; i < numChildren; i++) {
-                    long childOffset = mbb.getLong();
-                    if (childOffset >= 0) {
-                        ATreeNode child = loadATreeNode(childOffset, indexFile, childrenFile,
-                                                       contractedFile, graphNodes, loadedNodes);
-                        children.add(child);
-                    }
-                }
+        for (int i = 0; i < numChildren; i++) {
+            long childOffset = mbb.getLong();
+            ATreeNode child = loadedNodes.get(childOffset);
+            if (child != null) {
+                children.add(child);
             }
         }
-        
-        return children;
-    }
-    
-    /**
-     * Load contracted edges list from file.
-     */
-    private static List<Edge> loadContractedEdges(long offset, String fileName, 
-                                                  Map<Integer, Node> graphNodes) throws IOException {
-        List<Edge> edges = new ArrayList<>();
-        
-        File file = new File(fileName);
-        if (!file.exists() || file.length() == 0) {
-            return edges; // Empty file means no contracted edges
-        }
-        
-        try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
-             FileChannel channel = raf.getChannel()) {
-            
-            long fileSize = channel.size();
-            if (offset >= fileSize) {
-                return edges; // Offset beyond file size
-            }
-            
-            // Read number of edges
-            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, offset, 4);
-            mbb.order(ByteOrder.nativeOrder());
-            int numEdges = mbb.getInt();
-            
-            if (numEdges > 0) {
-                // Read edges
-                mbb = channel.map(FileChannel.MapMode.READ_ONLY, offset + 4, 
-                                 (long) numEdges * BYTES_PER_EDGE);
-                mbb.order(ByteOrder.nativeOrder());
-                
-                for (int i = 0; i < numEdges; i++) {
-                    int srcId = mbb.getInt();
-                    int dstId = mbb.getInt();
-                    int weight = mbb.getInt();
-                    
-                    Node src = graphNodes.get(srcId);
-                    Node dst = graphNodes.get(dstId);
-                    
-                    if (src != null && dst != null) {
-                        edges.add(new Edge(src, dst, weight));
-                    }
-                }
-            }
-        }
-        
-        return edges;
+        node.setChildren(children);
     }
 }

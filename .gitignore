@@ -47,3 +47,6 @@ tmp/
 .vscode/settings.json
 .vscode*
 **/.vscode/*
+
+# mischellaneous
+ATREE_MAPPER_REFACTORING.md
