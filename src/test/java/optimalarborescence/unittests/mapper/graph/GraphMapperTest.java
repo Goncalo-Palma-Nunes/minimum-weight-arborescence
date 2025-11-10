@@ -3,7 +3,6 @@ package optimalarborescence.unittests.mapper.graph;
 import java.io.File;
 import java.io.IOException;
 import optimalarborescence.graph.Graph;
-import optimalarborescence.memorymapper.EdgeListMapper;
 import optimalarborescence.memorymapper.GraphMapper;
 import optimalarborescence.memorymapper.NodeIndexMapper;
 import optimalarborescence.graph.Edge;
@@ -776,30 +775,30 @@ public class GraphMapperTest {
     /**
      * Create a test graph with a cycle.
      */
-    private Graph createTestGraphWithCycle() {
-        Node n0 = new Node("AAAA", 0);
-        Node n1 = new Node("TTTT", 1);
-        Node n2 = new Node("GGGG", 2);
+    // private Graph createTestGraphWithCycle() {
+    //     Node n0 = new Node("AAAA", 0);
+    //     Node n1 = new Node("TTTT", 1);
+    //     Node n2 = new Node("GGGG", 2);
         
-        List<Edge> edges = new ArrayList<>();
-        edges.add(new Edge(n0, n1, 10));
-        edges.add(new Edge(n1, n2, 20));
-        edges.add(new Edge(n2, n0, 30));
+    //     List<Edge> edges = new ArrayList<>();
+    //     edges.add(new Edge(n0, n1, 10));
+    //     edges.add(new Edge(n1, n2, 20));
+    //     edges.add(new Edge(n2, n0, 30));
         
-        return new Graph(edges);
-    }
+    //     return new Graph(edges);
+    // }
 
-    private Graph createTestGraphWithNodeWithIncomingEdgesAndOutgoingEdges() {
-        List<Edge> edges = prepareEdges();
-        Node n4 = new Node("TTTTTTTTTTTTTTTTTTTT", 4);
-        Edge e1 = new Edge(edges.get(0).getDestination(), n4, 7);
-        Edge e3 = new Edge(n4, edges.get(1).getDestination(), 5);
-        Edge e2 = new Edge(edges.get(2).getDestination(), n4, 8);
-        edges.add(e1);
-        edges.add(e2);
-        edges.add(e3);
-        return new Graph(edges);
-    }
+    // private Graph createTestGraphWithNodeWithIncomingEdgesAndOutgoingEdges() {
+    //     List<Edge> edges = prepareEdges();
+    //     Node n4 = new Node("TTTTTTTTTTTTTTTTTTTT", 4);
+    //     Edge e1 = new Edge(edges.get(0).getDestination(), n4, 7);
+    //     Edge e3 = new Edge(n4, edges.get(1).getDestination(), 5);
+    //     Edge e2 = new Edge(edges.get(2).getDestination(), n4, 8);
+    //     edges.add(e1);
+    //     edges.add(e2);
+    //     edges.add(e3);
+    //     return new Graph(edges);
+    // }
 
     /**
      * Delete test files created during testing.

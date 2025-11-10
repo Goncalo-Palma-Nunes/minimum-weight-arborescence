@@ -32,7 +32,7 @@ public class EdgeListMapper {
     
     public static final int HEADER_SIZE = 4; // num_edges (1 int)
     public static final int BYTES_PER_EDGE = 28; // 3 ints + 2 longs per edge
-    private static final long NO_CHANGE = -2L;
+    public static final long NO_OFFSET = -1L;
     
     /**
      * Save edges to a memory-mapped file with linked list structure.
@@ -89,8 +89,8 @@ public class EdgeListMapper {
                     // Link the edges in the list
                     for (int i = 0; i < destEdges.size(); i++) {
                         EdgeEntry entry = destEdges.get(i);
-                        entry.nextOffset = (i < destEdges.size() - 1) ? destEdges.get(i + 1).offset : -1L;
-                        entry.prevOffset = (i > 0) ? destEdges.get(i - 1).offset : -1L;
+                        entry.nextOffset = (i < destEdges.size() - 1) ? destEdges.get(i + 1).offset : NO_OFFSET;
+                        entry.prevOffset = (i > 0) ? destEdges.get(i - 1).offset : NO_OFFSET;
                     }
                 }
             }
@@ -350,8 +350,8 @@ public class EdgeListMapper {
                 mbb.putInt(edge.getSource().getID());
                 mbb.putInt(edge.getDestination().getID());
                 mbb.putInt(edge.getWeight());
-                mbb.putLong(-1L);  // No next edge
-                mbb.putLong(-1L);  // No previous edge
+                mbb.putLong(NO_OFFSET);  // No next edge
+                mbb.putLong(NO_OFFSET);  // No previous edge
                 
                 mbb.force();
                 
@@ -387,7 +387,7 @@ public class EdgeListMapper {
                 newEdgeMbb.putInt(edge.getSource().getID());
                 newEdgeMbb.putInt(edge.getDestination().getID());
                 newEdgeMbb.putInt(edge.getWeight());
-                newEdgeMbb.putLong(-1L);  // No next edge
+                newEdgeMbb.putLong(NO_OFFSET);  // No next edge
                 newEdgeMbb.putLong(lastEdgeOffset);  // Link back to previous edge
                 
                 newEdgeMbb.force();
@@ -488,25 +488,25 @@ public class EdgeListMapper {
         }
     }
 
-    private static void updatePrevAndNextOffsets(FileChannel channel, long offset, long newNext, long newPrev) throws IOException {
-        MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, offset, BYTES_PER_EDGE);
-        mbb.order(ByteOrder.nativeOrder());
+    // private static void updatePrevAndNextOffsets(FileChannel channel, long offset, long newNext, long newPrev) throws IOException {
+    //     MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, offset, BYTES_PER_EDGE);
+    //     mbb.order(ByteOrder.nativeOrder());
 
-        mbb.getInt(); // skip source ID
-        mbb.getInt(); // skip dest ID
-        mbb.getInt(); // skip weight
-        if (newNext != NO_CHANGE) {
-            mbb.putLong(newNext);
-        } else {
-            mbb.getLong(); // skip next
-        }
-        if (newPrev != NO_CHANGE) {
-            mbb.putLong(newPrev);
-        } else {
-            mbb.getLong(); // skip prev
-        }
-        mbb.force();
-    }
+    //     mbb.getInt(); // skip source ID
+    //     mbb.getInt(); // skip dest ID
+    //     mbb.getInt(); // skip weight
+    //     if (newNext != NO_CHANGE) {
+    //         mbb.putLong(newNext);
+    //     } else {
+    //         mbb.getLong(); // skip next
+    //     }
+    //     if (newPrev != NO_CHANGE) {
+    //         mbb.putLong(newPrev);
+    //     } else {
+    //         mbb.getLong(); // skip prev
+    //     }
+    //     mbb.force();
+    // }
 
     // private static void maintainTargetListOffsetAndPointers(String filename, long targetOffset, int destId,
     //                                                 long prevOffset, FileChannel channel) throws IOException {
@@ -522,9 +522,9 @@ public class EdgeListMapper {
     //         System.out.println("Updated incoming edge offset for node " + destId + " to " + targetOffset);
 
     //         System.out.println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-    //         updatePrevAndNextOffsets(channel, targetOffset, listHeadOffset, -1L);
+    //         updatePrevAndNextOffsets(channel, targetOffset, listHeadOffset, NO_OFFSET);
     //         updatePrevAndNextOffsets(channel, listHeadOffset, NO_CHANGE, targetOffset);
-    //         updatePrevAndNextOffsets(channel, prevOffset, -1L, NO_CHANGE);
+    //         updatePrevAndNextOffsets(channel, prevOffset, NO_OFFSET, NO_CHANGE);
     //     }
     // }
 
@@ -661,7 +661,7 @@ public class EdgeListMapper {
             updateLinkedList(filename, prev, next, channel);
             invalidateEntryAndCompactFile(filename, offset, channel);
 
-            if (prev == -1L) {
+            if (prev == NO_OFFSET) {
                 // If this was the only edge for the destination, update node index
                 String nodeFileName = filename.replace("_edges.dat", "_nodes.dat");
                 NodeIndexMapper.updateIncomingEdgeOffset(nodeFileName, destId, next);
@@ -714,7 +714,7 @@ public class EdgeListMapper {
                 count++;
             }
             decrementHeader(filename, channel, count);
-            NodeIndexMapper.updateIncomingEdgeOffset(filename.replace("_edges.dat", "_nodes.dat"), destId, -1L);
+            NodeIndexMapper.updateIncomingEdgeOffset(filename.replace("_edges.dat", "_nodes.dat"), destId, NO_OFFSET);
         }
     }
 

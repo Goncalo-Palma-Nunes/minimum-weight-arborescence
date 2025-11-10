@@ -81,33 +81,33 @@ public class EdgeListMapperRemovalTest {
     /** Reads the memory mapped file sequentially and prints the edge information
      * and respective offsets for debugging purposes.
      */
-    private void printOffsetPerEach(String fileName) throws IOException {
-        try (var raf = new java.io.RandomAccessFile(fileName, "r")) {
-            var channel = raf.getChannel();
-            long fileSize = channel.size();
-            long offset = EdgeListMapper.HEADER_SIZE;
-            System.out.println("Edges in file " + fileName + ":");
-            while (offset < fileSize) {
-                var mbb = channel.map(java.nio.channels.FileChannel.MapMode.READ_ONLY, offset, EdgeListMapper.BYTES_PER_EDGE);
-                mbb.order(java.nio.ByteOrder.nativeOrder());
-                int src = mbb.getInt();
-                int destId = mbb.getInt();
-                int weight = mbb.getInt();
-                long next = mbb.getLong();
-                long prev = mbb.getLong();
-                System.out.println("Offset: " + offset + " | Edge: " + src + " -> " + destId + " (weight " + weight + ") | Next: " + next + " | Prev: " + prev);
-                offset += EdgeListMapper.BYTES_PER_EDGE;
-            }
-        }
-    }
+    // private void printOffsetPerEach(String fileName) throws IOException {
+    //     try (var raf = new java.io.RandomAccessFile(fileName, "r")) {
+    //         var channel = raf.getChannel();
+    //         long fileSize = channel.size();
+    //         long offset = EdgeListMapper.HEADER_SIZE;
+    //         System.out.println("Edges in file " + fileName + ":");
+    //         while (offset < fileSize) {
+    //             var mbb = channel.map(java.nio.channels.FileChannel.MapMode.READ_ONLY, offset, EdgeListMapper.BYTES_PER_EDGE);
+    //             mbb.order(java.nio.ByteOrder.nativeOrder());
+    //             int src = mbb.getInt();
+    //             int destId = mbb.getInt();
+    //             int weight = mbb.getInt();
+    //             long next = mbb.getLong();
+    //             long prev = mbb.getLong();
+    //             System.out.println("Offset: " + offset + " | Edge: " + src + " -> " + destId + " (weight " + weight + ") | Next: " + next + " | Prev: " + prev);
+    //             offset += EdgeListMapper.BYTES_PER_EDGE;
+    //         }
+    //     }
+    // }
 
-    private void printOffsets() {
-        System.out.println(" <----- Current Offsets -----> ");
-        for (var entry : offsetMap.entrySet()) {
-            System.out.println("Node ID: " + entry.getKey() + " | Offset: " + entry.getValue());
-        }
-        System.out.println(" <--------------------------> ");
-    }
+    // private void printOffsets() {
+    //     System.out.println(" <----- Current Offsets -----> ");
+    //     for (var entry : offsetMap.entrySet()) {
+    //         System.out.println("Node ID: " + entry.getKey() + " | Offset: " + entry.getValue());
+    //     }
+    //     System.out.println(" <--------------------------> ");
+    // }
 
     @Before
     public void setUp() throws IOException {
