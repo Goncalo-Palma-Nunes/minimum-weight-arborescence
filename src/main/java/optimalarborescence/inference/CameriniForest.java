@@ -50,12 +50,16 @@ public class CameriniForest extends StaticAlgorithm {
 
     private List<MergeableHeapInterface<HeapNode>> queues;
 
+    private Comparator<HeapNode> maxDisjointCmp;
+
+    private Comparator<Edge> cmp;
+
     // private List<Node> nodes;
 
     /** Constructor for CameriniForest. This class is an implementation of
      * Tarjan's optimum branching algorithm as corrected by Camerini et al.
      */
-    public CameriniForest(Graph graph) {
+    public CameriniForest(Graph graph, Comparator<Edge> comparator) {
         super(graph);
         this.roots = graph.cloneNodeList();
         this.rset = new TreeSet<>();
@@ -67,11 +71,28 @@ public class CameriniForest extends StaticAlgorithm {
         this.ufWCC = new UnionFind(graph.getNumNodes());
         this.queues = new ArrayList<>();
 
+        this.cmp = comparator;
+
+        // this.maxDisjointCmp = (o1, o2) -> {
+        //     Edge e1 = getAdjustedEdge(o1.getEdge());
+        //     Edge e2 = getAdjustedEdge(o2.getEdge());
+        //     return cmp.compare(e1, e2);
+        // };
+        this.maxDisjointCmp = new Comparator<HeapNode>() {
+            @Override
+            public int compare(HeapNode o1, HeapNode o2) {
+                Edge e1 = getAdjustedEdge(o1.getEdge());
+                Edge e2 = getAdjustedEdge(o2.getEdge());
+                return cmp.compare(e1, e2);
+            }
+        };
+
+
         for (int i = 0; i < graph.getNumNodes(); i++) {
             inEdgeNode.add(null);
             max.add(graph.getNodes().get(i));
             cycleEdgeNodes.add(new ArrayList<>());
-            queues.add(new PairingHeap());
+            queues.add(new PairingHeap(maxDisjointCmp));
         }
         initializeDataStructures();
     }
@@ -153,11 +174,23 @@ public class CameriniForest extends StaticAlgorithm {
         ufSCC.union(u.getId(), v.getId());
     }
 
-    private void updateReducedCosts(List<TarjanForestNode> cycle, int sigma, Map<Node, Edge> map) {
-        for (TarjanForestNode node : cycle) { // Update reduced costs
-            Edge e = map.get(sccFind(node.edge.getDestination()));
-            int updatedWeight = e.getWeight() - sigma;
-            ufSCC.addWeight(node.getEdge().getDestination().getId(), updatedWeight);
+    protected Edge getAdjustedEdge(Edge edge) {
+        Number w = this.getAdjustedWeight(edge);
+        return new Edge(edge.getSource(), edge.getDestination(), w.intValue());
+    }
+
+    protected Number getAdjustedWeight(Edge e) {
+        return e.getWeight() + ufSCC.findWeight(e.getDestination().getId());
+    }
+
+    private void updateReducedCosts(List<Integer> contractionSet, int sigma, Map<Integer, TarjanForestNode> map) {
+        for (Integer node : contractionSet) { // Update reduced costs
+            Number incidentW = getAdjustedWeight(map.get(node).getEdge());
+            Number reducedCost = sigma - incidentW.floatValue();
+            ufSCC.addWeight(node, reducedCost.intValue());
+            // Edge e = map.get(sccFind(node.edge.getDestination()));
+            // int updatedWeight = e.getWeight() - sigma;
+            // ufSCC.addWeight(node.getEdge().getDestination().getId(), updatedWeight);
         }
     }
 
@@ -169,6 +202,10 @@ public class CameriniForest extends StaticAlgorithm {
         List<TarjanForestNode> cycleEdges = cycleEdgeNodes.get(rep.getId());
         Edge maxEdge = cycleEdges.stream().max(Comparator.comparing(n -> n.edge.getWeight())).orElseThrow().edge;
         max.set(rep.getId(), maxEdge.getDestination());
+    }
+
+    private void updateMax(Node index, Node newVal) {
+        max.set(index.getId(), newVal);
     }
 
     private Node getSCCMaxTarget(Node v) {
@@ -246,9 +283,7 @@ public class CameriniForest extends StaticAlgorithm {
 
             if (emptyQueue(q)) {
                 // Only add to rset if this node has no incoming edge (no leaf set)
-                if (leaves[root.getId()] == null) {
-                    rset.add(root);
-                }
+                rset.add(root);
                 continue;
             }
             Edge e = q.extractMin().getEdge();
@@ -256,57 +291,61 @@ public class CameriniForest extends StaticAlgorithm {
                 e = q.extractMin().getEdge();
             }
             if (sccFind(e.getSource()) == sccFind(e.getDestination())) {
+                // Both ends of the edge are in the same SCC, skip this edge
+                rset.add(root);
                 continue;
             }
 
             Node u = e.getSource();
             Node v = e.getDestination();
-            
-            TarjanForestNode minNode;
+
+            TarjanForestNode minNode = createMinNode(e);
             if (wccFind(u) != wccFind(v)) {
-                minNode = createMinNode(e);
-                inEdgeNode.set(v.getId(), minNode);
-                wccUnion(u, root);
+                inEdgeNode.set(root.getId(), minNode);
+                wccUnion(u, v);
             }
             else {
-                // Create minNode without setting leaf (it's part of a cycle)
-                minNode = new TarjanForestNode(e);
-                // inEdgeNode.set(root.getId(), null);
-                inEdgeNode.set(sccFind(root).getId(), null);
-                List<TarjanForestNode> cycle = new ArrayList<>(); cycle.add(minNode);
-                Map<Node, Edge> map = new HashMap<>();
-                map.put(sccFind(minNode.edge.getDestination()), minNode.edge);
+                // store nodes in cycle
+                List<Integer> contractionSet = new ArrayList<>();
+                contractionSet.add(sccFind(v).getId());
 
-                Node i = sccFind(u);
-                while (inEdgeNode.get(i.getId()) != null) {
-                    TarjanForestNode node = inEdgeNode.get(i.getId());
-                    cycle.add(node);
-                    map.put(i, node.edge);
-                    
-                    i = sccFind(node.edge.getSource());
+                // keep track of the edges in the cycle
+                List<TarjanForestNode> edgeNodesInCycle = new ArrayList<>();
+                edgeNodesInCycle.add(minNode);
+
+                // map the edge incident in a node
+                Map<Integer, TarjanForestNode> map = new HashMap<>();
+                map.put(sccFind(v).getId(), minNode);
+
+                // since a cycle as arisen we need to choose a new minimum weight edge incident in node root
+                inEdgeNode.set(root.getId(), null);
+
+                for (int i = sccFind(u).getId(); inEdgeNode.get(i) != null; i = sccFind(inEdgeNode.get(i).edge.getSource()).getId()) {
+                    map.put(i, inEdgeNode.get(i));
+                    edgeNodesInCycle.add(inEdgeNode.get(i));
+                    contractionSet.add(i);
                 }
 
-                TarjanForestNode maxWeightEdge = getMaxWeightEdgeInCycle(cycle);
-                int sigma = maxWeightEdge.edge.getWeight();
-                updateReducedCosts(cycle, sigma, map);
+                TarjanForestNode maxWeightTarjanNode = getMaxWeightEdgeInCycle(edgeNodesInCycle);
+                Edge maxWeightEdge = maxWeightTarjanNode.edge;
+                Node dst = sccFind(maxWeightEdge.getDestination());
 
-                for (TarjanForestNode n: cycle) { // Perform union of the nodes in the cycle
+                int sigma = maxWeightEdge.getWeight();
+                updateReducedCosts(contractionSet, sigma, map);
+
+                for (TarjanForestNode n: edgeNodesInCycle) { // Perform union of the nodes in the cycle
                     sccUnion(n.edge.getSource(), n.edge.getDestination());
                 }
 
-                Node rep = sccFind(maxWeightEdge.edge.getDestination());
-                
-                // Store cycle edges for the representative
-                cycleEdgeNodes.set(rep.getId(), new ArrayList<>(cycle));
-                
-                roots.add(sccFind(rep));
-                updateSCCMaxWeightEdge(rep);
-
-                for (TarjanForestNode n : cycle) { // Merge queues involved in the cycle
-                    if (sccFind(n.edge.getDestination()) != rep) {
-                        getQueue(rep).merge(getQueue(sccFind(n.edge.getDestination())));
+                Node rep = sccFind(maxWeightEdge.getDestination());
+                roots.add(0, rep); // Add representative to roots to be processed again
+                for (Integer node : contractionSet) { // Merge queues involved in the cycle
+                    if (rep.getId() != node) {
+                        getQueue(rep).merge(getQueue(getNodes().get(node)));
                     }
                 }
+                updateMax(rep, dst);
+                cycleEdgeNodes.set(rep.getId(), edgeNodesInCycle);
             }
         }
     }

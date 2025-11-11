@@ -60,6 +60,9 @@ public class TarjanArborescence extends StaticAlgorithm {
     /** A stack of strongly connected disjoint-sets S, representing the contractions */
     private List<UnionFindStronglyConnected> sccStacks;
 
+    private Comparator<Edge> cmp;
+    private Comparator<HeapNode> maxDisjointCmp;
+
     public TarjanArborescence() {
         this.roots = new ArrayList<>();
         this.rset = new TreeSet<>();
@@ -81,7 +84,7 @@ public class TarjanArborescence extends StaticAlgorithm {
     /** Constructor for TarjanArborescence. This class is an implementation of
      * Tarjan's optimum branching algorithm as corrected by Camerini et al.
      */
-    public TarjanArborescence(Graph graph) {
+    public TarjanArborescence(Graph graph, Comparator<Edge> comparator) {
         super(graph);
         this.roots = graph.cloneNodeList();
         this.rset = new TreeSet<>();
@@ -94,9 +97,16 @@ public class TarjanArborescence extends StaticAlgorithm {
         this.sccStacks = new ArrayList<>();
         this.b = new ArrayList<>();
 
+        this.cmp = comparator;
+        this.maxDisjointCmp = (o1, o2) -> {
+            Edge e1 = o1.getEdge();
+            Edge e2 = o2.getEdge();
+            return cmp.compare(e1, e2);
+        };
+
         for (int i = 0; i < graph.getNumNodes(); i++) { // TODO - passar para initializeDataStructures()
             inEdgeNode.add(null);
-            queues.add(new PairingHeap());
+            queues.add(new PairingHeap(maxDisjointCmp));
         }
         initializeDataStructures();
     }

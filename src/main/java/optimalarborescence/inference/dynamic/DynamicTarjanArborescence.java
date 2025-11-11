@@ -7,6 +7,7 @@ import optimalarborescence.graph.Edge;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Comparator;
 
 /**
  * Dynamic adaptation of Tarjan's algorithm that works with partially contracted graphs.
@@ -36,9 +37,9 @@ public class DynamicTarjanArborescence extends CameriniForest {
     public DynamicTarjanArborescence(List<ATreeNode> aTreeRoots, 
                                      List<Edge> contractedEdges, 
                                      Map<Edge, Integer> reducedCosts,
-                                     Graph originalGraph) {
+                                     Graph originalGraph, Comparator<Edge> edgeComparator) {
         // Create a modified graph with reduced costs
-        super(createModifiedGraph(contractedEdges, reducedCosts, originalGraph));
+        super(createModifiedGraph(contractedEdges, reducedCosts, originalGraph), edgeComparator);
         
         this.aTreeRoots = aTreeRoots;
         this.reducedCosts = reducedCosts;
