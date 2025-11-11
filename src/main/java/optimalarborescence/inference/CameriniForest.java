@@ -359,27 +359,42 @@ public class CameriniForest extends StaticAlgorithm {
         while (current != null) {
             current.setRemove(true);
             // Make all children roots by setting parent to null
-            for (TarjanForestNode child : current.getChildren()) {
+            List<TarjanForestNode> children = new ArrayList<>(current.getChildren());
+            for (TarjanForestNode child : children) {
                 child.setParent(null);
-                if (!N.contains(child)) {
-                    N.add(child);
-                }
+                N.add(child);
+                // if (!N.contains(child)) {
+                //     N.add(child);
+                // }
             }
             current = current.getParent();
         }
     }
 
     private List<Edge> expansionPhase() {
-        List<Edge> B = new ArrayList<>(); // optimal arborescence (called H in other places)
-        List<Node> R = rset.stream().map(v -> getSCCMaxTarget(v)).collect(Collectors.toCollection(ArrayList::new));
+        // List<Edge> B = new ArrayList<>(); // optimal arborescence (called H in other places)
+        // List<Node> R = rset.stream().map(v -> getSCCMaxTarget(v)).collect(Collectors.toCollection(ArrayList::new));
+        // Set<Node> R = rset.stream()
+        //     .map(v -> getSCCMaxTarget(v)) // ir buscar o max sem SCC?
+        //     .collect(Collectors.toSet());
+        Set<Integer> R = rset.stream()
+            .map(v -> getSCCMaxTarget(v))
+            .map(n -> n.getId())
+            .collect(Collectors.toSet());
+        List<Edge> B = new ArrayList<>(this.graph.getNumNodes() - 1);
         List<TarjanForestNode> N = getRoots();
 
         // Process set R first - trace paths from leaves of R nodes
-        for (Node u : R) {
-            if (leaves[u.getId()] != null) {
-                tracePath(leaves[u.getId()], N);
+        for (Integer node : R) {
+            if (leaves[node] != null) {
+                tracePath(leaves[node], N);
             }
         }
+        // for (Node u : R) {
+        //     if (leaves[u.getId()] != null) {
+        //         tracePath(leaves[u.getId()], N);
+        //     }
+        // }
 
         // Process set N
         while (!N.isEmpty()) {
@@ -395,9 +410,10 @@ public class CameriniForest extends StaticAlgorithm {
             
             // Trace path from destination's leaf
             Node v = edgeNode.getEdge().getDestination();
-            if (leaves[v.getId()] != null) {
-                tracePath(leaves[v.getId()], N);
-            }
+            tracePath(leaves[v.getId()], N);
+            // if (leaves[v.getId()] != null) {
+            //     tracePath(leaves[v.getId()], N);
+            // }
         }
         
         return B;
