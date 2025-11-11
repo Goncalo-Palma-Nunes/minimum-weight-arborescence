@@ -7,6 +7,7 @@ import optimalarborescence.inference.CameriniForest;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Comparator;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -44,9 +45,13 @@ public class CameriniForestSimpleGraphTest {
 
     private Graph originalGraph = new Graph(edges);
 
+    // Default comparator for edges - min heap based on weight
+    private static final Comparator<Edge> EDGE_COMPARATOR = 
+        (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
+
     @Test
     public void testCameriniForestSimpleGraph() {
-        CameriniForest camerini = new CameriniForest(originalGraph);
+        CameriniForest camerini = new CameriniForest(originalGraph, EDGE_COMPARATOR);
         Graph result = camerini.inferPhylogeny(originalGraph);
 
         Assert.assertNotNull(result);

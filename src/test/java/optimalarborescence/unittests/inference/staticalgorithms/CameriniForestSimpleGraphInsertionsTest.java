@@ -6,6 +6,7 @@ import optimalarborescence.graph.Graph;
 import optimalarborescence.inference.CameriniForest;
 
 import java.util.List;
+import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
@@ -17,6 +18,10 @@ import org.junit.Test;
  * Unit tests for CameriniForest algorithm testing edge insertion scenarios.
  */
 public class CameriniForestSimpleGraphInsertionsTest {
+
+    // Default comparator for edges - min heap based on weight
+    private static final Comparator<Edge> EDGE_COMPARATOR = 
+        (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
 
     private static final String ALLELIC_PROFILE = "ACGT";
 
@@ -52,7 +57,7 @@ public class CameriniForestSimpleGraphInsertionsTest {
     @Test
     public void testInsertOneSuboptimalEdge() {
 
-        Graph firstPhylogeny = new CameriniForest(originalGraph).inferPhylogeny(originalGraph);
+        Graph firstPhylogeny = new CameriniForest(originalGraph, EDGE_COMPARATOR).inferPhylogeny(originalGraph);
 
         System.out.println("First phylogeny edges:");
         for (Edge e : firstPhylogeny.getEdges()) {
@@ -70,7 +75,7 @@ public class CameriniForestSimpleGraphInsertionsTest {
         Graph modifiedGraph = new Graph(originalGraph.getEdges());
         modifiedGraph.addEdge(newEdge);
 
-        Graph secondPhylogeny = new CameriniForest(modifiedGraph).inferPhylogeny(modifiedGraph);
+        Graph secondPhylogeny = new CameriniForest(modifiedGraph, EDGE_COMPARATOR).inferPhylogeny(modifiedGraph);
 
         Assert.assertTrue(isValidArborescence(modifiedGraph, secondPhylogeny));
         int secondCost = secondPhylogeny.getEdges().stream().mapToInt(Edge::getWeight).sum();
@@ -81,7 +86,7 @@ public class CameriniForestSimpleGraphInsertionsTest {
     @Test
     public void testInsertOneSuboptimalOneOptimalEdge() {
 
-        Graph firstPhylogeny = new CameriniForest(originalGraph).inferPhylogeny(originalGraph);
+        Graph firstPhylogeny = new CameriniForest(originalGraph, EDGE_COMPARATOR).inferPhylogeny(originalGraph);
 
         Assert.assertTrue(isValidArborescence(originalGraph, firstPhylogeny));
 
@@ -93,7 +98,7 @@ public class CameriniForestSimpleGraphInsertionsTest {
         modifiedGraph.addEdge(suboptimalEdge);
         modifiedGraph.addEdge(optimalEdge);
 
-        Graph secondPhylogeny = new CameriniForest(modifiedGraph).inferPhylogeny(modifiedGraph);
+        Graph secondPhylogeny = new CameriniForest(modifiedGraph, EDGE_COMPARATOR).inferPhylogeny(modifiedGraph);
 
         List<Edge> expectedEdgesAfterOptimalInsertion = List.of(
             new Edge(nodes.get(3), nodes.get(2), 2),
@@ -127,7 +132,7 @@ public class CameriniForestSimpleGraphInsertionsTest {
             new Edge(nodes.get(1), nodes.get(0), 2)
         );
 
-        Graph finalPhylogeny = new CameriniForest(modifiedGraph).inferPhylogeny(modifiedGraph);
+        Graph finalPhylogeny = new CameriniForest(modifiedGraph, EDGE_COMPARATOR).inferPhylogeny(modifiedGraph);
         Assert.assertTrue(isValidArborescence(modifiedGraph, finalPhylogeny));
         int expectedCost = expectedEdgesAfterOptimalInsertion.stream().mapToInt(Edge::getWeight).sum();
         int resultCost = finalPhylogeny.getEdges().stream().mapToInt(Edge::getWeight).sum();

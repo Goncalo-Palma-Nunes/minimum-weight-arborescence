@@ -10,7 +10,9 @@ import optimalarborescence.inference.dynamic.ATreeNode;
 import optimalarborescence.unittests.inference.HelperMethods;
 
 import java.util.List;
+import java.util.Comparator;
 import java.util.ArrayList;
+import java.util.Comparator;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -23,6 +25,10 @@ import org.junit.Test;
  * Algorithms 2023, 16, 559. https://doi.org/10.3390/a16120559 
  */
 public class FullyDynamicArborescenceLoopedSquaredMotifsTest {
+    // Default comparator for edges - min heap based on weight
+    private static final Comparator<Edge> EDGE_COMPARATOR = 
+        (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
+
 
     private FullyDynamicArborescence algorithm;
     private CameriniForest cameriniForest;
@@ -77,7 +83,7 @@ public class FullyDynamicArborescenceLoopedSquaredMotifsTest {
     @Test
     public void testFullyDynamicArborescenceLoopedSquaredMotifs() {
 
-        cameriniForest = new CameriniForest(originalGraph);
+        cameriniForest = new CameriniForest(originalGraph, EDGE_COMPARATOR);
 
         // Initialize the fully dynamic arborescence algorithm with the original graph
         algorithm = new FullyDynamicArborescence(originalGraph, roots, cameriniForest);

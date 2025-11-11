@@ -6,7 +6,9 @@ import optimalarborescence.graph.Graph;
 import optimalarborescence.inference.TarjanArborescence;
 
 import java.util.List;
+import java.util.Comparator;
 import java.util.ArrayList;
+import java.util.Comparator;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -18,6 +20,10 @@ import org.junit.Test;
  * Algorithms 2023, 16, 559. https://doi.org/10.3390/a16120559 
  */
 public class TarjanArborescenceSimpleGraphTest {
+    // Default comparator for edges - min heap based on weight
+    private static final Comparator<Edge> EDGE_COMPARATOR = 
+        (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
+
 
     private static final String ALLELIC_PROFILE = "ACGT";
 
@@ -45,7 +51,7 @@ public class TarjanArborescenceSimpleGraphTest {
 
     @Test
     public void testTarjanArborescenceSimpleGraph() {
-        TarjanArborescence tarjan = new TarjanArborescence(originalGraph);
+        TarjanArborescence tarjan = new TarjanArborescence(originalGraph, EDGE_COMPARATOR);
         Graph result = tarjan.inferPhylogeny(originalGraph);
 
         Assert.assertNotNull(result);
