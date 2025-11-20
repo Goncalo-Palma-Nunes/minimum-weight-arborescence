@@ -281,4 +281,206 @@ public class EdgeListMapperRemovalTest {
         Assert.assertEquals(0, newNumEdges);
         Assert.assertTrue(newNumEdges <= initialNumEdges);
     }
+
+    // Tests for edgeExists method
+
+    @Test
+    public void testEdgeExistsWhenEdgeIsPresent() throws IOException {
+        // Test that we can find an existing edge (0->1, weight 5)
+        long linkedListOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
+        boolean exists = EdgeListMapper.edgeExists(EDGES_FILE_NAME, 0, 1, linkedListOffset);
+        Assert.assertTrue("Edge 0->1 should exist", exists);
+    }
+
+    @Test
+    public void testEdgeExistsWhenEdgeIsNotPresent() throws IOException {
+        // Test that we don't find a non-existent edge (0->3)
+        long linkedListOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 3);
+        boolean exists = EdgeListMapper.edgeExists(EDGES_FILE_NAME, 0, 3, linkedListOffset);
+        Assert.assertFalse("Edge 0->3 should not exist", exists);
+    }
+
+    @Test
+    public void testEdgeExistsInMiddleOfLinkedList() throws IOException {
+        // Node 2 has two incoming edges: 0->2 and 1->2
+        // Test finding the second edge in the list
+        long linkedListOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
+        boolean exists = EdgeListMapper.edgeExists(EDGES_FILE_NAME, 1, 2, linkedListOffset);
+        Assert.assertTrue("Edge 1->2 should exist in the linked list", exists);
+    }
+
+    @Test
+    public void testEdgeExistsWithInvalidOffset() throws IOException {
+        // Test with invalid offset (-1)
+        boolean exists = EdgeListMapper.edgeExists(EDGES_FILE_NAME, 0, 1, -1);
+        Assert.assertFalse("Should return false for invalid offset", exists);
+    }
+
+    @Test
+    public void testEdgeExistsWithWrongSource() throws IOException {
+        // Test looking for edge with wrong source ID
+        long linkedListOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
+        boolean exists = EdgeListMapper.edgeExists(EDGES_FILE_NAME, 3, 2, linkedListOffset);
+        Assert.assertFalse("Edge 3->2 should not exist", exists);
+    }
+
+    @Test
+    public void testEdgeExistsMultipleEdgesToSameDestination() throws IOException {
+        // Node 3 has two incoming edges: 1->3 and 2->3
+        long linkedListOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 3);
+        
+        // Check both edges exist
+        boolean exists1 = EdgeListMapper.edgeExists(EDGES_FILE_NAME, 1, 3, linkedListOffset);
+        boolean exists2 = EdgeListMapper.edgeExists(EDGES_FILE_NAME, 2, 3, linkedListOffset);
+        
+        Assert.assertTrue("Edge 1->3 should exist", exists1);
+        Assert.assertTrue("Edge 2->3 should exist", exists2);
+    }
+
+    // Tests for removeEdge method
+
+    @Test
+    public void testRemoveEdgeBySourceAndDest() throws IOException {
+        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        
+        // Remove edge 0->1
+        long linkedListOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
+        EdgeListMapper.removeEdge(EDGES_FILE_NAME, 0, 1, linkedListOffset);
+        
+        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(initialNumEdges - 1, newNumEdges);
+        
+        // Verify the edge no longer exists
+        long newOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
+        boolean exists = EdgeListMapper.edgeExists(EDGES_FILE_NAME, 0, 1, newOffset);
+        Assert.assertFalse("Edge 0->1 should no longer exist", exists);
+    }
+
+    @Test
+    public void testRemoveEdgeFromMiddleOfLinkedList() throws IOException {
+        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        
+        // Node 2 has two incoming edges: 0->2 and 1->2
+        // Remove the second edge (1->2)
+        long linkedListOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
+        EdgeListMapper.removeEdge(EDGES_FILE_NAME, 1, 2, linkedListOffset);
+        
+        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(initialNumEdges - 1, newNumEdges);
+        
+        // Verify 1->2 is gone but 0->2 still exists
+        long newOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
+        boolean exists1to2 = EdgeListMapper.edgeExists(EDGES_FILE_NAME, 1, 2, newOffset);
+        boolean exists0to2 = EdgeListMapper.edgeExists(EDGES_FILE_NAME, 0, 2, newOffset);
+        
+        Assert.assertFalse("Edge 1->2 should be removed", exists1to2);
+        Assert.assertTrue("Edge 0->2 should still exist", exists0to2);
+    }
+
+    @Test
+    public void testRemoveNonExistentEdgeBySourceAndDest() throws IOException {
+        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        
+        // Try to remove non-existent edge 0->3
+        long linkedListOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 3);
+        EdgeListMapper.removeEdge(EDGES_FILE_NAME, 0, 3, linkedListOffset);
+        
+        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals("Edge count should remain unchanged", initialNumEdges, newNumEdges);
+    }
+
+    @Test
+    public void testRemoveEdgeWithInvalidOffset() throws IOException {
+        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        
+        // Try to remove edge with invalid offset
+        EdgeListMapper.removeEdge(EDGES_FILE_NAME, 0, 1, -1);
+        
+        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals("Edge count should remain unchanged", initialNumEdges, newNumEdges);
+    }
+
+    @Test
+    public void testRemoveEdgeHeadOfList() throws IOException {
+        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        
+        // Node 2 has edges 0->2 and 1->2
+        // Remove the head of the list (first edge)
+        long linkedListOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
+        
+        // Determine which edge is at the head
+        Edge headEdge = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, linkedListOffset);
+        Assert.assertNotNull(headEdge);
+        
+        int srcId = headEdge.getSource().getID();
+        EdgeListMapper.removeEdge(EDGES_FILE_NAME, srcId, 2, linkedListOffset);
+        
+        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(initialNumEdges - 1, newNumEdges);
+        
+        // Verify offset changed for node 2
+        long newOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
+        Assert.assertNotEquals("Head offset should have changed", linkedListOffset, newOffset);
+        
+        // Verify the removed edge no longer exists
+        boolean exists = EdgeListMapper.edgeExists(EDGES_FILE_NAME, srcId, 2, newOffset);
+        Assert.assertFalse("Removed edge should not exist", exists);
+    }
+
+    @Test
+    public void testRemoveMultipleEdgesBySourceAndDest() throws IOException {
+        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        
+        // Remove edges 1->2 and 2->3
+        long offset1 = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
+        EdgeListMapper.removeEdge(EDGES_FILE_NAME, 1, 2, offset1);
+        
+        long offset2 = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 3);
+        EdgeListMapper.removeEdge(EDGES_FILE_NAME, 2, 3, offset2);
+        
+        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(initialNumEdges - 2, newNumEdges);
+        
+        // Verify both edges are gone
+        long newOffset1 = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
+        long newOffset2 = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 3);
+        
+        boolean exists1to2 = EdgeListMapper.edgeExists(EDGES_FILE_NAME, 1, 2, newOffset1);
+        boolean exists2to3 = EdgeListMapper.edgeExists(EDGES_FILE_NAME, 2, 3, newOffset2);
+        
+        Assert.assertFalse("Edge 1->2 should be removed", exists1to2);
+        Assert.assertFalse("Edge 2->3 should be removed", exists2to3);
+    }
+
+    @Test
+    public void testEdgeExistsAfterRemoveEdge() throws IOException {
+        // Remove edge 1->3
+        long linkedListOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 3);
+        EdgeListMapper.removeEdge(EDGES_FILE_NAME, 1, 3, linkedListOffset);
+        
+        // Verify edge no longer exists
+        long newOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 3);
+        boolean exists = EdgeListMapper.edgeExists(EDGES_FILE_NAME, 1, 3, newOffset);
+        Assert.assertFalse("Edge 1->3 should not exist after removal", exists);
+        
+        // Verify other edge to same destination still exists
+        boolean exists2to3 = EdgeListMapper.edgeExists(EDGES_FILE_NAME, 2, 3, newOffset);
+        Assert.assertTrue("Edge 2->3 should still exist", exists2to3);
+    }
+
+    @Test
+    public void testRemoveEdgeOnlyEdgeToDestination() throws IOException {
+        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        
+        // Node 0 has only one incoming edge: 3->0
+        long linkedListOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 0);
+        EdgeListMapper.removeEdge(EDGES_FILE_NAME, 3, 0, linkedListOffset);
+        
+        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(initialNumEdges - 1, newNumEdges);
+        
+        // Verify no edges remain to node 0
+        long newOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 0);
+        Assert.assertEquals("No edges should remain to node 0", -1, newOffset);
+    }
 }
