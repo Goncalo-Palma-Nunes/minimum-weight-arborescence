@@ -6,10 +6,15 @@ import optimalarborescence.graph.Graph;
 import optimalarborescence.inference.CameriniForest;
 
 import java.util.List;
+import java.util.Comparator;
 import java.util.Map;
+import java.util.Comparator;
 import java.util.stream.Collectors;
+import java.util.Comparator;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Comparator;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -22,6 +27,10 @@ import org.junit.Test;
  * Algorithms 2023, 16, 559. https://doi.org/10.3390/a16120559 
  */
 public class CameriniForestSimpleGraphDeletionTest {
+    // Default comparator for edges - min heap based on weight
+    private static final Comparator<Edge> EDGE_COMPARATOR = 
+        (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
+
 
     private static final String ALLELIC_PROFILE = "ACGT";
 
@@ -54,7 +63,7 @@ public class CameriniForestSimpleGraphDeletionTest {
         List<Edge> edgesAfterRemoval = originalGraph.getEdges().stream().filter(e -> e != edge).collect(Collectors.toList());
 
         Graph newGraph = new Graph(edgesAfterRemoval);
-        Graph phylogeny = new CameriniForest(newGraph).inferPhylogeny(newGraph);
+        Graph phylogeny = new CameriniForest(newGraph, EDGE_COMPARATOR).inferPhylogeny(newGraph);
 
         List<Edge> expectedEdges = List.of(
             edges.get(0),
@@ -78,7 +87,7 @@ public class CameriniForestSimpleGraphDeletionTest {
         List<Edge> edgesAfterRemoval = originalGraph.getEdges().stream().filter(e -> !edgesToRemove.contains(e)).collect(Collectors.toList());
 
         Graph newGraph = new Graph(edgesAfterRemoval);
-        Graph phylogeny = new CameriniForest(newGraph).inferPhylogeny(newGraph);
+        Graph phylogeny = new CameriniForest(newGraph, EDGE_COMPARATOR).inferPhylogeny(newGraph);
 
         List<Edge> expectedEdges = List.of(
             edges.get(0),
@@ -103,7 +112,7 @@ public class CameriniForestSimpleGraphDeletionTest {
         List<Edge> edgesAfterRemoval = originalGraph.getEdges().stream().filter(e -> !edgesToRemove.contains(e)).collect(Collectors.toList());
 
         Graph newGraph = new Graph(edgesAfterRemoval);
-        Graph phylogeny = new CameriniForest(newGraph).inferPhylogeny(newGraph);
+        Graph phylogeny = new CameriniForest(newGraph, EDGE_COMPARATOR).inferPhylogeny(newGraph);
 
         List<Edge> expectedEdges = List.of(
             edges.get(0),

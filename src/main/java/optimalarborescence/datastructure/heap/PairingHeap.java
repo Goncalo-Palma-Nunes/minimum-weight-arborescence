@@ -1,20 +1,23 @@
 package optimalarborescence.datastructure.heap;
 
 import java.util.Queue;
-
+import java.util.Comparator;
 import java.util.LinkedList;
 
 // TODO - a interface deve ser do tipo <HeapNode> ou outra coisa?
 public class PairingHeap implements MergeableHeapInterface<HeapNode> {
 
     HeapNode root;
+    private Comparator<HeapNode> comparator;
 
-    public PairingHeap() {
+    public PairingHeap(Comparator<HeapNode> comparator) {
         this.root = null;
+        this.comparator = comparator;
     }
 
-    public PairingHeap(HeapNode node) {
+    public PairingHeap(HeapNode node, Comparator<HeapNode> comparator) {
         this.root = node;
+        this.comparator = comparator;
     }
 
     @Override
@@ -30,9 +33,17 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         }
 
         PairingHeap otherHeap = (PairingHeap) other;
-        if (this.isEmpty() || otherHeap.isEmpty()) {
-            throw new IllegalArgumentException("Neither heap should be empty");
+        // if (this.isEmpty() || otherHeap.isEmpty()) {
+        //     throw new IllegalArgumentException("Neither heap should be empty");
+        // }
+        if (this.isEmpty()) {
+            this.root = otherHeap.root;
+            return this;
         }
+        if (otherHeap.isEmpty()) {
+            return this;
+        }
+
 
         HeapNode rootA = this.root;
         HeapNode rootB = otherHeap.root;
@@ -73,7 +84,7 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
 
     // Deveria receber HeapNodes ou PairingHeaps?
     private HeapNode meld(HeapNode p, HeapNode q) {
-        if (Math.abs(p.val) <= Math.abs(q.val)) {
+        if (comparator.compare(p, q) <= 0) {
             link(p, q);
             return p;
         } else {

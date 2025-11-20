@@ -8,9 +8,13 @@ import optimalarborescence.inference.dynamic.FullyDynamicArborescence;
 import optimalarborescence.inference.dynamic.ATreeNode;
 
 import java.util.List;
+import java.util.Comparator;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Map;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Comparator;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -25,6 +29,10 @@ import org.junit.Test;
  * Algorithms 2023, 16, 559. https://doi.org/10.3390/a16120559 
  */
 public class FullyDynamicArborescenceSimpleGraphTest {
+    // Default comparator for edges - min heap based on weight
+    private static final Comparator<Edge> EDGE_COMPARATOR = 
+        (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
+
 
     private static final String ALLELIC_PROFILE = "ACGT";
 
@@ -59,7 +67,7 @@ public class FullyDynamicArborescenceSimpleGraphTest {
         
         // Initialize with empty ATrees for now
         List<ATreeNode> roots = new ArrayList<>();
-        CameriniForest camerini = new CameriniForest(originalGraph);
+        CameriniForest camerini = new CameriniForest(originalGraph, EDGE_COMPARATOR);
         dynamicAlgorithm = new FullyDynamicArborescence(originalGraph, roots, camerini);
     }
 

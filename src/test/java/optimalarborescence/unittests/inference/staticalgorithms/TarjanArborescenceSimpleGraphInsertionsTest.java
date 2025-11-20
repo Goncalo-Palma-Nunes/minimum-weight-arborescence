@@ -6,6 +6,7 @@ import optimalarborescence.graph.Graph;
 import optimalarborescence.inference.TarjanArborescence;
 
 import java.util.List;
+import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
@@ -14,6 +15,10 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TarjanArborescenceSimpleGraphInsertionsTest {
+
+    // Default comparator for edges - min heap based on weight
+    private static final Comparator<Edge> EDGE_COMPARATOR = 
+        (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
 
     private static final String ALLELIC_PROFILE = "ACGT";
 
@@ -49,7 +54,7 @@ public class TarjanArborescenceSimpleGraphInsertionsTest {
     @Test
     public void testInsertOneSuboptimalEdge() {
 
-        Graph firstPhylogeny = new TarjanArborescence(originalGraph).inferPhylogeny(originalGraph);
+        Graph firstPhylogeny = new TarjanArborescence(originalGraph, EDGE_COMPARATOR).inferPhylogeny(originalGraph);
 
         Assert.assertTrue(isValidArborescence(originalGraph, firstPhylogeny));
         int firstCost = firstPhylogeny.getEdges().stream().mapToInt(Edge::getWeight).sum();
@@ -62,7 +67,7 @@ public class TarjanArborescenceSimpleGraphInsertionsTest {
         Graph modifiedGraph = new Graph(originalGraph.getEdges());
         modifiedGraph.addEdge(newEdge);
 
-        Graph secondPhylogeny = new TarjanArborescence(modifiedGraph).inferPhylogeny(modifiedGraph);
+        Graph secondPhylogeny = new TarjanArborescence(modifiedGraph, EDGE_COMPARATOR).inferPhylogeny(modifiedGraph);
 
         Assert.assertTrue(isValidArborescence(modifiedGraph, secondPhylogeny));
         int secondCost = secondPhylogeny.getEdges().stream().mapToInt(Edge::getWeight).sum();
@@ -73,7 +78,7 @@ public class TarjanArborescenceSimpleGraphInsertionsTest {
     @Test
     public void testInsertOneSuboptimalOneOptimalEdge() {
 
-        Graph firstPhylogeny = new TarjanArborescence(originalGraph).inferPhylogeny(originalGraph);
+        Graph firstPhylogeny = new TarjanArborescence(originalGraph, EDGE_COMPARATOR).inferPhylogeny(originalGraph);
 
         Assert.assertTrue(isValidArborescence(originalGraph, firstPhylogeny));
 
@@ -85,7 +90,7 @@ public class TarjanArborescenceSimpleGraphInsertionsTest {
         modifiedGraph.addEdge(suboptimalEdge);
         modifiedGraph.addEdge(optimalEdge);
 
-        Graph secondPhylogeny = new TarjanArborescence(modifiedGraph).inferPhylogeny(modifiedGraph);
+        Graph secondPhylogeny = new TarjanArborescence(modifiedGraph, EDGE_COMPARATOR).inferPhylogeny(modifiedGraph);
 
         List<Edge> expectedEdgesAfterOptimalInsertion = List.of(
             new Edge(nodes.get(3), nodes.get(2), 2),
@@ -120,7 +125,7 @@ public class TarjanArborescenceSimpleGraphInsertionsTest {
             new Edge(nodes.get(1), nodes.get(0), 2)
         );
 
-        Graph finalPhylogeny = new TarjanArborescence(modifiedGraph).inferPhylogeny(modifiedGraph);
+        Graph finalPhylogeny = new TarjanArborescence(modifiedGraph, EDGE_COMPARATOR).inferPhylogeny(modifiedGraph);
         Assert.assertTrue(isValidArborescence(modifiedGraph, finalPhylogeny));
         int expectedCost = expectedEdgesAfterOptimalInsertion.stream().mapToInt(Edge::getWeight).sum();
         int resultCost = finalPhylogeny.getEdges().stream().mapToInt(Edge::getWeight).sum();

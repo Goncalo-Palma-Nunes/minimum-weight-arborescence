@@ -24,7 +24,7 @@ public class CameriniForest extends StaticAlgorithm {
     List<TarjanForestNode> inEdgeNode;
     
     /** Array that for each i, where i is a cycle representative, stores a cycle of nodes of the forest */
-    List<TarjanForestNode> cycleEdgeNode;
+    // List<TarjanForestNode> cycleEdgeNode;
 
     /** array stores the leaf nodes of the forest */
     // List<TarjanForestNode> leaves;
@@ -40,7 +40,6 @@ public class CameriniForest extends StaticAlgorithm {
     private List<Node> max;
 
     /** A list that stores for each representative cycle vertex 𝑣 the list of cycle edge nodes in F */
-    //private List<List<Edge>> cycleEdgeNodes;
     private List<List<TarjanForestNode>> cycleEdgeNodes;
 
     /** A union-find data structure to maintain the strongly connected components of 𝐻 */
@@ -50,12 +49,16 @@ public class CameriniForest extends StaticAlgorithm {
 
     private List<MergeableHeapInterface<HeapNode>> queues;
 
+    private Comparator<HeapNode> maxDisjointCmp;
+
+    private Comparator<Edge> cmp;
+
     // private List<Node> nodes;
 
     /** Constructor for CameriniForest. This class is an implementation of
      * Tarjan's optimum branching algorithm as corrected by Camerini et al.
      */
-    public CameriniForest(Graph graph) {
+    public CameriniForest(Graph graph, Comparator<Edge> comparator) {
         super(graph);
         this.roots = graph.cloneNodeList();
         this.rset = new TreeSet<>();
@@ -67,11 +70,28 @@ public class CameriniForest extends StaticAlgorithm {
         this.ufWCC = new UnionFind(graph.getNumNodes());
         this.queues = new ArrayList<>();
 
+        this.cmp = comparator;
+
+        // this.maxDisjointCmp = (o1, o2) -> {
+        //     Edge e1 = getAdjustedEdge(o1.getEdge());
+        //     Edge e2 = getAdjustedEdge(o2.getEdge());
+        //     return cmp.compare(e1, e2);
+        // };
+        this.maxDisjointCmp = new Comparator<HeapNode>() {
+            @Override
+            public int compare(HeapNode o1, HeapNode o2) {
+                Edge e1 = getAdjustedEdge(o1.getEdge());
+                Edge e2 = getAdjustedEdge(o2.getEdge());
+                return cmp.compare(e1, e2);
+            }
+        };
+
+
         for (int i = 0; i < graph.getNumNodes(); i++) {
             inEdgeNode.add(null);
             max.add(graph.getNodes().get(i));
             cycleEdgeNodes.add(new ArrayList<>());
-            queues.add(new PairingHeap());
+            queues.add(new PairingHeap(maxDisjointCmp));
         }
         initializeDataStructures();
     }
@@ -153,22 +173,75 @@ public class CameriniForest extends StaticAlgorithm {
         ufSCC.union(u.getId(), v.getId());
     }
 
-    private void updateReducedCosts(List<TarjanForestNode> cycle, int sigma, Map<Node, Edge> map) {
-        for (TarjanForestNode node : cycle) { // Update reduced costs
-            Edge e = map.get(sccFind(node.edge.getDestination()));
-            int updatedWeight = e.getWeight() - sigma;
-            ufSCC.addWeight(node.getEdge().getDestination().getId(), updatedWeight);
+    protected Edge getAdjustedEdge(Edge edge) {
+        Number w = this.getAdjustedWeight(edge);
+        return new Edge(edge.getSource(), edge.getDestination(), w.intValue());
+    }
+
+    protected Number getAdjustedWeight(Edge e) {
+        return e.getWeight() + ufSCC.findWeight(e.getDestination().getId());
+    }
+
+    private void updateReducedCosts(List<Integer> contractionSet, int sigma, Map<Integer, TarjanForestNode> map) {
+        for (Integer node : contractionSet) { // Update reduced costs
+            Number incidentW = getAdjustedWeight(map.get(node).getEdge());
+            Number reducedCost = sigma - incidentW.floatValue();
+            ufSCC.addWeight(node, reducedCost.intValue());
+            // Edge e = map.get(sccFind(node.edge.getDestination()));
+            // int updatedWeight = e.getWeight() - sigma;
+            // ufSCC.addWeight(node.getEdge().getDestination().getId(), updatedWeight);
         }
     }
 
     private TarjanForestNode getMaxWeightEdgeInCycle(List<TarjanForestNode> cycle) {
-        return cycle.stream().max(Comparator.comparing(n -> n.edge.getWeight())).orElseThrow();
+        System.out.println("\t\u001B[32mcycle edges: \u001B[0m");
+        for (TarjanForestNode n : cycle) {
+            System.out.println("\t\t(" + n.getEdge().getSource().getId() + "," + n.getEdge().getDestination().getId() + ", adjusted weight=" + getAdjustedWeight(n.getEdge()) + ")");
+        }
+        Comparator <TarjanForestNode> cmp = new Comparator<TarjanForestNode>() {
+            @Override
+            public int compare(TarjanForestNode n1, TarjanForestNode n2) {
+                // adjusted weight
+                Edge e1 = getAdjustedEdge(n1.getEdge());
+                Edge e2 = getAdjustedEdge(n2.getEdge());
+                return Integer.compare(e1.getWeight(), e2.getWeight());
+            }
+        };
+        System.out.println("\t\u001B[32mMax edge in cycle: " + cycle.stream().max(cmp).orElseThrow() + "\u001B[0m");
+
+        return cycle.stream().max(cmp).orElseThrow();
     }
 
     private void updateSCCMaxWeightEdge(Node rep) {
         List<TarjanForestNode> cycleEdges = cycleEdgeNodes.get(rep.getId());
-        Edge maxEdge = cycleEdges.stream().max(Comparator.comparing(n -> n.edge.getWeight())).orElseThrow().edge;
+        TarjanForestNode maxNode = getMaxWeightEdgeInCycle(cycleEdges);
+
+        Edge maxEdge = maxNode.getEdge();
         max.set(rep.getId(), maxEdge.getDestination());
+    }
+
+    private void updateMax(Node index, Node newVal) {
+
+        System.out.println("\u001B[31mUpdating max for SCC represented by node " + index.getId() + "\u001B[0m");
+        System.out.println("\tNew candidate max: " + (newVal != null ? newVal.getId() : "null"));
+        System.out.println("\tCurrent max target: " + (max.get(index.getId()) != null ? max.get(index.getId()).getId() : "null"));
+        if (getCycleEdges(index) != null && !getCycleEdges(index).isEmpty()) {
+            System.out.println("\tSCC has a cycle, finding max edge in cycle.");
+            Comparator<TarjanForestNode> cmp = new Comparator<TarjanForestNode>() {
+                @Override
+                public int compare(TarjanForestNode n1, TarjanForestNode n2) {
+                    // adjusted weight
+                    Edge e1 = getAdjustedEdge(n1.getEdge());
+                    Edge e2 = getAdjustedEdge(n2.getEdge());
+                    return Integer.compare(e1.getWeight(), e2.getWeight());
+                }
+            };
+            List<TarjanForestNode> cycleEdges = getCycleEdges(index);
+            TarjanForestNode maxNode = cycleEdges.stream().max(cmp).orElseThrow();
+            Edge maxEdge = maxNode.getEdge();
+            newVal = maxEdge.getDestination();
+        }
+        max.set(index.getId(), newVal);
     }
 
     private Node getSCCMaxTarget(Node v) {
@@ -189,7 +262,8 @@ public class CameriniForest extends StaticAlgorithm {
                     elements.add(q.extractMin());
                 }
                 System.out.println(elements.stream()
-                    .map(hn -> hn.getEdge().toString())
+                    // .map(hn -> hn.getEdge().toString())
+                    .map(hn -> "(" + hn.getEdge().getSource().getId() + "," + hn.getEdge().getDestination().getId() + "," + hn.getEdge().getWeight() + ")")
                     .collect(Collectors.joining(", ")));
                 // Reinsert elements back into the queue
                 for (HeapNode hn : elements) {
@@ -204,7 +278,8 @@ public class CameriniForest extends StaticAlgorithm {
         for (int i = 0; i < max.size(); i++) {
             Node v = getNodes().get(i);
             Node maxNode = max.get(i);
-            System.out.println("SCC represented by node " + v.getId() + ": max edge target = " + (maxNode != null ? maxNode.getId() : "null"));
+            // System.out.println("SCC represented by node " + v.getId() + ": max edge target = " + (maxNode != null ? maxNode.getId() : "null"));
+            System.out.println("\tmax[" + i + "]: " + (maxNode != null ? maxNode.getId() : "null"));
         }
     }
 
@@ -214,6 +289,14 @@ public class CameriniForest extends StaticAlgorithm {
             TarjanForestNode leaf = leaves[i];
             System.out.println("\tpi[" + i + "]: " + (leaf != null ? "(" + leaf.edge.getSource().getId() + "," + leaf.edge.getDestination().getId()  + ")": "null"));
         }
+    }
+
+    private void printRset() {
+        System.out.print("\nrset = {");
+        for (Node r : rset) {
+            System.out.print(" " + r.getID() + ", ");
+        }
+        System.out.println("}");
     }
 
     private void printRoots() {
@@ -241,73 +324,93 @@ public class CameriniForest extends StaticAlgorithm {
 
     private void contractionPhase() {
         while (!roots.isEmpty()) {
+            printRoots();
+            // printQueues();
+            printLeaves();
+            // printRset();
+            printMaxEdges();
             Node root = roots.remove(0);
             MergeableHeapInterface<HeapNode> q = getQueue(sccFind(root)); // priority queue of edges entering r
+            System.out.println("<----- contractionPhase: processing root " + root.getId() + " ----->");
 
             if (emptyQueue(q)) {
                 // Only add to rset if this node has no incoming edge (no leaf set)
-                if (leaves[root.getId()] == null) {
-                    rset.add(root);
-                }
+                rset.add(root);
+                System.out.println("\tRoot " + root.getId() + " has no incoming edges (emptyQueue), added to rset.");
                 continue;
             }
             Edge e = q.extractMin().getEdge();
             while (!emptyQueue(q) && sccFind(e.getSource()) == sccFind(e.getDestination())) {
                 e = q.extractMin().getEdge();
             }
+
+            System.out.println("\tSelected edge (" + e.getSource().getId() + "," + e.getDestination().getId() + ") with adjusted weight " + getAdjustedWeight(e));
             if (sccFind(e.getSource()) == sccFind(e.getDestination())) {
+                // Both ends of the edge are in the same SCC, skip this edge
+                rset.add(root);
+                System.out.println("\t\tBoth ends of the edge are in the same SCC, skipping edge and adding root " + root.getId() + " to rset.");
                 continue;
             }
 
             Node u = e.getSource();
             Node v = e.getDestination();
-            
-            TarjanForestNode minNode;
+
+            TarjanForestNode minNode = createMinNode(e);
             if (wccFind(u) != wccFind(v)) {
-                minNode = createMinNode(e);
-                inEdgeNode.set(v.getId(), minNode);
-                wccUnion(u, root);
+                // no cycle formed
+                System.out.println("\t\tNo cycle formed by adding edge (" + e.getSource().getId() + "," + e.getDestination().getId() + ")");
+                inEdgeNode.set(root.getId(), minNode);
+                wccUnion(u, v);
             }
             else {
-                // Create minNode without setting leaf (it's part of a cycle)
-                minNode = new TarjanForestNode(e);
-                // inEdgeNode.set(root.getId(), null);
-                inEdgeNode.set(sccFind(root).getId(), null);
-                List<TarjanForestNode> cycle = new ArrayList<>(); cycle.add(minNode);
-                Map<Node, Edge> map = new HashMap<>();
-                map.put(sccFind(minNode.edge.getDestination()), minNode.edge);
+                System.out.println("\t\tCycle formed by adding edge (" + e.getSource().getId() + "," + e.getDestination().getId() + ")");
 
-                Node i = sccFind(u);
-                while (inEdgeNode.get(i.getId()) != null) {
-                    TarjanForestNode node = inEdgeNode.get(i.getId());
-                    cycle.add(node);
-                    map.put(i, node.edge);
-                    
-                    i = sccFind(node.edge.getSource());
+                // store nodes in cycle
+                List<Integer> contractionSet = new ArrayList<>();
+                contractionSet.add(sccFind(v).getId());
+
+                // keep track of the edges in the cycle
+                List<TarjanForestNode> edgeNodesInCycle = new ArrayList<>();
+                edgeNodesInCycle.add(minNode);
+
+                // map the edge incident in a node
+                Map<Integer, TarjanForestNode> map = new HashMap<>();
+                map.put(sccFind(v).getId(), minNode);
+
+                // since a cycle as arisen we need to choose a new minimum weight edge incident in node root
+                inEdgeNode.set(root.getId(), null);
+
+                for (int i = sccFind(u).getId(); inEdgeNode.get(i) != null; i = sccFind(inEdgeNode.get(i).edge.getSource()).getId()) {
+                    map.put(i, inEdgeNode.get(i));
+                    edgeNodesInCycle.add(inEdgeNode.get(i));
+                    contractionSet.add(i);
                 }
 
-                TarjanForestNode maxWeightEdge = getMaxWeightEdgeInCycle(cycle);
-                int sigma = maxWeightEdge.edge.getWeight();
-                updateReducedCosts(cycle, sigma, map);
+                TarjanForestNode maxWeightTarjanNode = getMaxWeightEdgeInCycle(edgeNodesInCycle);
+                Edge maxWeightEdge = maxWeightTarjanNode.edge;
+                // Node dst = max.get(sccFind(maxWeightEdge.getDestination()).getId());
+                Node dst = sccFind(maxWeightEdge.getDestination());
 
-                for (TarjanForestNode n: cycle) { // Perform union of the nodes in the cycle
+                // int sigma = maxWeightEdge.getWeight();
+                int sigma = getAdjustedWeight(maxWeightEdge).intValue();
+                updateReducedCosts(contractionSet, sigma, map);
+
+                for (TarjanForestNode n: edgeNodesInCycle) { // Perform union of the nodes in the cycle
                     sccUnion(n.edge.getSource(), n.edge.getDestination());
                 }
 
-                Node rep = sccFind(maxWeightEdge.edge.getDestination());
-                
-                // Store cycle edges for the representative
-                cycleEdgeNodes.set(rep.getId(), new ArrayList<>(cycle));
-                
-                roots.add(sccFind(rep));
-                updateSCCMaxWeightEdge(rep);
-
-                for (TarjanForestNode n : cycle) { // Merge queues involved in the cycle
-                    if (sccFind(n.edge.getDestination()) != rep) {
-                        getQueue(rep).merge(getQueue(sccFind(n.edge.getDestination())));
+                Node rep = sccFind(maxWeightEdge.getDestination());
+                roots.add(0, rep); // Add representative to roots to be processed again
+                for (Integer node : contractionSet) { // Merge queues involved in the cycle
+                    if (rep.getId() != node) {
+                        getQueue(rep).merge(getQueue(getNodes().get(node)));
                     }
                 }
+                updateMax(rep, dst);
+                // updateMax(dst, rep);
+                cycleEdgeNodes.set(rep.getId(), edgeNodesInCycle);
             }
+            System.out.println("<----- End of processing for root " + root.getId() + " ----->\n");
         }
     }
 
@@ -320,34 +423,86 @@ public class CameriniForest extends StaticAlgorithm {
         while (current != null) {
             current.setRemove(true);
             // Make all children roots by setting parent to null
-            for (TarjanForestNode child : current.getChildren()) {
+            List<TarjanForestNode> children = new ArrayList<>(current.getChildren());
+            for (TarjanForestNode child : children) {
                 child.setParent(null);
-                if (!N.contains(child)) {
-                    N.add(child);
-                }
+                N.add(child);
+                // if (!N.contains(child)) {
+                //     N.add(child);
+                // }
             }
             current = current.getParent();
         }
     }
 
     private List<Edge> expansionPhase() {
-        List<Edge> B = new ArrayList<>(); // optimal arborescence (called H in other places)
-        List<Node> R = rset.stream().map(v -> getSCCMaxTarget(v)).collect(Collectors.toCollection(ArrayList::new));
+        // List<Edge> B = new ArrayList<>(); // optimal arborescence (called H in other places)
+        // List<Node> R = rset.stream().map(v -> getSCCMaxTarget(v)).collect(Collectors.toCollection(ArrayList::new));
+        // Set<Node> R = rset.stream()
+        //     .map(v -> getSCCMaxTarget(v)) // ir buscar o max sem SCC?
+        //     .collect(Collectors.toSet());
+        System.out.println("####### Expansion Phase #######");
+        printMaxEdges();
+        printLeaves();
+        printRset();
+
+        Set<Integer> R = rset.stream()
+            .map(v -> max.get(v.getId()).getId())
+            // .map(v -> getSCCMaxTarget(v))
+            // .map(n -> n.getId())
+            .collect(Collectors.toSet());
+
+        // Comparator<TarjanForestNode> tarjanComp = new Comparator<TarjanForestNode>() {
+        //     @Override
+        //     public int compare(TarjanForestNode n1, TarjanForestNode n2) {
+        //         Edge e1 = getAdjustedEdge(n1.getEdge());
+        //         Edge e2 = getAdjustedEdge(n2.getEdge());
+        //         return Integer.compare(e1.getWeight(), e2.getWeight());
+        //     }
+        // };
+        // Set<Integer> R = rset.stream()
+        //     .map(v -> sccFind(v)) // get the representative of the SCC
+        //     .map(v -> getCycleEdges(v)) // get the cycle edges associated with the SCC
+        //     .map(cycleEdges -> cycleEdges.stream().max(tarjanComp).orElseThrow()) // get the max edge in the cycle
+        //     .map(maxNode -> maxNode.getEdge().getDestination().getId()) // get the target node ID of the max edge
+        //     .collect(Collectors.toSet());
+
+        List<Edge> B = new ArrayList<>(this.graph.getNumNodes() - 1);
         List<TarjanForestNode> N = getRoots();
 
+        System.out.println("Set R (targets of max edges for rset): " + R);
+        System.out.println("Initial roots in N: ");
+        for (TarjanForestNode n : N) {
+            System.out.println("\tNode with edge (" + n.edge.getSource().getId() + "," + n.edge.getDestination().getId() + ", remove=" + n.isRemove() + ")");
+        }
+
         // Process set R first - trace paths from leaves of R nodes
-        for (Node u : R) {
-            if (leaves[u.getId()] != null) {
-                tracePath(leaves[u.getId()], N);
+        for (Integer node : R) {
+            System.out.println("\tProcessing R node with ID " + node);
+            System.out.println("\t\tLeaf node for R node: " + (leaves[node] != null ? "(" + leaves[node].edge.getSource().getId() + "," + leaves[node].edge.getDestination().getId() + ")" : "null"));
+            System.out.println("\t\tTracing path from leaf to root");
+            if (leaves[node] != null) {
+                tracePath(leaves[node], N);
+            }
+            System.out.println("\t\tNew set N (roots): ");
+            for (TarjanForestNode n : N) {
+                System.out.println("\t\t\tNode with edge (" + n.edge.getSource().getId() + "," + n.edge.getDestination().getId() + ", remove=" + n.isRemove() + ")");
             }
         }
+        // for (Node u : R) {
+        //     if (leaves[u.getId()] != null) {
+        //         tracePath(leaves[u.getId()], N);
+        //     }
+        // }
 
         // Process set N
         while (!N.isEmpty()) {
             TarjanForestNode edgeNode = N.remove(0);
+            System.out.println("Processing node with edge (" + edgeNode.getEdge().getSource().getId() + "," + edgeNode.getEdge().getDestination().getId() + "), remove=" + edgeNode.isRemove());
             
             // Skip nodes marked for removal
             if (edgeNode.isRemove()) {
+                System.out.println("\tSkipping node marked for removal during tracePath operation.");
                 continue;
             }
             
@@ -356,11 +511,16 @@ public class CameriniForest extends StaticAlgorithm {
             
             // Trace path from destination's leaf
             Node v = edgeNode.getEdge().getDestination();
-            if (leaves[v.getId()] != null) {
-                tracePath(leaves[v.getId()], N);
-            }
+            tracePath(leaves[v.getId()], N);
+            // if (leaves[v.getId()] != null) {
+            //     tracePath(leaves[v.getId()], N);
+            // }
         }
-        
+
+        System.out.println("Final set of edges (B): ");
+        for (Edge edge : B) {
+            System.out.println("\tEdge (" + edge.getSource().getId() + "," + edge.getDestination().getId() + "," + edge.getWeight() + ")");
+        }
         return B;
     }
 

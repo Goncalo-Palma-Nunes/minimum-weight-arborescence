@@ -5,9 +5,13 @@ import optimalarborescence.graph.Graph;
 import optimalarborescence.inference.CameriniForest;
 
 import java.util.List;
+import java.util.Comparator;
 import java.util.Map;
+import java.util.Comparator;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Comparator;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -19,6 +23,10 @@ import org.junit.Test;
  * Algorithms 2023, 16, 559. https://doi.org/10.3390/a16120559 
  */
 public class CameriniForestLoopedSquaredMotifsTest {
+    // Default comparator for edges - min heap based on weight
+    private static final Comparator<Edge> EDGE_COMPARATOR = 
+        (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
+
 
     private static final String ALLELIC_PROFILE = "ACGT";
 
@@ -68,7 +76,7 @@ public class CameriniForestLoopedSquaredMotifsTest {
 
     @Test
     public void testCameriniForestLoopedSquaredMotifs() {
-        CameriniForest camerini = new CameriniForest(originalGraph);
+        CameriniForest camerini = new CameriniForest(originalGraph, EDGE_COMPARATOR);
         Graph result = camerini.inferPhylogeny(originalGraph);
 
         // System.out.println("################### Result ###################");
