@@ -6,6 +6,7 @@ import optimalarborescence.graph.Graph;
 import optimalarborescence.inference.CameriniForest;
 import optimalarborescence.inference.dynamic.FullyDynamicArborescence;
 import optimalarborescence.inference.dynamic.ATreeNode;
+import optimalarborescence.inference.dynamic.DynamicTarjanArborescence;
 
 import java.util.List;
 import java.util.Comparator;
@@ -42,6 +43,7 @@ public class FullyDynamicArborescenceDeletionTest {
     private List<Edge> edges;
     private Graph originalGraph;
     private FullyDynamicArborescence dynamicAlgorithm;
+    private DynamicTarjanArborescence dynamicTarjan;
 
     @Before
     public void setUp() {
@@ -69,7 +71,13 @@ public class FullyDynamicArborescenceDeletionTest {
         
         List<ATreeNode> roots = new ArrayList<>();
         CameriniForest camerini = new CameriniForest(originalGraph, EDGE_COMPARATOR);
-        dynamicAlgorithm = new FullyDynamicArborescence(originalGraph, roots, camerini);
+        dynamicTarjan = new DynamicTarjanArborescence(roots,
+            new ArrayList<>(), // No contracted edges initially
+            new HashMap<>(), // No reduced costs initially
+            originalGraph,
+            EDGE_COMPARATOR
+        );
+        dynamicAlgorithm = new FullyDynamicArborescence(originalGraph, roots, dynamicTarjan);
     }
 
     @Test

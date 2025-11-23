@@ -307,7 +307,7 @@ public class CameriniForest extends StaticAlgorithm {
         System.out.println("}");
     }
 
-    private List<TarjanForestNode> getRoots() {
+    public List<TarjanForestNode> getRoots() {
         List<TarjanForestNode> rootsList = new ArrayList<>();
 
         for (TarjanForestNode leaf : leaves) {

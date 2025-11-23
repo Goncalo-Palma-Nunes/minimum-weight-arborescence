@@ -7,6 +7,7 @@ import optimalarborescence.graph.Graph;
 import optimalarborescence.inference.CameriniForest;
 import optimalarborescence.inference.dynamic.FullyDynamicArborescence;
 import optimalarborescence.inference.dynamic.ATreeNode;
+import optimalarborescence.inference.dynamic.DynamicTarjanArborescence;
 import optimalarborescence.unittests.inference.HelperMethods;
 
 import java.util.List;
@@ -31,6 +32,7 @@ public class FullyDynamicArborescenceLoopedSquaredMotifsTest {
 
 
     private FullyDynamicArborescence algorithm;
+    private DynamicTarjanArborescence dynamicTarjan;
     private CameriniForest cameriniForest;
     private List<ATreeNode> roots;
 
@@ -84,9 +86,15 @@ public class FullyDynamicArborescenceLoopedSquaredMotifsTest {
     public void testFullyDynamicArborescenceLoopedSquaredMotifs() {
 
         cameriniForest = new CameriniForest(originalGraph, EDGE_COMPARATOR);
+        dynamicTarjan = new DynamicTarjanArborescence(roots,
+            new ArrayList<>(), // No contracted edges initially
+            new java.util.HashMap<>(), // No reduced costs initially
+            originalGraph,
+            EDGE_COMPARATOR
+        );
 
         // Initialize the fully dynamic arborescence algorithm with the original graph
-        algorithm = new FullyDynamicArborescence(originalGraph, roots, cameriniForest);
+        algorithm = new FullyDynamicArborescence(originalGraph, roots, dynamicTarjan);
 
         // Compute the optimal arborescence
         Graph result = algorithm.inferPhylogeny(originalGraph);

@@ -8,10 +8,10 @@ import java.util.List;
 
 
 public class TarjanForestNode implements Serializable, Comparable<TarjanForestNode> {
-    Edge edge;
-    TarjanForestNode parent;
-    List<TarjanForestNode> children; // TODO - passar a uma left child right sibling representation
-    boolean remove; // Flag to mark nodes that should be removed during expansion phase
+    protected Edge edge;
+    protected TarjanForestNode parent;
+    protected List<TarjanForestNode> children; // TODO - passar a uma left child right sibling representation
+    protected boolean remove; // Flag to mark nodes that should be removed during expansion phase
 
         /** Auxiliary data structure for Tarjan's algorithm. TarjanForestNode is used to build the
          * forest F described in Camerini's correction of Tarjan's optimum branching algorithm.
@@ -38,6 +38,10 @@ public class TarjanForestNode implements Serializable, Comparable<TarjanForestNo
 
     public TarjanForestNode getParent() {
         return parent;
+    }
+
+    public void clearChildren() {
+        this.children.clear();
     }
 
     public TarjanForestNode setParent(TarjanForestNode parent) {

@@ -21,7 +21,7 @@ public class ATreeNode extends TarjanForestNode {
     /** The edge selected by the algorithm for the represented vertex. 
      * If no edge was selected then this.edge = null and this is a root node.
      * */
-    private Edge edge;
+    // private Edge edge;
 
     /** Cost of this.edge at the time it was selected for this ATreeNode */
     private int y; 
@@ -29,12 +29,12 @@ public class ATreeNode extends TarjanForestNode {
     /** The parent of this ATreeNode in the ATree. 
      * <p>
      * this.parent = null, if this is the root node (if this.edge == null) */
-    protected ATreeNode parent;
+    // protected ATreeNode parent;
 
     /** The children of this ATreeNode in the ATree. 
      * NOTE: This shadows the parent class field intentionally since the parent field
      * is package-private and not accessible. */
-    protected List<ATreeNode> children;
+    // protected List<ATreeNode> children;
 
     /** Whether this node is a simple node or a c-node.
      * <p>
@@ -59,10 +59,10 @@ public class ATreeNode extends TarjanForestNode {
 
     public ATreeNode(Edge edge, int y, ATreeNode parent, List<ATreeNode> children, boolean simpleNode, List<Edge> contractedEdges) {
         super(edge);
-        this.edge = edge; // Set our shadowed field too
+        // this.edge = edge; // Set our shadowed field too
         this.y = y;
-        this.parent = parent;
-        this.children = children;
+        // this.parent = parent;
+        // this.children = children;
         this.simpleNode = simpleNode;
         this.contractedEdges = contractedEdges;
     }
@@ -75,13 +75,13 @@ public class ATreeNode extends TarjanForestNode {
         this(edge, y, null, new ArrayList<>(), simpleNode, contractedEdges);
     }
 
-    public Edge getEdge() {
-        return edge;
-    }
+    // public Edge getEdge() {
+    //     return edge;
+    // }
 
-    public void setEdge(Edge edge) {
-        this.edge = edge;
-    }
+    // public void setEdge(Edge edge) {
+    //     this.edge = edge;
+    // }
 
     public int getCost() {
         return y;
@@ -92,23 +92,25 @@ public class ATreeNode extends TarjanForestNode {
     }
 
     public ATreeNode getParent() {
-        return parent;
-    }
-
-    public void setParent(ATreeNode parent) {
-        this.parent = parent;
-    }
-
-    @SuppressWarnings("unchecked")
-    public void setChildren(List<ATreeNode> children) {
-        this.children = children;
-        // Also update parent's children field (which getChildren() returns)
-        // by clearing and adding all elements
-        List<TarjanForestNode> parentChildren = super.getChildren();
-        parentChildren.clear();
-        if (children != null) {
-            parentChildren.addAll((List<TarjanForestNode>) (List<?>) children);
+        if (parent instanceof ATreeNode) {
+            return (ATreeNode) parent;
+        } else {
+            return null;
         }
+    }
+
+    public void setParent(ATreeNode p) {
+        if (this.parent != null) {
+            this.parent.getChildren().remove(this);
+        }
+        this.parent = p;
+    }
+
+    public void setChildren(List<ATreeNode> children) {
+        List<TarjanForestNode> castedChildren = children.stream()
+                                                .map(child -> (TarjanForestNode) child)
+                                                .toList();
+        this.children = castedChildren;
     }
 
     public boolean isSimpleNode() {
@@ -130,6 +132,20 @@ public class ATreeNode extends TarjanForestNode {
         this.contractedEdges.add(edge);
     }
 
+    private ATreeNode downCast(TarjanForestNode node) {
+        if (node instanceof ATreeNode) {
+            return (ATreeNode) node;
+        } else {
+            throw new ClassCastException("The provided TarjanForestNode is not an instance of ATreeNode.");
+        }
+    }
+
+    public List<ATreeNode> getATreeChildren() {
+        return this.children.stream()
+                    .map(this::downCast)
+                    .toList();
+    }
+
     /** Searches the ATree for a contraction node (c-node) that contains the specified edge.
      * 
      * @param edge The edge to search for.
@@ -141,7 +157,10 @@ public class ATreeNode extends TarjanForestNode {
 
         if (!node.isSimpleNode() && node.getContractedEdges().contains(edge)) return node;
 
-        for (ATreeNode child : node.children) {
+        List<ATreeNode> children = node.children.stream()
+                                        .map(this::downCast)
+                                        .toList();
+        for (ATreeNode child : children) {
             ATreeNode result = findContractionByEdge(edge, child);
             if (result != null) return result;
         }
@@ -159,7 +178,10 @@ public class ATreeNode extends TarjanForestNode {
 
         if (node.getEdge() != null && node.getEdge().equals(edge)) return node;
 
-        for (ATreeNode child : node.children) {
+        List<ATreeNode> children = node.children.stream()
+                                        .map(this::downCast)
+                                        .toList();
+        for (ATreeNode child : children) {
             ATreeNode result = findATreeNodeByEdge(edge, child);
             if (result != null) return result;
         }
