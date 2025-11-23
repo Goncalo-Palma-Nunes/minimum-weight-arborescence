@@ -64,16 +64,15 @@ public class DynamicTarjanArborescence extends CameriniForest {
                                             Graph originalGraph) {
         List<Edge> modifiedEdges = new ArrayList<>();
         
-        // Create edges with reduced costs
-        for (Edge edge : contractedEdges) {
-            int reducedCost = reducedCosts.getOrDefault(edge, edge.getWeight());
-            Edge reducedEdge = new Edge(edge.getSource(), edge.getDestination(), reducedCost);
-            modifiedEdges.add(reducedEdge);
-        }
-        
-        // Also include all other edges from the original graph that are not in contractedEdges
+        // First, include all edges from the original graph to preserve node order
+        // This ensures the Graph constructor adds nodes in the correct order
         for (Edge edge : originalGraph.getEdges()) {
-            if (!contractedEdges.contains(edge)) {
+            // Check if this edge should have a reduced cost
+            if (contractedEdges.contains(edge)) {
+                int reducedCost = reducedCosts.getOrDefault(edge, edge.getWeight());
+                Edge reducedEdge = new Edge(edge.getSource(), edge.getDestination(), reducedCost);
+                modifiedEdges.add(reducedEdge);
+            } else {
                 modifiedEdges.add(edge);
             }
         }

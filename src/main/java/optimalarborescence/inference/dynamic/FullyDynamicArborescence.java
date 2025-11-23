@@ -393,9 +393,10 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                     List<Edge> edgesWithNewEdge = new ArrayList<>(contractedEdges);
                     edgesWithNewEdge.add(edge);
                     
-                    // Compute reduction quantities and apply them
+                    // Compute reduction quantities and apply them ONLY to edges already in G' (contractedEdges)
+                    // The new edge e_in should use its original weight, not a reduced cost
                     Map<Integer, Integer> reductions = computeReductionQuantities();
-                    Map<Edge, Integer> reducedCosts = applyReductionQuantities(edgesWithNewEdge, reductions);
+                    Map<Edge, Integer> reducedCosts = applyReductionQuantities(contractedEdges, reductions);
                     
                     // Run Edmonds' algorithm over G(V', E' ∪ {e_in})
                     DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
