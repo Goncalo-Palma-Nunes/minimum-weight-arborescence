@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 
 import optimalarborescence.datastructure.UnionFind;
 import optimalarborescence.datastructure.UnionFindStronglyConnected;
@@ -387,7 +388,12 @@ public class CameriniForest extends StaticAlgorithm {
                 // since a cycle as arisen we need to choose a new minimum weight edge incident in node root
                 inEdgeNode.set(root.getId(), null);
 
+                Set<Integer> visited = new HashSet<>();
                 for (int i = sccFind(u).getId(); inEdgeNode.get(i) != null; i = sccFind(inEdgeNode.get(i).edge.getSource()).getId()) {
+                    if (visited.contains(i)) {
+                        break;  // Cycle detected - prevent infinite loop
+                    }
+                    visited.add(i);
                     map.put(i, inEdgeNode.get(i));
                     edgeNodesInCycle.add(inEdgeNode.get(i));
                     contractionSet.add(i);
