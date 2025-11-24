@@ -89,7 +89,14 @@ public class CameriniForest extends StaticAlgorithm {
 
         for (int i = 0; i < graph.getNumNodes(); i++) {
             inEdgeNode.add(null);
-            max.add(graph.getNodes().get(i));
+            // Find the node with ID = i instead of using positional index
+            // This ensures max[i] always points to node i, regardless of node list order
+            final int nodeId = i;
+            Node nodeWithId = graph.getNodes().stream()
+                .filter(n -> n.getId() == nodeId)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Node with ID " + nodeId + " not found in graph"));
+            max.add(nodeWithId);
             cycleEdgeNodes.add(new ArrayList<>());
             queues.add(new PairingHeap(maxDisjointCmp));
         }

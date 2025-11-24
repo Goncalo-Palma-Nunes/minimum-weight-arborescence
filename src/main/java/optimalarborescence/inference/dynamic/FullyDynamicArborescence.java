@@ -290,7 +290,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                 
                 // Apply reduction quantities to edges in E'
                 Map<Edge, Integer> reducedCosts = applyReductionQuantities(edges, reductions);
-                
                 // Initialize DynamicTarjanArborescence with the partially contracted graph
                 DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
                     V,                  // ATree roots representing V'
