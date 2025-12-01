@@ -67,6 +67,11 @@ public class GraphMapper {
         
         return graph;
     }
+
+    public static Map<Integer, Node> loadNodeMap(String baseName) throws IOException {
+        String nodeFile = baseName + "_nodes.dat";
+        return NodeIndexMapper.loadNodes(nodeFile);
+    }
     
     /**
      * Get the incoming edge offset for a specific node without loading the entire graph.
@@ -142,5 +147,45 @@ public class GraphMapper {
         }
 
         NodeIndexMapper.removeNode(node, nodeFile);
+    }
+
+    public static boolean edgeExists(int sourceId, int destId, String baseName) throws IOException {
+        String edgeFile = baseName + "_edges.dat";
+        String nodeFile = baseName + "_nodes.dat";
+
+        try {
+            long incomingEdgeOffset = NodeIndexMapper.getIncomingEdgeOffset(nodeFile, destId);
+            if (incomingEdgeOffset < 0) {
+                return false;
+            }
+
+            return EdgeListMapper.edgeExists(edgeFile, sourceId, destId, incomingEdgeOffset);
+        } catch (IOException e) {
+            // If node doesn't exist (out of range), edge can't exist
+            if (e.getMessage() != null && e.getMessage().contains("out of range")) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
+    public static void removeEdge(int sourceId, int destId, String baseName) throws IOException {
+        String edgeFile = baseName + "_edges.dat";
+        String nodeFile = baseName + "_nodes.dat";
+
+        try {
+            long incomingEdgeOffset = NodeIndexMapper.getIncomingEdgeOffset(nodeFile, destId);
+            if (incomingEdgeOffset < 0) {
+                return;
+            }
+
+            EdgeListMapper.removeEdge(edgeFile, sourceId, destId, incomingEdgeOffset);
+        } catch (IOException e) {
+            // If node doesn't exist (out of range), nothing to remove
+            if (e.getMessage() != null && e.getMessage().contains("out of range")) {
+                return;
+            }
+            throw e;
+        }
     }
 }

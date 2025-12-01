@@ -4,6 +4,7 @@ package optimalarborescence.graph;
 import java.io.*;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 
 public class Graph implements Serializable{
@@ -38,6 +39,8 @@ public class Graph implements Serializable{
             }
             edge.getSource().addNeighbor(edge.getDestination(), edge.getWeight());
         }
+        // Sort nodes by ID to ensure consistent ordering
+        // this.nodes.sort(Comparator.comparingInt(Node::getId));
     }
 
     /* ******************************************

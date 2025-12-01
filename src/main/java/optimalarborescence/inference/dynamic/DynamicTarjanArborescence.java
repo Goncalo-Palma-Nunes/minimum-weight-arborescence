@@ -1,6 +1,7 @@
 package optimalarborescence.inference.dynamic;
 
 import optimalarborescence.inference.CameriniForest;
+import optimalarborescence.inference.TarjanForestNode;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Edge;
 
@@ -8,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Comparator;
+import java.util.HashMap;
 
 /**
  * Dynamic adaptation of Tarjan's algorithm that works with partially contracted graphs.
@@ -62,16 +64,15 @@ public class DynamicTarjanArborescence extends CameriniForest {
                                             Graph originalGraph) {
         List<Edge> modifiedEdges = new ArrayList<>();
         
-        // Create edges with reduced costs
-        for (Edge edge : contractedEdges) {
-            int reducedCost = reducedCosts.getOrDefault(edge, edge.getWeight());
-            Edge reducedEdge = new Edge(edge.getSource(), edge.getDestination(), reducedCost);
-            modifiedEdges.add(reducedEdge);
-        }
-        
-        // Also include all other edges from the original graph that are not in contractedEdges
+        // First, include all edges from the original graph to preserve node order
+        // This ensures the Graph constructor adds nodes in the correct order
         for (Edge edge : originalGraph.getEdges()) {
-            if (!contractedEdges.contains(edge)) {
+            // Check if this edge should have a reduced cost
+            if (contractedEdges.contains(edge)) {
+                int reducedCost = reducedCosts.getOrDefault(edge, edge.getWeight());
+                Edge reducedEdge = new Edge(edge.getSource(), edge.getDestination(), reducedCost);
+                modifiedEdges.add(reducedEdge);
+            } else {
                 modifiedEdges.add(edge);
             }
         }
@@ -113,5 +114,81 @@ public class DynamicTarjanArborescence extends CameriniForest {
      */
     public Graph getModifiedGraph() {
         return modifiedGraph;
+    }
+
+    /**
+     * Converts the TarjanForestNode forest from CameriniForest to an ATreeNode forest.
+     * 
+     * This method extracts the forest structure built by CameriniForest during the
+     * contraction phase and converts each TarjanForestNode to an ATreeNode with:
+     * - The same edge
+     * - Cost (y) set to the edge's weight at selection time
+     * - All nodes initially marked as simple nodes (no contractions yet)
+     * - Parent-child relationships preserved
+     * 
+     * The converted ATree roots are stored in this.aTreeRoots for use in dynamic operations.
+     */
+    public List<ATreeNode> augmentTarjanForestToATree() {
+        // Get the TarjanForestNode roots from CameriniForest
+        List<TarjanForestNode> tarjanRoots = this.getRoots();
+        
+        // Initialize roots if null, otherwise clear existing ATree roots
+        if (this.aTreeRoots == null) {
+            this.aTreeRoots = new ArrayList<>();
+        } else {
+            this.aTreeRoots.clear();
+        }
+        
+        // Map to track already converted nodes (to handle shared references)
+        Map<TarjanForestNode, ATreeNode> conversionMap = new HashMap<>();
+        
+        // Convert each root and its subtree
+        for (TarjanForestNode tarjanRoot : tarjanRoots) {
+            if (tarjanRoot != null) {
+                ATreeNode aTreeRoot = convertTarjanNodeToATreeNode(tarjanRoot, conversionMap);
+                this.aTreeRoots.add(aTreeRoot);
+            }
+        }
+        return this.aTreeRoots;
+    }
+    
+    /**
+     * Recursively converts a TarjanForestNode and its entire subtree to ATreeNodes.
+     * 
+     * @param tarjanNode The TarjanForestNode to convert
+     * @param conversionMap Map tracking already converted nodes
+     * @return The corresponding ATreeNode
+     */
+    private ATreeNode convertTarjanNodeToATreeNode(TarjanForestNode tarjanNode, 
+                                                     Map<TarjanForestNode, ATreeNode> conversionMap) {
+        // Check if already converted
+        if (conversionMap.containsKey(tarjanNode)) {
+            return conversionMap.get(tarjanNode);
+        }
+        
+        Edge edge = tarjanNode.getEdge();
+        int cost = (edge != null) ? edge.getWeight() : 0;
+        
+        // Create new ATreeNode as a simple node (no contractions initially)
+        // Parent will be set later during recursion
+        ATreeNode aTreeNode = new ATreeNode(edge, cost, true, null);
+        
+        // Register in map before processing children (to handle cycles/shared references)
+        conversionMap.put(tarjanNode, aTreeNode);
+        
+        // Convert all children recursively
+        List<ATreeNode> aTreeChildren = new ArrayList<>();
+        if (tarjanNode.getChildren() != null) {
+            for (TarjanForestNode child : tarjanNode.getChildren()) {
+                ATreeNode aTreeChild = convertTarjanNodeToATreeNode(child, conversionMap);
+                aTreeChild.setParent(aTreeNode);  // Set parent relationship
+                aTreeChildren.add(aTreeChild);
+            }
+        }
+        
+        // Set children list
+        aTreeNode.setChildren(aTreeChildren);
+        
+        return aTreeNode;
     }
 }

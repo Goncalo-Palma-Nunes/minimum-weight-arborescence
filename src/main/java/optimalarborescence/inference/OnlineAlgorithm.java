@@ -12,6 +12,10 @@ public abstract class OnlineAlgorithm extends StaticAlgorithm {
         super(graph);
     }
 
+    public OnlineAlgorithm() {
+        super();
+    }
+
     @Override
     public Graph inferPhylogeny(Graph graph) {
         throw new NotImplementedException("The abstract class StaticAlgorithm leaves the implementation of the inferPhylogeny method to its subclasses.");

@@ -6,6 +6,7 @@ import optimalarborescence.graph.Graph;
 import optimalarborescence.inference.CameriniForest;
 import optimalarborescence.inference.dynamic.FullyDynamicArborescence;
 import optimalarborescence.inference.dynamic.ATreeNode;
+import optimalarborescence.inference.dynamic.DynamicTarjanArborescence;
 
 import java.util.List;
 import java.util.Comparator;
@@ -35,6 +36,7 @@ public class FullyDynamicArborescenceInsertionsTest {
     private List<Node> nodes;
     private List<Edge> edges;
     private Graph originalGraph;
+    private DynamicTarjanArborescence dynamicTarjan;
     private FullyDynamicArborescence dynamicAlgorithm;
 
     private List<Edge> initialExpectedEdges;
@@ -66,7 +68,13 @@ public class FullyDynamicArborescenceInsertionsTest {
         
         List<ATreeNode> roots = new ArrayList<>();
         CameriniForest camerini = new CameriniForest(originalGraph, EDGE_COMPARATOR);
-        dynamicAlgorithm = new FullyDynamicArborescence(originalGraph, roots, camerini);
+        dynamicTarjan = new DynamicTarjanArborescence(roots,
+            new ArrayList<>(), // No contracted edges initially
+            new java.util.HashMap<>(), // No reduced costs initially
+            originalGraph,
+            EDGE_COMPARATOR
+        );
+        dynamicAlgorithm = new FullyDynamicArborescence(originalGraph, roots, dynamicTarjan);
 
         initialExpectedEdges = List.of(
             new Edge(nodes.get(2), nodes.get(1), 3),
@@ -116,7 +124,7 @@ public class FullyDynamicArborescenceInsertionsTest {
             new Edge(nodes.get(1), nodes.get(0), 2)
         );
 
-        Assert.assertTrue(isValidArborescence(dynamicAlgorithm.getGraph(), 
+        Assert.assertTrue("Should be a valid arborescence after optimal edge insertion", isValidArborescence(dynamicAlgorithm.getGraph(), 
             new Graph(updatedArborescence)));
         int expectedCost = expectedEdgesAfterOptimalInsertion.stream().mapToInt(Edge::getWeight).sum();
         int resultCost = updatedArborescence.stream().mapToInt(Edge::getWeight).sum();

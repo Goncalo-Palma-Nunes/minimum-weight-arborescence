@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 
 import optimalarborescence.datastructure.UnionFind;
 import optimalarborescence.datastructure.UnionFindStronglyConnected;
@@ -47,9 +48,9 @@ public class CameriniForest extends StaticAlgorithm {
 
     private UnionFind ufWCC;
 
-    private List<MergeableHeapInterface<HeapNode>> queues;
+    protected List<MergeableHeapInterface<HeapNode>> queues;
 
-    private Comparator<HeapNode> maxDisjointCmp;
+    protected Comparator<HeapNode> maxDisjointCmp;
 
     private Comparator<Edge> cmp;
 
@@ -89,14 +90,21 @@ public class CameriniForest extends StaticAlgorithm {
 
         for (int i = 0; i < graph.getNumNodes(); i++) {
             inEdgeNode.add(null);
-            max.add(graph.getNodes().get(i));
+            // Find the node with ID = i instead of using positional index
+            // This ensures max[i] always points to node i, regardless of node list order
+            final int nodeId = i;
+            Node nodeWithId = graph.getNodes().stream()
+                .filter(n -> n.getId() == nodeId)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Node with ID " + nodeId + " not found in graph"));
+            max.add(nodeWithId);
             cycleEdgeNodes.add(new ArrayList<>());
             queues.add(new PairingHeap(maxDisjointCmp));
         }
         initializeDataStructures();
     }
 
-    private void initializeDataStructures() {
+    protected void initializeDataStructures() {
         for (Edge e : graph.getEdges()) {
             Node v = e.getDestination();
             getQueue(v).insert(new HeapNode(e, null, null));;
@@ -111,7 +119,7 @@ public class CameriniForest extends StaticAlgorithm {
         return this.leaves;
     }
 
-    private MergeableHeapInterface<HeapNode> getQueue(Node v) {
+    protected MergeableHeapInterface<HeapNode> getQueue(Node v) {
         return queues.get(v.getId());
     }
 
@@ -307,7 +315,7 @@ public class CameriniForest extends StaticAlgorithm {
         System.out.println("}");
     }
 
-    private List<TarjanForestNode> getRoots() {
+    public List<TarjanForestNode> getRoots() {
         List<TarjanForestNode> rootsList = new ArrayList<>();
 
         for (TarjanForestNode leaf : leaves) {
@@ -380,7 +388,12 @@ public class CameriniForest extends StaticAlgorithm {
                 // since a cycle as arisen we need to choose a new minimum weight edge incident in node root
                 inEdgeNode.set(root.getId(), null);
 
+                Set<Integer> visited = new HashSet<>();
                 for (int i = sccFind(u).getId(); inEdgeNode.get(i) != null; i = sccFind(inEdgeNode.get(i).edge.getSource()).getId()) {
+                    if (visited.contains(i)) {
+                        break;  // Cycle detected - prevent infinite loop
+                    }
+                    visited.add(i);
                     map.put(i, inEdgeNode.get(i));
                     edgeNodesInCycle.add(inEdgeNode.get(i));
                     contractionSet.add(i);

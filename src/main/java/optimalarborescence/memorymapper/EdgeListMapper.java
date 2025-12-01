@@ -748,4 +748,55 @@ public class EdgeListMapper {
         }
         return offsets;
     }
+
+    public static boolean edgeExists(String filename, int sourceId, int destId, long linkedListOffset) throws IOException {
+        try (RandomAccessFile raf = new RandomAccessFile(filename, "r");
+             FileChannel channel = raf.getChannel()) {
+
+            long currentOffset = linkedListOffset;
+            while (currentOffset >= 0) {
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, currentOffset, BYTES_PER_EDGE);
+                mbb.order(ByteOrder.nativeOrder());
+
+                int srcId = mbb.getInt();
+                int dstId = mbb.getInt();
+                mbb.getInt(); // skip weight
+                long nextOffset = mbb.getLong();
+                mbb.getLong(); // skip prevOffset
+
+                if (srcId == sourceId &&
+                    dstId == destId) {
+                    return true;
+                }
+                currentOffset = nextOffset;
+            }
+        }
+        return false;
+    }
+
+    public static void removeEdge(String filename, int sourceId, int destId, long linkedListOffset) throws IOException {
+        try (RandomAccessFile raf = new RandomAccessFile(filename, "r");
+             FileChannel channel = raf.getChannel()) {
+
+            long currentOffset = linkedListOffset;
+            while (currentOffset >= 0) {
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, currentOffset, BYTES_PER_EDGE);
+                mbb.order(ByteOrder.nativeOrder());
+
+                int srcId = mbb.getInt();
+                int dstId = mbb.getInt();
+                mbb.getInt(); // skip weight
+                long nextOffset = mbb.getLong();
+                mbb.getLong(); // skip prevOffset
+
+                if (srcId == sourceId &&
+                    dstId == destId) {
+                    // Found the edge to remove
+                    removeEdgeAtOffset(filename, currentOffset);
+                    return;
+                }
+                currentOffset = nextOffset;
+            }
+        }
+    }
 }

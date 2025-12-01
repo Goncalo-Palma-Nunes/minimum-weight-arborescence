@@ -24,8 +24,16 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
 
     List<ATreeNode> roots;
     Comparator<Edge> edgeComparator;
-    CameriniForest camerini;
+    DynamicTarjanArborescence camerini;
     List<Edge> currentArborescence; // TODO - formar eficiente de indexar as arestas para não percorrer linearmente durante o DELETE
+
+    public FullyDynamicArborescence() {
+        super();
+        this.roots = new LinkedList<>();
+        this.camerini = null;
+        this.edgeComparator = (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
+        this.currentArborescence = new ArrayList<>();
+    }
 
     /**
      * Constructor for FullyDynamicArborescence.
@@ -34,7 +42,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
      * @param roots The list of ATree root nodes representing the partially contracted vertices
      * @param camerini An instance of camerini's algorithm to be used for inference
      */
-    public FullyDynamicArborescence(Graph graph, List<ATreeNode> roots, CameriniForest camerini) {
+    public FullyDynamicArborescence(Graph graph, List<ATreeNode> roots, DynamicTarjanArborescence camerini) {
         super(graph);
         this.roots = roots;
         this.camerini = camerini;
@@ -42,6 +50,8 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
     }
 
     public List<ATreeNode> getRoots() {
+        System.out.println("GetRoots: roots size = " + roots.size());
+        System.out.println("GetRoots: roots = " + roots);
         return roots;
     }
 
@@ -61,6 +71,8 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
     public Graph inferPhylogeny(Graph graph) {
         Graph g = this.getInferenceAlgorithm().inferPhylogeny(graph);
         this.currentArborescence = g.getEdges();
+        this.roots = camerini.augmentTarjanForestToATree();
+        
         return g;
     }
 
@@ -90,19 +102,27 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         }
 
         List<ATreeNode> removedContractions = new LinkedList<>();
-        while (N != null && !N.isRoot()) {
+        while (N != null && !N.isRoot()) { // TODO - não deveria incluir a raíz também?
 
             if (!N.isSimpleNode()) {
-                List<ATreeNode> children = N.children;
+                List<ATreeNode> children = N.getATreeChildren();
                 for (ATreeNode child : children) {
                     child.setParent(null); // Child becomes a root of its own ATree
                     this.roots.add(child);
                 }
-                children.clear();
+                N.clearChildren();
                 removedContractions.add(N);
             }
-            N.parent.children.remove(N);
-            ATreeNode parentN = N.parent;
+            
+            // Save parent before modifying relationships
+            ATreeNode parentN = N.getParent();
+            
+            // Remove N from its parent's children list (parent is guaranteed non-null here since !N.isRoot())
+            if (parentN != null && parentN.getChildren() != null) {
+                parentN.getChildren().remove(N);
+            }
+            
+            // Detach N from parent
             N.setParent(null);
             N = parentN;
         }
@@ -153,7 +173,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             }
             
             // Process children: their accumulated cost is current + their own cost
-            for (ATreeNode child : current.children) {
+            for (ATreeNode child : current.getATreeChildren()) {
                 int childAccumulated = currentAccumulated + child.getCost();
                 accumulatedCost.put(child, childAccumulated);
                 queue.add(child);
@@ -212,7 +232,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             }
             
             // Add children to queue for traversal
-            queue.addAll(current.children);
+            queue.addAll(current.getATreeChildren());
         }
         
         return fullArborescence;
@@ -220,6 +240,20 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
 
     public void rebuildContractedDigraph() {
         throw new NotImplementedException("The rebuildContractedDigraph method is not implemented.");
+    }
+
+    private List<Edge> firstStaticInference(Graph g) {
+        DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
+            this.getRoots(),
+            g.getEdges(),
+            new HashMap<>(),
+            g,
+            this.edgeComparator
+        );
+        this.camerini = dynamicTarjan; // Update camerini reference
+        Graph updatedArborescence = dynamicTarjan.inferPhylogeny(g);
+        this.roots = dynamicTarjan.augmentTarjanForestToATree();
+        return updatedArborescence.getEdges();
     }
 
     @Override
@@ -246,13 +280,15 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             // Check if ATree structure exists
             if (this.getRoots().isEmpty()) {
                 // No ATree structure - fallback to running full Tarjan
-
-                CameriniForest freshcamerini = new CameriniForest(this.getGraph(), this.edgeComparator);
-                Graph updatedArborescence = freshcamerini.inferPhylogeny(this.getGraph());
-                this.currentArborescence = updatedArborescence.getEdges();
+                // Graph updatedArborescence = camerini.inferPhylogeny(this.getGraph());
+                // this.currentArborescence = updatedArborescence.getEdges();
+                // this.roots = camerini.getATreeRoots();
+                this.currentArborescence = firstStaticInference(this.getGraph());
             } else {
-                List<ATreeNode> V = new LinkedList<>(this.getRoots()); // V' in Joaquim's thesis
                 List<ATreeNode> removedContractions = decompose(edge); // set R in Joaquim's thesis
+                // TODO - não tenho a certeza quanto ao cálculo deste removeContractions - ler melhor o paper
+
+                List<ATreeNode> V = new LinkedList<>(this.getRoots()); // V' in Joaquim's thesis
                 List<Edge> edges = removedContractions.stream()
                         .flatMap(c -> c.getContractedEdges().stream())
                         .toList(); // Union E' of all contracted edges from decomposed non-simple nodes
@@ -262,7 +298,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                 
                 // Apply reduction quantities to edges in E'
                 Map<Edge, Integer> reducedCosts = applyReductionQuantities(edges, reductions);
-                
                 // Initialize DynamicTarjanArborescence with the partially contracted graph
                 DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
                     V,                  // ATree roots representing V'
@@ -271,9 +306,11 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                     this.getGraph(),    // Original graph
                     this.edgeComparator // Edge comparator
                 );
+                this.camerini = dynamicTarjan; // Update camerini reference
                 
                 // Run Tarjan's algorithm on the partially contracted graph
                 Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
+                this.roots = dynamicTarjan.augmentTarjanForestToATree();
                 
                 // Expand the partial arborescence to include all cycle edges from contractions
                 List<Edge> partialEdges = updatedArborescence.getEdges();
@@ -299,10 +336,10 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         // Check if leaves are initialized and accessible
         if (leaves == null || source.getId() >= leaves.length || destination.getId() >= leaves.length) {
             // Leaves not initialized - need to run full algorithm
-            CameriniForest freshCamerini = new CameriniForest(this.getGraph(), this.edgeComparator);
-            Graph updatedArborescence = freshCamerini.inferPhylogeny(this.getGraph());
-            this.currentArborescence = updatedArborescence.getEdges();
-            this.camerini = freshCamerini; // Update camerini reference
+            // Graph updatedArborescence = camerini.inferPhylogeny(this.getGraph()); // TODO - isto não está a ter em conta a nova aresta, porque não se reinvocou o construtor
+            // this.currentArborescence = updatedArborescence.getEdges();
+            // this.roots = camerini.getATreeRoots();
+            this.currentArborescence = firstStaticInference(this.getGraph());
             return this.getCurrentArborescence();
         }
         
@@ -312,10 +349,10 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         // Check if the specific leaves for these nodes are null
         if (sourceLeaf == null || destLeaf == null) {
             // Leaves not properly initialized for these nodes - run full algorithm
-            CameriniForest freshCamerini = new CameriniForest(this.getGraph(), this.edgeComparator);
-            Graph updatedArborescence = freshCamerini.inferPhylogeny(this.getGraph());
-            this.currentArborescence = updatedArborescence.getEdges();
-            this.camerini = freshCamerini; // Update camerini reference
+            // Graph updatedArborescence = camerini.inferPhylogeny(this.getGraph());
+            // this.currentArborescence = updatedArborescence.getEdges();
+            // this.roots = camerini.getATreeRoots();
+            this.currentArborescence = firstStaticInference(this.getGraph());
             return this.getCurrentArborescence();
         }
 
@@ -332,7 +369,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                 // e_in should NOT belong in the "in" cut-set of N
                 // Simply insert edge in contracted-edges list of LCA
                 TarjanForestNode lca = destLeaf.LCA(sourceLeaf);
-                if (lca instanceof ATreeNode) {
+                if (lca instanceof ATreeNode) {  // TODO - substituir por um downcast
                     ATreeNode lcaATreeNode = (ATreeNode) lca;
                     lcaATreeNode.addContractedEdge(edge);
                 }
@@ -348,9 +385,9 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                 if (this.getRoots().isEmpty()) {
                     // No ATree structure - fallback to running full Tarjan
                     // Note: Must create a new Tarjan instance since it maintains internal state
-                    CameriniForest freshcamerini = new CameriniForest(this.getGraph(), this.edgeComparator);
-                    Graph updatedArborescence = freshcamerini.inferPhylogeny(this.getGraph());
-                    this.currentArborescence = updatedArborescence.getEdges();
+                    // Graph updatedArborescence = camerini.inferPhylogeny(this.getGraph());
+                    // this.roots = camerini.getATreeRoots();
+                    this.currentArborescence = firstStaticInference(this.getGraph());
                 } else {
                     // Virtual deletion: recognize G(V', E') without actually removing the edge
                     List<ATreeNode> V = new LinkedList<>(this.getRoots());
@@ -363,9 +400,10 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                     List<Edge> edgesWithNewEdge = new ArrayList<>(contractedEdges);
                     edgesWithNewEdge.add(edge);
                     
-                    // Compute reduction quantities and apply them
+                    // Compute reduction quantities and apply them ONLY to edges already in G' (contractedEdges)
+                    // The new edge e_in should use its original weight, not a reduced cost
                     Map<Integer, Integer> reductions = computeReductionQuantities();
-                    Map<Edge, Integer> reducedCosts = applyReductionQuantities(edgesWithNewEdge, reductions);
+                    Map<Edge, Integer> reducedCosts = applyReductionQuantities(contractedEdges, reductions);
                     
                     // Run Edmonds' algorithm over G(V', E' ∪ {e_in})
                     DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
@@ -375,8 +413,10 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                         this.getGraph(),
                         this.edgeComparator
                     );
+                    this.camerini = dynamicTarjan; // Update camerini reference
                     
                     Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
+                    this.roots = dynamicTarjan.augmentTarjanForestToATree();
                     
                     // Expand the partial arborescence to include all cycle edges from contractions
                     List<Edge> partialEdges = updatedArborescence.getEdges();
@@ -390,7 +430,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             // No candidate for replacement found
             // Insert edge in the contracted-edges list of the LCA
             TarjanForestNode lca = destLeaf.LCA(sourceLeaf);
-            if (lca instanceof ATreeNode) {
+            if (lca instanceof ATreeNode) { // TODO - substituir por um downcast
                 ATreeNode lcaATreeNode = (ATreeNode) lca;
                 lcaATreeNode.addContractedEdge(edge);
             }
@@ -421,7 +461,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             Edge currentEdge = current.getEdge();
             
             // Check if current node's edge weight is greater than the new edge weight
-            if (currentEdge != null && currentEdge.getWeight() > edge.getWeight()) {
+            if (currentEdge != null && currentEdge.getWeight() > edge.getWeight()) { // TODO - será que devia ser com os adjusted weights?
                 // Found a candidate: e_in can replace this edge because it has lower cost
                 return current;
             }
