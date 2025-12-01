@@ -67,6 +67,11 @@ public class GraphMapper {
         
         return graph;
     }
+
+    public static Map<Integer, Node> loadNodeMap(String baseName) throws IOException {
+        String nodeFile = baseName + "_nodes.dat";
+        return NodeIndexMapper.loadNodes(nodeFile);
+    }
     
     /**
      * Get the incoming edge offset for a specific node without loading the entire graph.

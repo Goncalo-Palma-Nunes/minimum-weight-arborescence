@@ -243,11 +243,11 @@ public class ATreeMapper {
             }
             
             // Second pass: establish parent-child relationships for ALL nodes
-            for (ATreeNode node : loadedNodes.values()) {
-                long nodeOffset = findNodeOffset(loadedNodes, node);
-                if (nodeOffset != -1) {
-                    linkSingleNodeRelationships(mbb, nodeOffset, loadedNodes);
-                }
+            // We need to do this carefully to avoid setting parent multiple times
+            for (Map.Entry<Long, ATreeNode> entry : loadedNodes.entrySet()) {
+                long nodeOffset = entry.getKey();
+                ATreeNode node = entry.getValue();
+                linkSingleNodeRelationships(mbb, nodeOffset, node, loadedNodes);
             }
             
             // Collect roots
@@ -346,8 +346,8 @@ public class ATreeMapper {
      * Link parent-child relationships for a single node (non-recursive).
      */
     private static void linkSingleNodeRelationships(MappedByteBuffer mbb, long offset,
+                                                   ATreeNode node,
                                                    Map<Long, ATreeNode> loadedNodes) {
-        ATreeNode node = loadedNodes.get(offset);
         if (node == null) {
             return;
         }
@@ -361,8 +361,8 @@ public class ATreeMapper {
         long parentOffset = mbb.getLong();
         int numChildren = mbb.getInt();
         
-        // Set parent
-        if (parentOffset != -1) {
+        // Set parent ONLY if not already set (avoid UnsupportedOperationException)
+        if (parentOffset != -1 && node.getParent() == null) {
             ATreeNode parent = loadedNodes.get(parentOffset);
             if (parent != null) {
                 node.setParent(parent);
@@ -376,6 +376,10 @@ public class ATreeMapper {
             ATreeNode child = loadedNodes.get(childOffset);
             if (child != null) {
                 children.add(child);
+                // Set child's parent to this node ONLY if not already set
+                if (child.getParent() == null) {
+                    child.setParent(node);
+                }
             }
         }
         node.setChildren(children);

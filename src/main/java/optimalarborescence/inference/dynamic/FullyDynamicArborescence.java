@@ -27,6 +27,14 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
     DynamicTarjanArborescence camerini;
     List<Edge> currentArborescence; // TODO - formar eficiente de indexar as arestas para não percorrer linearmente durante o DELETE
 
+    public FullyDynamicArborescence() {
+        super();
+        this.roots = new LinkedList<>();
+        this.camerini = null;
+        this.edgeComparator = (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
+        this.currentArborescence = new ArrayList<>();
+    }
+
     /**
      * Constructor for FullyDynamicArborescence.
      * 

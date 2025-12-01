@@ -48,9 +48,9 @@ public class CameriniForest extends StaticAlgorithm {
 
     private UnionFind ufWCC;
 
-    private List<MergeableHeapInterface<HeapNode>> queues;
+    protected List<MergeableHeapInterface<HeapNode>> queues;
 
-    private Comparator<HeapNode> maxDisjointCmp;
+    protected Comparator<HeapNode> maxDisjointCmp;
 
     private Comparator<Edge> cmp;
 
@@ -104,7 +104,7 @@ public class CameriniForest extends StaticAlgorithm {
         initializeDataStructures();
     }
 
-    private void initializeDataStructures() {
+    protected void initializeDataStructures() {
         for (Edge e : graph.getEdges()) {
             Node v = e.getDestination();
             getQueue(v).insert(new HeapNode(e, null, null));;
@@ -119,7 +119,7 @@ public class CameriniForest extends StaticAlgorithm {
         return this.leaves;
     }
 
-    private MergeableHeapInterface<HeapNode> getQueue(Node v) {
+    protected MergeableHeapInterface<HeapNode> getQueue(Node v) {
         return queues.get(v.getId());
     }
 
