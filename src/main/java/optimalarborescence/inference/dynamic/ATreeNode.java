@@ -56,6 +56,18 @@ public class ATreeNode extends TarjanForestNode {
                                         // elements in the list. See Pollatos (Sec. 4.2) and
                                         // Gabow et al. "Efficient algorithms for finding minimum spanning trees in undirected and directed graphs."
 
+    // Lazy loading support
+    /** Whether children have been loaded from disk (true for in-memory nodes, false for lazy-loaded nodes before first access) */
+    private boolean childrenLoaded = true;
+    
+    /** File offset for this node in the memory-mapped file (null for in-memory nodes) */
+    private Long nodeOffset;
+    
+    /** Base name for memory-mapped files (null for in-memory nodes) */
+    private String baseName;
+    
+    /** Graph nodes map for reconstructing edges during lazy loading (null for in-memory nodes) */
+    private java.util.Map<Integer, optimalarborescence.graph.Node> graphNodes;
 
     public ATreeNode(Edge edge, int y, ATreeNode parent, List<ATreeNode> children, boolean simpleNode, List<Edge> contractedEdges) {
         super(edge);
@@ -73,6 +85,27 @@ public class ATreeNode extends TarjanForestNode {
 
     public ATreeNode(Edge edge, int y, boolean simpleNode, List<Edge> contractedEdges) {
         this(edge, y, null, new ArrayList<>(), simpleNode, contractedEdges);
+    }
+
+    /**
+     * Constructor for lazy-loaded ATreeNodes.
+     * Children will be loaded from disk on first access to getATreeChildren().
+     * 
+     * @param edge The edge for this node
+     * @param y Cost of the edge when selected
+     * @param simpleNode Whether this is a simple node or c-node
+     * @param contractedEdges List of contracted edges (for c-nodes)
+     * @param nodeOffset File offset for this node
+     * @param baseName Base name for memory-mapped files
+     * @param graphNodes Map of node IDs to Node objects for edge reconstruction
+     */
+    public ATreeNode(Edge edge, int y, boolean simpleNode, List<Edge> contractedEdges,
+                    long nodeOffset, String baseName, java.util.Map<Integer, optimalarborescence.graph.Node> graphNodes) {
+        this(edge, y, null, new ArrayList<>(), simpleNode, contractedEdges);
+        this.childrenLoaded = false;
+        this.nodeOffset = nodeOffset;
+        this.baseName = baseName;
+        this.graphNodes = graphNodes;
     }
 
     // public Edge getEdge() {
@@ -141,9 +174,35 @@ public class ATreeNode extends TarjanForestNode {
     }
 
     public List<ATreeNode> getATreeChildren() {
+        // Lazy load children if not yet loaded
+        if (!childrenLoaded && baseName != null && nodeOffset != null && graphNodes != null) {
+            try {
+                optimalarborescence.memorymapper.ATreeMapper.loadChildren(this, baseName, nodeOffset, graphNodes);
+                childrenLoaded = true;
+            } catch (java.io.IOException e) {
+                throw new RuntimeException("Failed to lazy-load children for node at offset " + nodeOffset, e);
+            }
+        }
+        
         return this.children.stream()
                     .map(this::downCast)
                     .toList();
+    }
+    
+    /**
+     * Check if this node supports lazy loading.
+     * @return true if this node was created for lazy loading
+     */
+    public boolean isLazyLoadable() {
+        return nodeOffset != null && baseName != null;
+    }
+    
+    /**
+     * Check if children have been loaded (for lazy-loaded nodes).
+     * @return true if children are loaded or this is not a lazy-loaded node
+     */
+    public boolean areChildrenLoaded() {
+        return childrenLoaded;
     }
 
     /** Searches the ATree for a contraction node (c-node) that contains the specified edge.

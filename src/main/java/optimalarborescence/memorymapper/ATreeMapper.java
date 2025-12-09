@@ -45,6 +45,12 @@ import java.util.Queue;
  * - Variable-length arrays stored inline (no separate files)
  * - Simple nodes have num_contracted_edges = 0
  * - Root nodes have parent_offset = -1
+ * 
+ * Lazy Loading:
+ * - Supports lazy loading of ATree nodes and their children
+ * - loadATreeRootsLazy() loads only root nodes without their children
+ * - Children are loaded on-demand via loadChildren()
+ * - All loaded nodes are kept in memory (future: could add LRU eviction policy)
  */
 public class ATreeMapper {
     
@@ -259,6 +265,159 @@ public class ATreeMapper {
             }
             
             return roots;
+        }
+    }
+    
+    /**
+     * Load ATree roots lazily from a memory-mapped file.
+     * Only the root nodes are loaded; their children will be loaded on-demand.
+     * 
+     * @param baseName Base name for input file
+     * @param graphNodes Map of node IDs to Node objects (for edge reconstruction)
+     * @return List of ATree root nodes (with children marked for lazy loading)
+     * @throws IOException if file operations fail
+     */
+    public static List<ATreeNode> loadATreeRootsLazy(String baseName, Map<Integer, Node> graphNodes) 
+            throws IOException {
+        String fileName = baseName + "_atree.dat";
+        
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
+             FileChannel channel = raf.getChannel()) {
+            
+            long fileSize = channel.size();
+            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, fileSize);
+            mbb.order(ByteOrder.nativeOrder());
+            
+            // Read header
+            mbb.getInt(); // numNodes - not needed
+            int numRoots = mbb.getInt();
+            
+            // Read root offsets
+            List<Long> rootOffsets = new ArrayList<>();
+            for (int i = 0; i < numRoots; i++) {
+                rootOffsets.add(mbb.getLong());
+            }
+            
+            // Load only root nodes (without children)
+            List<ATreeNode> roots = new ArrayList<>();
+            for (Long rootOffset : rootOffsets) {
+                ATreeNode root = loadSingleNodeLazy(mbb, rootOffset, baseName, graphNodes);
+                if (root != null) {
+                    roots.add(root);
+                }
+            }
+            
+            return roots;
+        }
+    }
+    
+    /**
+     * Load a single node from the file without loading its children.
+     * The node is configured for lazy loading of children.
+     * 
+     * @param mbb Memory-mapped buffer positioned at file start
+     * @param offset Offset of the node to load
+     * @param baseName Base name for the file (stored in node for lazy loading)
+     * @param graphNodes Map of node IDs to Node objects
+     * @return ATreeNode configured for lazy loading of children
+     */
+    private static ATreeNode loadSingleNodeLazy(MappedByteBuffer mbb, long offset,
+                                                String baseName, Map<Integer, Node> graphNodes) {
+        // Position at node start
+        mbb.position((int) offset);
+        
+        // Read fixed-size portion
+        int edgeSrcId = mbb.getInt();
+        int edgeDstId = mbb.getInt();
+        int edgeWeight = mbb.getInt();
+        int cost = mbb.getInt();
+        mbb.getLong(); // parentOffset - skip for roots
+        int numChildren = mbb.getInt();
+        
+        // Skip children offsets (we'll load them lazily)
+        mbb.position(mbb.position() + numChildren * 8);
+        
+        // Read contracted edges
+        int numContractedEdges = mbb.getInt();
+        List<Edge> contractedEdges = new ArrayList<>();
+        
+        for (int i = 0; i < numContractedEdges; i++) {
+            int srcId = mbb.getInt();
+            int dstId = mbb.getInt();
+            int weight = mbb.getInt();
+            
+            Node src = graphNodes.get(srcId);
+            Node dst = graphNodes.get(dstId);
+            
+            if (src != null && dst != null) {
+                contractedEdges.add(new Edge(src, dst, weight));
+            }
+        }
+        
+        // Create edge for this node
+        Edge edge = null;
+        if (edgeSrcId != -1 && edgeDstId != -1) {
+            Node src = graphNodes.get(edgeSrcId);
+            Node dst = graphNodes.get(edgeDstId);
+            if (src != null && dst != null) {
+                edge = new Edge(src, dst, edgeWeight);
+            }
+        }
+        
+        // Create node with lazy loading support
+        boolean isSimpleNode = (numContractedEdges == 0);
+        return new ATreeNode(edge, cost, isSimpleNode,
+                           contractedEdges.isEmpty() ? null : contractedEdges,
+                           offset, baseName, graphNodes);
+    }
+    
+    /**
+     * Load the children of a lazy-loaded node.
+     * This is called automatically when getATreeChildren() is first accessed on a lazy node.
+     * 
+     * @param parent The parent node whose children should be loaded
+     * @param baseName Base name for the file
+     * @param parentOffset Offset of the parent node in the file
+     * @param graphNodes Map of node IDs to Node objects
+     * @throws IOException if file operations fail
+     */
+    public static void loadChildren(ATreeNode parent, String baseName, long parentOffset,
+                                   Map<Integer, Node> graphNodes) throws IOException {
+        String fileName = baseName + "_atree.dat";
+        
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
+             FileChannel channel = raf.getChannel()) {
+            
+            long fileSize = channel.size();
+            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, fileSize);
+            mbb.order(ByteOrder.nativeOrder());
+            
+            // Position at parent node
+            mbb.position((int) parentOffset);
+            
+            // Skip to children section
+            mbb.position(mbb.position() + 16); // skip edge data (12) + cost (4)
+            mbb.getLong(); // skip parent offset
+            int numChildren = mbb.getInt();
+            
+            // Read child offsets
+            List<Long> childOffsets = new ArrayList<>();
+            for (int i = 0; i < numChildren; i++) {
+                childOffsets.add(mbb.getLong());
+            }
+            
+            // Load each child as a lazy node
+            List<ATreeNode> children = new ArrayList<>();
+            for (Long childOffset : childOffsets) {
+                ATreeNode child = loadSingleNodeLazy(mbb, childOffset, baseName, graphNodes);
+                if (child != null) {
+                    child.setParent(parent);
+                    children.add(child);
+                }
+            }
+            
+            // Set children on parent
+            parent.setChildren(children);
         }
     }
     
