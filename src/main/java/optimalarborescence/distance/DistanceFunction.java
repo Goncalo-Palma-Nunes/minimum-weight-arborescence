@@ -1,23 +1,16 @@
 package optimalarborescence.distance;
 
+import optimalarborescence.sequences.Sequence;
+
 public interface DistanceFunction {
     /**
-     * Calculates the distance between two strings.
+     * Calculates the distance between two sequences.
      *
-     * @param s1 the first string
-     * @param s2 the second string
-     * @return the distance between the two
+     * @param seq1 the first sequence
+     * @param seq2 the second sequence
+     * @return the distance between the two sequences
      */
-    double calculate(String s1, String s2);
-
-    /**
-     * Calculates the distance between two byte arrays.
-     *
-     * @param s1 the first byte array
-     * @param s2 the second byte array
-     * @return the distance between the two
-     */
-    double calculate(byte[] s1, byte[] s2);
+    double calculate(Sequence<?> seq1, Sequence<?> seq2);
 
     /**
      * Returns a description of the distance function.

@@ -38,7 +38,7 @@ import optimalarborescence.exception.NotImplementedException;
  * - CLRS intro to algorithms
  */
 
-public class LSH extends NearestNeighbourSearchAlgorithm {
+public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
 
     /*
      * References:
@@ -51,34 +51,33 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
      * Wikipedia contributors. "Locality-sensitive hashing." Wikipedia, The Free Encyclopedia. Wikipedia, The Free Encyclopedia, 9 Aug. 2025. Web. 11 Aug. 2025. 
      */
 
-    public class Hash implements Comparable<Hash> {
+    public static class Hash<T> implements Comparable<Hash<T>> {
 
         private int index;
 
         /**
-         * Constructs a hash function that returns a single bit from the point's bit array.
-         * The index specifies which bit to return.
+         * Constructs a hash function that returns a element from the point's sequence.
+         * The index specifies which element to return.
          * 
-         * @param index The index of the bit to return.
+         * @param index The index of the element to return.
          */
         public Hash(int index) {
             this.index = index;
         }
 
         /**
-         * Hashes a point by returning the bit at the specified index.
+         * Hashes a point by returning the element at the specified index.
          * 
          * @param point The point to hash.
-         * @return The bit at the specified index.
+         * @return The element at the specified index.
          */
-        public int hash(Point point) {
-            if (point.getBitArray() == null) {
+        public T hash(Point<T> point) {
+            if (point.getSequence() == null) {
                 throw new NotImplementedException("Hash function not implemented for this point.");
             }
-            // Extract the bit at the specified index
-            return (point.getBitArray()[index / 8] >> (index % 8)) & 1;
 
-            // TODO - basta devolver 1 bit? As bases são representadas por 2 bits
+
+            return point.getSequence().getElementAt(index);
         }
 
         @Override
@@ -91,13 +90,13 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
         @Override
         public boolean equals(Object obj) {
             if (this == obj) return true;
-            if (!(obj instanceof Hash)) return false;
-            Hash other = (Hash) obj;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            Hash<?> other = (Hash<?>) obj;
             return index == other.index;
         }
 
         @Override
-        public int compareTo(Hash other) {
+        public int compareTo(Hash<T> other) {
             return Integer.compare(this.index, other.index);
         }
 
@@ -116,8 +115,8 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
     private int numTables;
     private int minHashIndex = 0;
     private int maxHashIndex = 0;
-    public List<Set<Hash>> concatenatedHashes = new ArrayList<>();
-    private List<Hashtable<List<Integer>, List<Point>>> tables = new ArrayList<>(); // TODO - rename to tables
+    public List<Set<Hash<T>>> concatenatedHashes = new ArrayList<>();
+    private List<Hashtable<List<T>, List<Point<T>>>> tables = new ArrayList<>(); // TODO - rename to tables
     // private DistanceFunction distanceFunction;
     private float radius;
 
@@ -179,14 +178,14 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
         Set<Set<Integer>> uniqueHashes = new HashSet<>(); // Used to prevent repeated concatenated hashes
         int tablesCreated = 0;
         while (tablesCreated < this.numTables) {
-            Set<Hash> hashes = new TreeSet<>(); // Used to prevent repeated indices within a concatenated hash
+            Set<Hash<T>> hashes = new TreeSet<>(); // Used to prevent repeated indices within a concatenated hash
             Set<Integer> indices = new TreeSet<>();
 
             /* Each concatenated hash is obtained by concatenating widthConcatenatedHashes
              * hamming hashes uniformly sampled */
             while (hashes.size() < this.widthConcatenatedHashes) {
                 int index = r.nextInt(maxHashIndex - minHashIndex + 1) + minHashIndex;
-                boolean added = hashes.add(new Hash(index)); // TreeSet so it won't add if it is already there
+                boolean added = hashes.add(new Hash<T>(index)); // TreeSet so it won't add if it is already there
                 if (added) { indices.add(index); }
             }
 
@@ -202,21 +201,21 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
         }
     }
 
-    private List<Integer> computeHash(Set<Hash> concatenatedHash, Point p) {
+    private List<T> computeHash(Set<Hash<T>> concatenatedHash, Point<T> p) {
         return concatenatedHash.stream()
                 .map(h -> h.hash(p))
                 .collect(Collectors.toList());
     }
 
     @Override
-    public void storePoint(Point p) { // Guarda-se o ponto em todas as tabelas?
+    public void storePoint(Point<T> p) { // Guarda-se o ponto em todas as tabelas?
         if (p.getBitArray() == null) {
             throw new IllegalArgumentException("Point does not have a bit array.");
         }
 
         for (int i = 0; i < this.numTables; i++) {
-            Set<Hash> concatenatedHash = concatenatedHashes.get(i);
-            List<Integer> bucketIndices = computeHash(concatenatedHash, p);
+            Set<Hash<T>> concatenatedHash = concatenatedHashes.get(i);
+            List<T> bucketIndices = computeHash(concatenatedHash, p);
 
             tables.get(i).putIfAbsent(bucketIndices, new ArrayList<>());
             tables.get(i).get(bucketIndices).add(p);
@@ -224,7 +223,7 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
     }
 
     @Override
-    public List<Point> neighbourSearch(Point point, int numNeighbours) {
+    public List<Point<T>> neighbourSearch(Point<T> point, int numNeighbours) {
         if (point.getBitArray() == null) {
             throw new IllegalArgumentException("Point does not have a bit array.");
         }
@@ -232,18 +231,18 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
             throw new IllegalArgumentException("Number of neighbours must be greater than zero.");
         }
 
-        List<Point> result = new ArrayList<>();
+        List<Point<T>> result = new ArrayList<>();
         int i = 0;
         while ((i < numTables) && (result.size() < numNeighbours)) {
-            Set<Hash> concatenatedHash = concatenatedHashes.get(i);
-            List<Integer> bucketIndices = computeHash(concatenatedHash, point);
+            Set<Hash<T>> concatenatedHash = concatenatedHashes.get(i);
+            List<T> bucketIndices = computeHash(concatenatedHash, point);
 
             if (tables.get(i).containsKey(bucketIndices)) {
-                List<Point> pointsInBucket = tables.get(i).get(bucketIndices);
+                List<Point<T>> pointsInBucket = tables.get(i).get(bucketIndices);
                 
                 if (pointsInBucket != null && !pointsInBucket.isEmpty()) {
                     result.addAll(pointsInBucket.stream()
-                            .filter(p -> p != point && getDistanceFunction().calculate(point.getBitArray(), p.getBitArray()) <= radius)
+                            .filter(p -> p != point && getDistanceFunction().calculate(point.getSequence(), p.getSequence()) <= radius)
                             .filter(p -> !result.contains(p))
                             .limit(numNeighbours - result.size())
                             .collect(Collectors.toList()));
@@ -276,7 +275,7 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
 
         StringBuilder tableString = new StringBuilder();
         int tableIndex = 1;
-        for (Hashtable<List<Integer>, List<Point>> table : tables) {
+        for (Hashtable<List<T>, List<Point<T>>> table : tables) {
             tableString.append("Table ").append(tableIndex++).append(" = ").append(table.toString()).append("\n\n");
             tableIndex = tableIndex + 1;
         }

@@ -1,6 +1,7 @@
 package optimalarborescence.unittests.nearestneighbour;
 
 import optimalarborescence.nearestneighbour.Point;
+import optimalarborescence.sequences.AllelicProfile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,25 +9,23 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public class PointTest {
 
-    private Point point1;
-    private Point point2;
-    private Point point3;
-    private Point point4;
-    private List<Point> points;
+    private Point<Character> point1;
+    private Point<Character> point2;
+    private Point<Character> point3;
+    private Point<Character> point4;
+    private List<Point<Character>> points;
 
     @BeforeEach
     public void setUp() {
-        point1 = new Point(1, "AACGTA");
-        point2 = new Point(4, "TTGCA");
-        point3 = new Point(2, "AACGTA");
-        point4 = new Point(3, "AAGCCT");
+        point1 = new Point<>(1, createAllelicProfile("AACGTA"));
+        point2 = new Point<>(4, createAllelicProfile("TTGCA"));
+        point3 = new Point<>(2, createAllelicProfile("AACGTA"));
+        point4 = new Point<>(3, createAllelicProfile("AAGCCT"));
         points = new ArrayList<>();
         points.add(point1);
         points.add(point2);
@@ -43,10 +42,23 @@ public class PointTest {
         points = null;
     }
 
+    private AllelicProfile createAllelicProfile(String sequence) {
+        Character[] data = new Character[sequence.length()];
+        for (int i = 0; i < sequence.length(); i++) {
+            data[i] = sequence.charAt(i);
+        }
+        return new AllelicProfile(data, sequence.length());
+    }
+
+    private AllelicProfile createEmptyAllelicProfile() {
+        return new AllelicProfile(new Character[0], 0);
+    }
+
     @Test
     public void testNullSequence() {
         try {
-            new Point(5, null);
+            AllelicProfile nullProfile = null;
+            new Point<>(5, nullProfile);
             fail("Expected IllegalArgumentException for null sequence");
         } catch (IllegalArgumentException e) {
             // Expected exception
@@ -57,7 +69,7 @@ public class PointTest {
     @Test
     public void testEmptySequence() {
         try {
-            new Point(5, "");
+            new Point<>(5, createEmptyAllelicProfile());
             fail("Expected IllegalArgumentException for empty sequence");
         } catch (IllegalArgumentException e) {
             // Expected exception
@@ -65,22 +77,10 @@ public class PointTest {
         }
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"-1", " ", "\n", "ACGTX", "1234", "AC GT", "acgt", "ACGT!", "TN"})
-    public void testInvalidCharactersInSequence(String invalidSequence) {
-        try {
-            new Point(5, invalidSequence);
-            fail("Expected IllegalArgumentException for invalid characters in sequence");
-        } catch (IllegalArgumentException e) {
-            // Expected exception
-            assertEquals("Sequence must contain only A, C, G, T characters", e.getMessage());
-        }
-    }
-
     @Test
     public void testNegativeId() {
         try {
-            new Point(-1, "ACGT");
+            new Point<>(-1, createAllelicProfile("ACGT"));
             fail("Expected IllegalArgumentException for negative ID");
         } catch (IllegalArgumentException e) {
             // Expected exception
@@ -91,32 +91,40 @@ public class PointTest {
     @Test
     public void testGetters() {
         assertEquals(1, point1.getId());
-        assertEquals("AACGTA", point1.getSequence());
-        assertNotNull(point1.getBitArray());
-        assertEquals(12, point1.getBinaryRepresentation().length()); // 6 bases * 2 bits each
+        assertNotNull(point1.getSequence());
+        assertEquals(6, point1.getSequence().getLength());
     }
 
     @Test
-    public void testBinaryRepresentation() {
-        Point p = new Point(0, "ACGT");
-        String expectedBinary = "00011011"; // A=00, C=01, G=10, T=11
-        assertEquals(expectedBinary, p.getBinaryRepresentation());
+    public void testSequenceElementAccess() {
+        Point<Character> p = new Point<>(0, createAllelicProfile("ACGT"));
+        assertEquals('A', p.getSequence().getElementAt(0));
+        assertEquals('C', p.getSequence().getElementAt(1));
+        assertEquals('G', p.getSequence().getElementAt(2));
+        assertEquals('T', p.getSequence().getElementAt(3));
     }
 
     @Test
-    public void testEqualPoints() {
-        Point p1 = new Point(point1.getId(), point1.getSequence());
+    public void testEqualPointsAllelicProfiles() {
+        Point<Character> p1 = new Point<>(point1.getId(), createAllelicProfile("AACGTA"));
         assertEquals(p1, point1);
+    }
+
+    @Test
+    public void testEqualPointsSequenceTypingData() {
+        Point<Integer> p1 = new Point<>(1, new optimalarborescence.sequences.SequenceTypingData(new Integer[]{1, 2, 3, 4}, 4));
+        Point<Integer> p2 = new Point<>(1, new optimalarborescence.sequences.SequenceTypingData(new Integer[]{1, 2, 3, 4}, 4));
+        assertEquals(p1, p2);
     }
 
     @Test
     public void testUnequalPoints() {
         assertNotEquals(point1, point2);
 
-        Point p2 = new Point(point1.getId() + 1, point1.getSequence());
+        Point<Character> p2 = new Point<>(point1.getId() + 1, createAllelicProfile("AACGTA"));
         assertNotEquals(p2, point1);
 
-        p2 = new Point(point1.getId(), "TTTTTT");
+        p2 = new Point<>(point1.getId(), createAllelicProfile("TTTTTT"));
         assertNotEquals(p2, point1);
     }
 }

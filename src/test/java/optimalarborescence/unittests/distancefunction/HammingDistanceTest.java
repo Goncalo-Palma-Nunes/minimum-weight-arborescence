@@ -5,11 +5,12 @@ import static org.junit.Assert.*;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import optimalarborescence.distance.HammingDistance;
+import optimalarborescence.sequences.AllelicProfile;
+import optimalarborescence.sequences.Sequence;
+import optimalarborescence.sequences.SequenceTypingData;
 
 public class HammingDistanceTest {
 
@@ -26,73 +27,124 @@ public class HammingDistanceTest {
         testStrings.add("A");     // index 5
     }
 
-    @Test
-    public void testCalculateString() {
-        Map<String[], Double> expectedResults = new HashMap<>();
-        expectedResults.put(new String[]{testStrings.get(0), testStrings.get(1)}, 2.0);
-        expectedResults.put(new String[]{testStrings.get(0), testStrings.get(2)}, 5.0);
-        expectedResults.put(new String[]{testStrings.get(3), testStrings.get(3)}, 0.0);
-        expectedResults.put(new String[]{testStrings.get(4), testStrings.get(4)}, 0.0);
-        expectedResults.put(new String[]{testStrings.get(4), testStrings.get(5)}, -1.0);
-        expectedResults.put(new String[]{testStrings.get(5), testStrings.get(5)}, 0.0);
-        expectedResults.put(new String[]{testStrings.get(5), "T"}, 1.0);
+    private AllelicProfile createAllelicProfile(String sequence) {
+        Character[] data = new Character[sequence.length()];
+        for (int i = 0; i < sequence.length(); i++) {
+            data[i] = sequence.charAt(i);
+        }
+        return new AllelicProfile(data, sequence.length());
+    }
 
-        for (Map.Entry<String[], Double> entry : expectedResults.entrySet()) {
-            String[] pair = entry.getKey();
-            double expected = entry.getValue();
-            double result;
-            try {
-                result = hammingDistance.calculate(pair[0], pair[1]);
-            } catch (Exception e) {
-                result = -1.0;
+    private SequenceTypingData createSequenceTypingData(Integer... values) {
+        return new SequenceTypingData(values, values.length);
+    }
+
+    @Test
+    public void testCalculateSequenceWithAllelicProfile() {
+        AllelicProfile seq1 = createAllelicProfile("AACGT");
+        AllelicProfile seq2 = createAllelicProfile("AAGCT");
+        AllelicProfile seq3 = createAllelicProfile("TTGCA");
+        AllelicProfile seq4 = createAllelicProfile("AACGT");
+
+        assertEquals("Hamming distance between identical sequences", 0.0, hammingDistance.calculate(seq1, seq4), 0.0);
+        assertEquals("Hamming distance between AACGT and AAGCT", 2.0, hammingDistance.calculate(seq1, seq2), 0.0);
+        assertEquals("Hamming distance between AACGT and TTGCA", 5.0, hammingDistance.calculate(seq1, seq3), 0.0);
+    }
+
+    @Test
+    public void testCalculateSequenceWithSequenceTypingData() {
+        SequenceTypingData seq1 = createSequenceTypingData(1, 2, 3, 4, 5);
+        SequenceTypingData seq2 = createSequenceTypingData(1, 2, 3, 4, 5);
+        SequenceTypingData seq3 = createSequenceTypingData(1, 3, 3, 5, 5);
+        SequenceTypingData seq4 = createSequenceTypingData(10, 20, 30, 40, 50);
+
+        assertEquals("Hamming distance between identical typing data", 0.0, hammingDistance.calculate(seq1, seq2), 0.0);
+        assertEquals("Hamming distance with 2 differences", 2.0, hammingDistance.calculate(seq1, seq3), 0.0);
+        assertEquals("Hamming distance with all differences", 5.0, hammingDistance.calculate(seq1, seq4), 0.0);
+    }
+
+    @Test
+    public void testCalculateSequenceWithGenericSequence() {
+        // Test with a custom generic Sequence implementation
+        Sequence<String> seq1 = new Sequence<String>(new String[]{"A", "B", "C"}, 3) {
+            @Override
+            public String getElementAt(int index) {
+                return getData()[index];
             }
-            assertEquals("Hamming distance between \"" + pair[0] + "\" and \"" + pair[1] + "\"", expected, result, 0.0);
+
+            @Override
+            public int compareAt(int index, Sequence<?> other) {
+                String thisElement = getElementAt(index);
+                String otherElement = (String) other.getElementAt(index);
+                return thisElement.compareTo(otherElement);
+            }
+        };
+
+        Sequence<String> seq2 = new Sequence<String>(new String[]{"A", "B", "C"}, 3) {
+            @Override
+            public String getElementAt(int index) {
+                return getData()[index];
+            }
+
+            @Override
+            public int compareAt(int index, Sequence<?> other) {
+                String thisElement = getElementAt(index);
+                String otherElement = (String) other.getElementAt(index);
+                return thisElement.compareTo(otherElement);
+            }
+        };
+
+        Sequence<String> seq3 = new Sequence<String>(new String[]{"A", "X", "C"}, 3) {
+            @Override
+            public String getElementAt(int index) {
+                return getData()[index];
+            }
+
+            @Override
+            public int compareAt(int index, Sequence<?> other) {
+                String thisElement = getElementAt(index);
+                String otherElement = (String) other.getElementAt(index);
+                return thisElement.compareTo(otherElement);
+            }
+        };
+
+        assertEquals("Hamming distance between identical generic sequences", 0.0, hammingDistance.calculate(seq1, seq2), 0.0);
+        assertEquals("Hamming distance with 1 difference in generic sequences", 1.0, hammingDistance.calculate(seq1, seq3), 0.0);
+    }
+
+    @Test
+    public void testCalculateSequenceUnequalLengths() {
+        AllelicProfile seq1 = createAllelicProfile("AACGT");
+        AllelicProfile seq2 = createAllelicProfile("AAC");
+
+        try {
+            hammingDistance.calculate(seq1, seq2);
+            fail("Expected IllegalArgumentException for sequences of different lengths");
+        } catch (IllegalArgumentException e) {
+            assertEquals("Sequences must be of equal length", e.getMessage());
         }
     }
 
-
     @Test
-    public void testCalculateByteArray() {
-        Map<String[], Double> expectedResults = new HashMap<>();
-        expectedResults.put(new String[]{testStrings.get(0), testStrings.get(1)}, 2.0);
-        expectedResults.put(new String[]{testStrings.get(0), testStrings.get(2)}, 5.0);
-        expectedResults.put(new String[]{testStrings.get(4), testStrings.get(4)}, 0.0);
-        expectedResults.put(new String[]{testStrings.get(4), testStrings.get(5)}, -1.0);
-        expectedResults.put(new String[]{testStrings.get(5), testStrings.get(5)}, 0.0);
-        expectedResults.put(new String[]{testStrings.get(5), "T"}, 1.0);
+    public void testCalculateSequenceEmptySequences() {
+        AllelicProfile seq1 = createAllelicProfile("");
+        AllelicProfile seq2 = createAllelicProfile("");
 
-        for (Map.Entry<String[], Double> entry : expectedResults.entrySet()) {
-            String[] pair = entry.getKey();
-            double expected = entry.getValue();
-            double result;
-            try {
-                byte[] byteArray1 = encodeStringToBytes(pair[0]);
-                byte[] byteArray2 = encodeStringToBytes(pair[1]);
-                result = hammingDistance.calculate(byteArray1, byteArray2);
-            } catch (Exception e) {
-                result = -1.0;
-            }
-            assertEquals("Hamming distance between byte arrays of \"" + pair[0] + "\" and \"" + pair[1] + "\"", expected, result, 0.0);
-        }
+        assertEquals("Hamming distance between empty sequences", 0.0, hammingDistance.calculate(seq1, seq2), 0.0);
     }
 
-    private byte[] encodeStringToBytes(String s) {
-        int numBases = s.length();
-        int numBytes = (numBases * 2 + 7) / 8; // 2 bits per base
-        byte[] byteArray = new byte[numBytes];
-        for (int i = 0; i < numBases; i++) {
-            int baseBits;
-            switch (s.charAt(i)) {
-                case 'A': baseBits = 0b00; break;
-                case 'C': baseBits = 0b01; break;
-                case 'G': baseBits = 0b10; break;
-                case 'T': baseBits = 0b11; break;
-                default: baseBits = 0b00; // Default to 'A' for unknown bases
-            }
-            int byteIndex = (i * 2) / 8;
-            int bitOffset = (i * 2) % 8;
-            byteArray[byteIndex] |= (baseBits << (6 - bitOffset));
+    @Test
+    public void testCalculateSequenceMixedTypes() {
+        AllelicProfile allelicProfile = createAllelicProfile("ACGT");
+        SequenceTypingData typingData = createSequenceTypingData(1, 2, 3, 4);
+
+        try {
+            hammingDistance.calculate(allelicProfile, typingData);
+            fail("Expected IllegalArgumentException when comparing different sequence types");
+        } catch (IllegalArgumentException e) {
+            // Expected exception - either from AllelicProfile or SequenceTypingData compareAt methods
+            assertTrue("Exception message should indicate type mismatch", 
+                e.getMessage().contains("Cannot compare"));
         }
-        return byteArray;
     }
 }
