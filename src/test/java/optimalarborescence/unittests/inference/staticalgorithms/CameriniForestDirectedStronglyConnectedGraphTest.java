@@ -8,11 +8,8 @@ import optimalarborescence.inference.CameriniForest;
 import java.util.List;
 import java.util.Comparator;
 import java.util.Map;
-import java.util.Comparator;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.Comparator;
 
 import org.junit.Assert;
 import org.junit.Test;

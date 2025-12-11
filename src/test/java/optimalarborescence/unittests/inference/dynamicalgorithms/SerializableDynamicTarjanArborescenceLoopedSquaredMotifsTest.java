@@ -5,13 +5,13 @@ import optimalarborescence.graph.Node;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.inference.dynamic.SerializableDynamicTarjanArborescence;
 import optimalarborescence.inference.dynamic.ATreeNode;
+import optimalarborescence.sequences.AllelicProfile;
 import optimalarborescence.unittests.inference.HelperMethods;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -25,12 +25,17 @@ import org.junit.Test;
  * Based on FullyDynamicArborescenceLoopedSquaredMotifsTest.
  */
 public class SerializableDynamicTarjanArborescenceLoopedSquaredMotifsTest {
-    private static final Comparator<Edge> EDGE_COMPARATOR = 
-        (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
 
-    private static final String ALLELIC_PROFILE = "ACGT";
     private static final String TEST_BASE_NAME = "test_serializable_looped";
     private static final int MLST_LENGTH = 100;
+
+    private static AllelicProfile createProfile(String alleles) {
+        Character[] data = new Character[alleles.length()];
+        for (int i = 0; i < alleles.length(); i++) {
+            data[i] = alleles.charAt(i);
+        }
+        return new AllelicProfile(data, alleles.length());
+    }
 
     private List<Node> nodes;
     private List<Edge> edges;
@@ -41,14 +46,14 @@ public class SerializableDynamicTarjanArborescenceLoopedSquaredMotifsTest {
     public void setUp() {
         nodes = new ArrayList<>() {
             {
-                add(new Node(ALLELIC_PROFILE, 0));
-                add(new Node(ALLELIC_PROFILE, 1));
-                add(new Node(ALLELIC_PROFILE, 2));
-                add(new Node(ALLELIC_PROFILE, 3));
-                add(new Node(ALLELIC_PROFILE, 4));
-                add(new Node(ALLELIC_PROFILE, 5));
-                add(new Node(ALLELIC_PROFILE, 6));
-                add(new Node(ALLELIC_PROFILE, 7));
+                add(new Node(createProfile("ACGT"), 0));
+                add(new Node(createProfile("ACGT"), 1));
+                add(new Node(createProfile("ACGT"), 2));
+                add(new Node(createProfile("ACGT"), 3));
+                add(new Node(createProfile("ACGT"), 4));
+                add(new Node(createProfile("ACGT"), 5));
+                add(new Node(createProfile("ACGT"), 6));
+                add(new Node(createProfile("ACGT"), 7));
             }
         };
 

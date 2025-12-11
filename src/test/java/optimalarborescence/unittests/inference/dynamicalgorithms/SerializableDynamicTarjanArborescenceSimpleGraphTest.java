@@ -5,15 +5,13 @@ import optimalarborescence.graph.Node;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.inference.dynamic.SerializableDynamicTarjanArborescence;
 import optimalarborescence.inference.dynamic.ATreeNode;
-import optimalarborescence.memorymapper.GraphMapper;
+import optimalarborescence.sequences.AllelicProfile;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Comparator;
 import java.util.ArrayList;
-import java.util.Map;
 import java.util.HashMap;
 
 import org.junit.Assert;
@@ -26,12 +24,17 @@ import org.junit.Test;
  * Based on FullyDynamicArborescenceSimpleGraphTest.
  */
 public class SerializableDynamicTarjanArborescenceSimpleGraphTest {
-    private static final Comparator<Edge> EDGE_COMPARATOR = 
-        (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
 
-    private static final String ALLELIC_PROFILE = "ACGT";
     private static final String TEST_BASE_NAME = "test_serializable_simple";
     private static final int MLST_LENGTH = 100;
+
+    private static AllelicProfile createProfile(String alleles) {
+        Character[] data = new Character[alleles.length()];
+        for (int i = 0; i < alleles.length(); i++) {
+            data[i] = alleles.charAt(i);
+        }
+        return new AllelicProfile(data, alleles.length());
+    }
 
     private List<Node> nodes;
     private List<Edge> edges;
@@ -41,10 +44,10 @@ public class SerializableDynamicTarjanArborescenceSimpleGraphTest {
     public void setUp() {
         nodes = new ArrayList<>() {
             {
-                add(new Node(ALLELIC_PROFILE, 0));
-                add(new Node(ALLELIC_PROFILE, 1));
-                add(new Node(ALLELIC_PROFILE, 2));
-                add(new Node(ALLELIC_PROFILE, 3));
+                add(new Node(createProfile("ACGT"), 0));
+                add(new Node(createProfile("ACGT"), 1));
+                add(new Node(createProfile("ACGT"), 2));
+                add(new Node(createProfile("ACGT"), 3));
             }
         };
 
@@ -180,8 +183,8 @@ public class SerializableDynamicTarjanArborescenceSimpleGraphTest {
         for (Edge edge : arborescence.getEdges()) {
             boolean found = false;
             for (Edge originalEdge : originalGraph.getEdges()) {
-                if (edge.getSource().getID() == originalEdge.getSource().getID() &&
-                    edge.getDestination().getID() == originalEdge.getDestination().getID()) {
+                if (edge.getSource().getId() == originalEdge.getSource().getId() &&
+                    edge.getDestination().getId() == originalEdge.getDestination().getId()) {
                     found = true;
                     break;
                 }
