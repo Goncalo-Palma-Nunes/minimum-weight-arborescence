@@ -302,7 +302,7 @@ public class CameriniForest extends StaticAlgorithm {
     private void printRset() {
         System.out.print("\nrset = {");
         for (Node r : rset) {
-            System.out.print(" " + r.getID() + ", ");
+            System.out.print(" " + r.getId() + ", ");
         }
         System.out.println("}");
     }
@@ -310,7 +310,7 @@ public class CameriniForest extends StaticAlgorithm {
     private void printRoots() {
         System.out.print("\nroots = {");
         for (Node r : roots) {
-            System.out.print(" " + r.getID() + ", ");
+            System.out.print(" " + r.getId() + ", ");
         }
         System.out.println("}");
     }

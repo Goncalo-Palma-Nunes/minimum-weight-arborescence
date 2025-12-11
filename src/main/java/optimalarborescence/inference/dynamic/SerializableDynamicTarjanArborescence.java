@@ -245,7 +245,7 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
     private void saveATreeForest(String baseName) throws IOException {
         Map<Integer, Node> graphNodes = new HashMap<>();
         for (Node node : getModifiedGraph().getNodes()) {
-            graphNodes.put(node.getID(), node);
+            graphNodes.put(node.getId(), node);
         }
         ATreeMapper.saveATreeForest(getATreeRoots(), graphNodes, baseName);
     }

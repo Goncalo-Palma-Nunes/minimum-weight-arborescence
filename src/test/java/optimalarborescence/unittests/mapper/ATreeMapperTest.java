@@ -4,6 +4,7 @@ import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
 import optimalarborescence.inference.dynamic.ATreeNode;
 import optimalarborescence.memorymapper.ATreeMapper;
+import optimalarborescence.sequences.AllelicProfile;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -24,21 +25,29 @@ public class ATreeMapperTest {
 
     private static final String TEST_BASE_NAME = "test_atree";
     private Map<Integer, Node> graphNodes;
+
+    private static AllelicProfile createProfile(String data) {
+        Character[] chars = new Character[data.length()];
+        for (int i = 0; i < data.length(); i++) {
+            chars[i] = data.charAt(i);
+        }
+        return new AllelicProfile(chars, data.length());
+    }
     
     @Before
     public void setup() {
         // Create a set of nodes for testing
         graphNodes = new HashMap<>();
-        graphNodes.put(0, new Node("AAAA", 0));
-        graphNodes.put(1, new Node("CCCC", 1));
-        graphNodes.put(2, new Node("GGGG", 2));
-        graphNodes.put(3, new Node("TTTT", 3));
-        graphNodes.put(4, new Node("ACGT", 4));
-        graphNodes.put(5, new Node("TGCA", 5));
-        graphNodes.put(6, new Node("ACGA", 6));
-        graphNodes.put(7, new Node("CGTA", 7));
-        graphNodes.put(8, new Node("GTAC", 8));
-        graphNodes.put(9, new Node("TACG", 9));
+        graphNodes.put(0, new Node(createProfile("AAAA"), 0));
+        graphNodes.put(1, new Node(createProfile("CCCC"), 1));
+        graphNodes.put(2, new Node(createProfile("GGGG"), 2));
+        graphNodes.put(3, new Node(createProfile("TTTT"), 3));
+        graphNodes.put(4, new Node(createProfile("ACGT"), 4));
+        graphNodes.put(5, new Node(createProfile("TGCA"), 5));
+        graphNodes.put(6, new Node(createProfile("ACGA"), 6));
+        graphNodes.put(7, new Node(createProfile("CGTA"), 7));
+        graphNodes.put(8, new Node(createProfile("GTAC"), 8));
+        graphNodes.put(9, new Node(createProfile("TACG"), 9));
     }
     
     @After
@@ -140,14 +149,14 @@ public class ATreeMapperTest {
         
         ATreeNode loadedChild1 = children.get(0);
         assertEquals(5, loadedChild1.getCost());
-        assertEquals(1, loadedChild1.getEdge().getDestination().getID());
+        assertEquals(1, loadedChild1.getEdge().getDestination().getId());
         assertTrue(loadedChild1.isSimpleNode());
         assertNotNull(loadedChild1.getParent());
         assertEquals(loadedRoot, loadedChild1.getParent());
         
         ATreeNode loadedChild2 = children.get(1);
         assertEquals(3, loadedChild2.getCost());
-        assertEquals(2, loadedChild2.getEdge().getDestination().getID());
+        assertEquals(2, loadedChild2.getEdge().getDestination().getId());
         assertTrue(loadedChild2.isSimpleNode());
     }
     
@@ -195,13 +204,13 @@ public class ATreeMapperTest {
         
         // Verify contracted edges
         Edge loaded1 = loadedCNode.getContractedEdges().get(0);
-        assertEquals(2, loaded1.getSource().getID());
-        assertEquals(3, loaded1.getDestination().getID());
+        assertEquals(2, loaded1.getSource().getId());
+        assertEquals(3, loaded1.getDestination().getId());
         assertEquals(4, loaded1.getWeight());
         
         Edge loaded2 = loadedCNode.getContractedEdges().get(1);
-        assertEquals(3, loaded2.getSource().getID());
-        assertEquals(4, loaded2.getDestination().getID());
+        assertEquals(3, loaded2.getSource().getId());
+        assertEquals(4, loaded2.getDestination().getId());
         assertEquals(2, loaded2.getWeight());
     }
     
@@ -334,7 +343,7 @@ public class ATreeMapperTest {
         for (int i = 0; i < 5; i++) {
             ATreeNode child = loadedChildren.get(i);
             assertEquals(i + 1, child.getCost());
-            assertEquals(i + 1, child.getEdge().getDestination().getID());
+            assertEquals(i + 1, child.getEdge().getDestination().getId());
             assertNotNull(child.getParent());
             assertEquals(loadedRoot, child.getParent());
         }
@@ -452,8 +461,8 @@ public class ATreeMapperTest {
         
         Edge loadedEdge = loadedRoot.getEdge();
         assertNotNull(loadedEdge);
-        assertEquals(0, loadedEdge.getSource().getID());
-        assertEquals(1, loadedEdge.getDestination().getID());
+        assertEquals(0, loadedEdge.getSource().getId());
+        assertEquals(1, loadedEdge.getDestination().getId());
         assertEquals(10, loadedEdge.getWeight());
     }
     
@@ -562,18 +571,18 @@ public class ATreeMapperTest {
         
         // Check edges (order should be preserved)
         Edge edge1 = loadedContractedEdges.get(0);
-        assertEquals(2, edge1.getSource().getID());
-        assertEquals(3, edge1.getDestination().getID());
+        assertEquals(2, edge1.getSource().getId());
+        assertEquals(3, edge1.getDestination().getId());
         assertEquals(15, edge1.getWeight());
         
         Edge edge2 = loadedContractedEdges.get(1);
-        assertEquals(3, edge2.getSource().getID());
-        assertEquals(4, edge2.getDestination().getID());
+        assertEquals(3, edge2.getSource().getId());
+        assertEquals(4, edge2.getDestination().getId());
         assertEquals(20, edge2.getWeight());
         
         Edge edge3 = loadedContractedEdges.get(2);
-        assertEquals(4, edge3.getSource().getID());
-        assertEquals(5, edge3.getDestination().getID());
+        assertEquals(4, edge3.getSource().getId());
+        assertEquals(5, edge3.getDestination().getId());
         assertEquals(25, edge3.getWeight());
     }
     

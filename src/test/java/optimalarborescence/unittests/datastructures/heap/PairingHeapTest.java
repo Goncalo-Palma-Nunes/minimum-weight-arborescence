@@ -4,6 +4,7 @@ import optimalarborescence.datastructure.heap.PairingHeap;
 import optimalarborescence.datastructure.heap.HeapNode;
 import optimalarborescence.graph.Node;
 import optimalarborescence.graph.Edge;
+import optimalarborescence.sequences.AllelicProfile;
 
 import java.util.List;
 import java.util.Comparator;
@@ -12,6 +13,15 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class PairingHeapTest {
+
+    // Helper method to create AllelicProfile from string
+    private AllelicProfile createProfile(String data) {
+        Character[] chars = new Character[data.length()];
+        for (int i = 0; i < data.length(); i++) {
+            chars[i] = data.charAt(i);
+        }
+        return new AllelicProfile(chars, data.length());
+    }
 
     /** Comparator for min heap based on HeapNode values */
     private static final Comparator<HeapNode> MIN_COMPARATOR = 
@@ -32,8 +42,8 @@ public class PairingHeapTest {
     /** weight = largeWeight = 200 */
     HeapNode node1 = new HeapNode(
         new Edge(
-            new Node("A", 1), 
-            new Node("C", 2), 
+            new Node(createProfile("A"), 1), 
+            new Node(createProfile("C"), 2), 
             largeWeight), 
         null, 
         null);
@@ -41,8 +51,8 @@ public class PairingHeapTest {
     /** weight = intermediateWeight = 100 */
     HeapNode node2 = new HeapNode(
         new Edge(
-            new Node("T", 3), 
-            new Node("G", 4), 
+            new Node(createProfile("T"), 3), 
+            new Node(createProfile("G"), 4), 
             intermediateWeight), 
         null, 
         null);
@@ -50,8 +60,8 @@ public class PairingHeapTest {
     /** weight = smallWeight = 1 */
     HeapNode lowestWeightNode = new HeapNode(
         new Edge(
-            new Node("G", 5), 
-            new Node("T", 6), 
+            new Node(createProfile("G"), 5), 
+            new Node(createProfile("T"), 6), 
             smallWeight), 
         null, 
         null);
@@ -59,8 +69,8 @@ public class PairingHeapTest {
     /** weight = smallIntermediateWeight = 50 */
     HeapNode smallIntermediateNode = new HeapNode(
         new Edge(
-            new Node("C", 7), 
-            new Node("A", 8), 
+            new Node(createProfile("C"), 7), 
+            new Node(createProfile("A"), 8), 
             smallIntermediateWeight), 
         null, 
         null);
@@ -128,8 +138,8 @@ public class PairingHeapTest {
     public void testMergePopulatedHeaps() {
         HeapNode node2 = new HeapNode(
             new Edge(
-                new Node("T", 3), 
-                new Node("G", 4), 
+                new Node(createProfile("T"), 3), 
+                new Node(createProfile("G"), 4), 
                 smallWeight), 
             null, 
             null);
@@ -239,10 +249,10 @@ public class PairingHeapTest {
     @Test
     public void testMultipleSequentialMerges() {
         // Create multiple heaps
-        HeapNode nodeA = new HeapNode(new Edge(new Node("AAAA", 1), new Node("TTTT", 2), 10), null, null);
-        HeapNode nodeB = new HeapNode(new Edge(new Node("CCCC", 3), new Node("GGGG", 4), 20), null, null);
-        HeapNode nodeC = new HeapNode(new Edge(new Node("ACGT", 5), new Node("TGCA", 6), 5), null, null);
-        HeapNode nodeD = new HeapNode(new Edge(new Node("ATCG", 7), new Node("CGTA", 8), 15), null, null);
+        HeapNode nodeA = new HeapNode(new Edge(new Node(createProfile("AAAA"), 1), new Node(createProfile("TTTT"), 2), 10), null, null);
+        HeapNode nodeB = new HeapNode(new Edge(new Node(createProfile("CCCC"), 3), new Node(createProfile("GGGG"), 4), 20), null, null);
+        HeapNode nodeC = new HeapNode(new Edge(new Node(createProfile("ACGT"), 5), new Node(createProfile("TGCA"), 6), 5), null, null);
+        HeapNode nodeD = new HeapNode(new Edge(new Node(createProfile("ATCG"), 7), new Node(createProfile("CGTA"), 8), 15), null, null);
         
         PairingHeap heap1 = new PairingHeap(nodeA, MIN_COMPARATOR);
         PairingHeap heap2 = new PairingHeap(nodeB, MIN_COMPARATOR);
@@ -270,10 +280,10 @@ public class PairingHeapTest {
     @Test
     public void testMergeExtractMinMerge() {
         // This pattern mimics what happens in Tarjan's algorithm
-        HeapNode nodeA = new HeapNode(new Edge(new Node("AAAA", 1), new Node("TTTT", 2), 30), null, null);
-        HeapNode nodeB = new HeapNode(new Edge(new Node("CCCC", 3), new Node("GGGG", 4), 10), null, null);
-        HeapNode nodeC = new HeapNode(new Edge(new Node("ACGT", 5), new Node("TGCA", 6), 20), null, null);
-        HeapNode nodeD = new HeapNode(new Edge(new Node("ATCG", 7), new Node("CGTA", 8), 15), null, null);
+        HeapNode nodeA = new HeapNode(new Edge(new Node(createProfile("AAAA"), 1), new Node(createProfile("TTTT"), 2), 30), null, null);
+        HeapNode nodeB = new HeapNode(new Edge(new Node(createProfile("CCCC"), 3), new Node(createProfile("GGGG"), 4), 10), null, null);
+        HeapNode nodeC = new HeapNode(new Edge(new Node(createProfile("ACGT"), 5), new Node(createProfile("TGCA"), 6), 20), null, null);
+        HeapNode nodeD = new HeapNode(new Edge(new Node(createProfile("ATCG"), 7), new Node(createProfile("CGTA"), 8), 15), null, null);
         
         PairingHeap heap1 = new PairingHeap(nodeA, MIN_COMPARATOR);
         PairingHeap heap2 = new PairingHeap(nodeB, MIN_COMPARATOR);
@@ -304,18 +314,18 @@ public class PairingHeapTest {
     public void testExtractMinAfterComplexMerges() {
         // Create heaps with multiple nodes to test complex internal structures
         PairingHeap heap1 = new PairingHeap(MIN_COMPARATOR);
-        heap1.insert(new HeapNode(new Edge(new Node("AAAA", 1), new Node("TTTT", 2), 50), null, null));
-        heap1.insert(new HeapNode(new Edge(new Node("CCCC", 3), new Node("GGGG", 4), 60), null, null));
-        heap1.insert(new HeapNode(new Edge(new Node("ACGT", 5), new Node("TGCA", 6), 70), null, null));
+        heap1.insert(new HeapNode(new Edge(new Node(createProfile("AAAA"), 1), new Node(createProfile("TTTT"), 2), 50), null, null));
+        heap1.insert(new HeapNode(new Edge(new Node(createProfile("CCCC"), 3), new Node(createProfile("GGGG"), 4), 60), null, null));
+        heap1.insert(new HeapNode(new Edge(new Node(createProfile("ACGT"), 5), new Node(createProfile("TGCA"), 6), 70), null, null));
         
         PairingHeap heap2 = new PairingHeap(MIN_COMPARATOR);
-        heap2.insert(new HeapNode(new Edge(new Node("ATCG", 7), new Node("CGTA", 8), 30), null, null));
-        heap2.insert(new HeapNode(new Edge(new Node("ATAT", 9), new Node("GCGC", 10), 40), null, null));
+        heap2.insert(new HeapNode(new Edge(new Node(createProfile("ATCG"), 7), new Node(createProfile("CGTA"), 8), 30), null, null));
+        heap2.insert(new HeapNode(new Edge(new Node(createProfile("ATAT"), 9), new Node(createProfile("GCGC"), 10), 40), null, null));
         
         PairingHeap heap3 = new PairingHeap(MIN_COMPARATOR);
-        heap3.insert(new HeapNode(new Edge(new Node("TATA", 11), new Node("GCAA", 12), 10), null, null));
-        heap3.insert(new HeapNode(new Edge(new Node("CTCT", 13), new Node("AGAG", 14), 20), null, null));
-        heap3.insert(new HeapNode(new Edge(new Node("GTGT", 15), new Node("CACA", 16), 25), null, null));
+        heap3.insert(new HeapNode(new Edge(new Node(createProfile("TATA"), 11), new Node(createProfile("GCAA"), 12), 10), null, null));
+        heap3.insert(new HeapNode(new Edge(new Node(createProfile("CTCT"), 13), new Node(createProfile("AGAG"), 14), 20), null, null));
+        heap3.insert(new HeapNode(new Edge(new Node(createProfile("GTGT"), 15), new Node(createProfile("CACA"), 16), 25), null, null));
         
         // Merge all three
         heap1.merge(heap2);
@@ -337,18 +347,18 @@ public class PairingHeapTest {
     public void testDeepHeapMerge() {
         // Create a heap with multiple children, then merge with another complex heap
         PairingHeap heap1 = new PairingHeap(MIN_COMPARATOR);
-        heap1.insert(new HeapNode(new Edge(new Node("AAAA", 1), new Node("TTTT", 2), 100), null, null));
-        heap1.insert(new HeapNode(new Edge(new Node("CCCC", 3), new Node("GGGG", 4), 110), null, null));
-        heap1.insert(new HeapNode(new Edge(new Node("ACGT", 5), new Node("TGCA", 6), 120), null, null));
-        heap1.insert(new HeapNode(new Edge(new Node("ATCG", 7), new Node("CGTA", 8), 130), null, null));
+        heap1.insert(new HeapNode(new Edge(new Node(createProfile("AAAA"), 1), new Node(createProfile("TTTT"), 2), 100), null, null));
+        heap1.insert(new HeapNode(new Edge(new Node(createProfile("CCCC"), 3), new Node(createProfile("GGGG"), 4), 110), null, null));
+        heap1.insert(new HeapNode(new Edge(new Node(createProfile("ACGT"), 5), new Node(createProfile("TGCA"), 6), 120), null, null));
+        heap1.insert(new HeapNode(new Edge(new Node(createProfile("ATCG"), 7), new Node(createProfile("CGTA"), 8), 130), null, null));
         
         // Extract min to create a deeper structure
         heap1.extractMin(); // This restructures the heap
         
         PairingHeap heap2 = new PairingHeap(MIN_COMPARATOR);
-        heap2.insert(new HeapNode(new Edge(new Node("ATAT", 9), new Node("GCGC", 10), 90), null, null));
-        heap2.insert(new HeapNode(new Edge(new Node("TATA", 11), new Node("GCAA", 12), 95), null, null));
-        heap2.insert(new HeapNode(new Edge(new Node("CTCT", 13), new Node("AGAG", 14), 105), null, null));
+        heap2.insert(new HeapNode(new Edge(new Node(createProfile("ATAT"), 9), new Node(createProfile("GCGC"), 10), 90), null, null));
+        heap2.insert(new HeapNode(new Edge(new Node(createProfile("TATA"), 11), new Node(createProfile("GCAA"), 12), 95), null, null));
+        heap2.insert(new HeapNode(new Edge(new Node(createProfile("CTCT"), 13), new Node(createProfile("AGAG"), 14), 105), null, null));
         
         // Extract min from heap2 as well
         heap2.extractMin();
@@ -370,15 +380,15 @@ public class PairingHeapTest {
         // This test specifically targets the scenario that caused the infinite loop bug
         // Multiple merges followed by extractMin operations
         PairingHeap mainHeap = new PairingHeap(MIN_COMPARATOR);
-        mainHeap.insert(new HeapNode(new Edge(new Node("AAAA", 1), new Node("TTTT", 2), 50), null, null));
+        mainHeap.insert(new HeapNode(new Edge(new Node(createProfile("AAAA"), 1), new Node(createProfile("TTTT"), 2), 50), null, null));
         
         // Perform multiple merge operations
         String[] seqs1 = {"ACGT", "TGCA", "ATCG", "CGTA", "ATAT"};
         String[] seqs2 = {"GCGC", "TATA", "GCAA", "CTCT", "AGAG"};
         for (int i = 0; i < 5; i++) {
             PairingHeap tempHeap = new PairingHeap(MIN_COMPARATOR);
-            tempHeap.insert(new HeapNode(new Edge(new Node(seqs1[i], i * 2 + 3), new Node(seqs2[i], i * 2 + 4), 40 - i * 5), null, null));
-            tempHeap.insert(new HeapNode(new Edge(new Node(seqs2[i], i * 2 + 5), new Node(seqs1[i], i * 2 + 6), 45 - i * 5), null, null));
+            tempHeap.insert(new HeapNode(new Edge(new Node(createProfile(seqs1[i]), i * 2 + 3), new Node(createProfile(seqs2[i]), i * 2 + 4), 40 - i * 5), null, null));
+            tempHeap.insert(new HeapNode(new Edge(new Node(createProfile(seqs2[i]), i * 2 + 5), new Node(createProfile(seqs1[i]), i * 2 + 6), 45 - i * 5), null, null));
             mainHeap.merge(tempHeap);
         }
         
@@ -398,8 +408,8 @@ public class PairingHeapTest {
 
     @Test
     public void testCorrectOrderAfterSeveralMerges() {
-        Node node1 = new Node("ACGT", 1);
-        Node node2 = new Node("TGCA", 2);
+        Node node1 = new Node(createProfile("ACGT"), 1);
+        Node node2 = new Node(createProfile("TGCA"), 2);
 
         // First Heap
         PairingHeap heap1 = new PairingHeap(MIN_COMPARATOR);

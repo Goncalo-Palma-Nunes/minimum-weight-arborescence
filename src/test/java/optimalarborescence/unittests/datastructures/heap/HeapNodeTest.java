@@ -3,6 +3,7 @@ package optimalarborescence.unittests.datastructures.heap;
 import optimalarborescence.datastructure.heap.HeapNode;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
+import optimalarborescence.sequences.AllelicProfile;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -16,10 +17,19 @@ public class HeapNodeTest {
     private int initialVal = 10;
     private int decreasedVal = 5;
 
+    // Helper method to create AllelicProfile from string
+    private AllelicProfile createProfile(String data) {
+        Character[] chars = new Character[data.length()];
+        for (int i = 0; i < data.length(); i++) {
+            chars[i] = data.charAt(i);
+        }
+        return new AllelicProfile(chars, data.length());
+    }
+
     @Before
     public void setUp() {
-        Node source = new Node("AAGCT", 1);
-        Node destination = new Node("AACGT", 2);
+        Node source = new Node(createProfile("AAGCT"), 1);
+        Node destination = new Node(createProfile("AACGT"), 2);
         testEdge = new Edge(source, destination, initialVal);
 
         singletonHeapNode = new HeapNode(testEdge, null, null);

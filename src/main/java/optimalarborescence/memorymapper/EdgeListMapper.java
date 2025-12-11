@@ -71,7 +71,7 @@ public class EdgeListMapper {
                 allEntries.add(entry);
                 
                 // Group by destination for linking
-                int destId = edge.getDestination().getID();
+                int destId = edge.getDestination().getId();
                 edgesByDest.computeIfAbsent(destId, k -> new ArrayList<>()).add(entry);
                 
                 currentOffset += BYTES_PER_EDGE;
@@ -130,8 +130,8 @@ public class EdgeListMapper {
      * @param entry The edge entry to write
      */
     private static void writeEdgeEntry(MappedByteBuffer mbb, EdgeEntry entry) {
-        mbb.putInt(entry.edge.getSource().getID());
-        mbb.putInt(entry.edge.getDestination().getID());
+        mbb.putInt(entry.edge.getSource().getId());
+        mbb.putInt(entry.edge.getDestination().getId());
         mbb.putInt(entry.edge.getWeight());
         mbb.putLong(entry.nextOffset);
         mbb.putLong(entry.prevOffset);
@@ -211,12 +211,11 @@ public class EdgeListMapper {
                 mbb.getLong(); // skip prevOffset
 
                 
-                // Create minimal nodes on-the-fly with dummy MLST data (reuse same instance for same ID)
-                // Using "CGCG" as placeholder since Point constructor requires non-empty sequence
+                // Create minimal nodes on-the-fly without Sequence data / Point data (reuse same instance for same ID)
                 // Note: MLST sequences are only relevant for the nearest neighbour algorithms
                 // and distance computations. It does not matter when we just want to load edges 
-                Node src = nodeCache.computeIfAbsent(srcId, id -> new Node("CGCG", id));
-                Node dst = nodeCache.computeIfAbsent(dstId, id -> new Node("CGCG", id));
+                Node src = nodeCache.computeIfAbsent(srcId, id -> new Node(id));
+                Node dst = nodeCache.computeIfAbsent(dstId, id -> new Node(id));
                 
                 edges.add(new Edge(src, dst, weight));
             }
@@ -301,10 +300,9 @@ public class EdgeListMapper {
             int dstId = mbb.getInt();
             int weight = mbb.getInt();
             
-            // Create minimal nodes with dummy MLST data
-            // Using "CGCG" as placeholder since Point constructor requires non-empty sequence
-            Node src = new Node("CGCG", srcId);
-            Node dst = new Node("CGCG", dstId);
+            // Create minimal nodes without Sequence data / Point data
+            Node src = new Node(srcId);
+            Node dst = new Node(dstId);
             
             return new Edge(src, dst, weight);
         }
@@ -325,7 +323,7 @@ public class EdgeListMapper {
         Node dest = edge.getDestination();
         String nodeFileName = fileName.replace("_edges.dat", "_nodes.dat");
         
-        long firstEdgeOffset = NodeIndexMapper.getIncomingEdgeOffset(nodeFileName, dest.getID());
+        long firstEdgeOffset = NodeIndexMapper.getIncomingEdgeOffset(nodeFileName, dest.getId());
         
         try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
              FileChannel channel = raf.getChannel()) {
@@ -347,8 +345,8 @@ public class EdgeListMapper {
                 MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, newEdgeOffset, BYTES_PER_EDGE);
                 mbb.order(ByteOrder.nativeOrder());
                 
-                mbb.putInt(edge.getSource().getID());
-                mbb.putInt(edge.getDestination().getID());
+                mbb.putInt(edge.getSource().getId());
+                mbb.putInt(edge.getDestination().getId());
                 mbb.putInt(edge.getWeight());
                 mbb.putLong(NO_OFFSET);  // No next edge
                 mbb.putLong(NO_OFFSET);  // No previous edge
@@ -356,7 +354,7 @@ public class EdgeListMapper {
                 mbb.force();
                 
                 // Update node index to point to this first edge
-                NodeIndexMapper.updateIncomingEdgeOffset(nodeFileName, dest.getID(), newEdgeOffset);
+                NodeIndexMapper.updateIncomingEdgeOffset(nodeFileName, dest.getId(), newEdgeOffset);
             } else {
                 // Find the last edge in the chain for this destination
                 long currentOffset = firstEdgeOffset;
@@ -384,8 +382,8 @@ public class EdgeListMapper {
                 MappedByteBuffer newEdgeMbb = channel.map(FileChannel.MapMode.READ_WRITE, newEdgeOffset, BYTES_PER_EDGE);
                 newEdgeMbb.order(ByteOrder.nativeOrder());
                 
-                newEdgeMbb.putInt(edge.getSource().getID());
-                newEdgeMbb.putInt(edge.getDestination().getID());
+                newEdgeMbb.putInt(edge.getSource().getId());
+                newEdgeMbb.putInt(edge.getDestination().getId());
                 newEdgeMbb.putInt(edge.getWeight());
                 newEdgeMbb.putLong(NO_OFFSET);  // No next edge
                 newEdgeMbb.putLong(lastEdgeOffset);  // Link back to previous edge
@@ -454,7 +452,7 @@ public class EdgeListMapper {
                 long nextOffset = mbb.getLong();
                 mbb.getLong();
 
-                edges.add(new Edge(new Node("AAAA", sourceId), new Node("AAAA", destId), weight));
+                edges.add(new Edge(new Node(sourceId), new Node(destId), weight));
                 currentOffset = nextOffset;
             }
         } 

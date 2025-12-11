@@ -7,6 +7,7 @@ import optimalarborescence.memorymapper.NodeIndexMapper;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Node;
+import optimalarborescence.sequences.AllelicProfile;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -18,6 +19,14 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class EdgeListMapperRemovalTest {
+
+    private static AllelicProfile createProfile(String data) {
+        Character[] chars = new Character[data.length()];
+        for (int i = 0; i < data.length(); i++) {
+            chars[i] = data.charAt(i);
+        }
+        return new AllelicProfile(chars, data.length());
+    }
 
     private static final List<String> MLST_DATA = List.of(
         "AGTC", "AATT", "CGCG", "ATAT"
@@ -54,10 +63,10 @@ public class EdgeListMapperRemovalTest {
      * Create a test graph with known structure.
      */
     private Graph createTestGraph() {
-        Node n0 = new Node("ATCG", 0);
-        Node n1 = new Node("GCTA", 1);
-        Node n2 = new Node("TGAC", 2);
-        Node n3 = new Node("CGAT", 3);
+        Node n0 = new Node(createProfile("ATCG"), 0);
+        Node n1 = new Node(createProfile("GCTA"), 1);
+        Node n2 = new Node(createProfile("TGAC"), 2);
+        Node n3 = new Node(createProfile("CGAT"), 3);
 
         List<Edge> edges = new ArrayList<>();
         edges.add(new Edge(n0, n1, 5));
@@ -412,7 +421,7 @@ public class EdgeListMapperRemovalTest {
         Edge headEdge = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, linkedListOffset);
         Assert.assertNotNull(headEdge);
         
-        int srcId = headEdge.getSource().getID();
+        int srcId = headEdge.getSource().getId();
         EdgeListMapper.removeEdge(EDGES_FILE_NAME, srcId, 2, linkedListOffset);
         
         int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);

@@ -7,6 +7,7 @@ import optimalarborescence.graph.Graph;
 import optimalarborescence.memorymapper.NodeIndexMapper;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
+import optimalarborescence.sequences.AllelicProfile;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -26,8 +27,16 @@ public class NodeIndexMapperTest {
     private static final List<Node> TEST_NODES = new ArrayList<>();
     static {
         for (int i = 0; i < MLST_DATA.size(); i++) {
-            TEST_NODES.add(new Node(MLST_DATA.get(i), i));
+            TEST_NODES.add(new Node(createProfile(MLST_DATA.get(i)), i));
         }
+    }
+
+    private static AllelicProfile createProfile(String data) {
+        Character[] chars = new Character[data.length()];
+        for (int i = 0; i < data.length(); i++) {
+            chars[i] = data.charAt(i);
+        }
+        return new AllelicProfile(chars, data.length());
     }
 
     @Test
@@ -49,7 +58,7 @@ public class NodeIndexMapperTest {
         Map<Integer, Node> loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
         Assert.assertEquals(TEST_NODES.size(), loadedNodes.size());
         for (Node originalNode : TEST_NODES) {
-            Node loadedNode = loadedNodes.get(originalNode.getID());
+            Node loadedNode = loadedNodes.get(originalNode.getId());
             Assert.assertNotNull(loadedNode);
             Assert.assertEquals(originalNode.getId(), loadedNode.getId());
             Assert.assertEquals(originalNode.getMLSTdata(), loadedNode.getMLSTdata());
@@ -114,8 +123,8 @@ public class NodeIndexMapperTest {
 
         // Test offsets
         for (Node node : graph.getNodes()) {
-            long expectedOffset = offsetMap.getOrDefault(node.getID(), -1L);
-            long loadedOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, node.getID());
+            long expectedOffset = offsetMap.getOrDefault(node.getId(), -1L);
+            long loadedOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, node.getId());
             Assert.assertEquals(expectedOffset, loadedOffset);
         }
     }
@@ -135,7 +144,7 @@ public class NodeIndexMapperTest {
         NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
 
         // Add a new node with ID 3 (next sequential ID after 0,1,2)
-        Node newNode = new Node("GGGG", 3);
+        Node newNode = new Node(createProfile("GGGG"), 3);
         NodeIndexMapper.addNode(newNode, NODES_FILE_NAME, mlstLength);
 
         // Verify by loading the MLST data file directly and checking it was appended
@@ -156,9 +165,9 @@ public class NodeIndexMapperTest {
         NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
 
         // Add multiple new nodes (sequential IDs after existing nodes 0,1)
-        Node node1 = new Node("TTTT", 2);
-        Node node2 = new Node("CCCC", 3);
-        Node node3 = new Node("AAAA", 4);
+        Node node1 = new Node(createProfile("TTTT"), 2);
+        Node node2 = new Node(createProfile("CCCC"), 3);
+        Node node3 = new Node(createProfile("AAAA"), 4);
 
         NodeIndexMapper.addNode(node1, NODES_FILE_NAME, mlstLength);
         NodeIndexMapper.addNode(node2, NODES_FILE_NAME, mlstLength);
@@ -182,7 +191,7 @@ public class NodeIndexMapperTest {
         NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
 
         // Add a new node with longer MLST data (ID 2, next after 0,1)
-        Node newNode = new Node("AGTCAGTC", 2);
+        Node newNode = new Node(createProfile("AGTCAGTC"), 2);
         NodeIndexMapper.addNode(newNode, NODES_FILE_NAME, mlstLength);
 
         // Verify the node was added with offset -1
@@ -604,7 +613,7 @@ public class NodeIndexMapperTest {
         NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
 
         // Try to remove node with ID beyond max (maxNodeId is 2, try to remove 999)
-        Node invalidNode = new Node("AAAA", 999);
+        Node invalidNode = new Node(createProfile("AAAA"), 999);
         NodeIndexMapper.removeNode(invalidNode, NODES_FILE_NAME);
     }
 
@@ -635,9 +644,9 @@ public class NodeIndexMapperTest {
 
         // Get MLST data before removal
         Map<Integer, Node> nodesBefore = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
-        String mlst0 = nodesBefore.get(0).getMLSTdata();
-        String mlst1 = nodesBefore.get(1).getMLSTdata();
-        String mlst3 = nodesBefore.get(3).getMLSTdata();
+        AllelicProfile mlst0 = (AllelicProfile) nodesBefore.get(0).getMLSTdata();
+        AllelicProfile mlst1 = (AllelicProfile) nodesBefore.get(1).getMLSTdata();
+        AllelicProfile mlst3 = (AllelicProfile) nodesBefore.get(3).getMLSTdata();
 
         // Remove node 2 (middle node, so node 3 moves to position 2)
         NodeIndexMapper.removeNode(TEST_NODES.get(2), NODES_FILE_NAME);
