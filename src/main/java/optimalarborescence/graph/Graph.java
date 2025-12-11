@@ -94,7 +94,8 @@ public class Graph implements Serializable{
     public List<Node> cloneNodeList() {
         List<Node> clonedList = new ArrayList<>();
         for (Node node : nodes) {
-            clonedList.add(new Node(node.getMLSTdata(), node.getId()));
+            // clonedList.add(new Node(node.getMLSTdata(), node.getId()));
+            clonedList.add(new Node(node.getId()));
         }
         return clonedList;
     }
