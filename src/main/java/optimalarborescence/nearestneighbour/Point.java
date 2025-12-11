@@ -1,14 +1,17 @@
 package optimalarborescence.nearestneighbour;
 
 import optimalarborescence.sequences.Sequence;
+import optimalarborescence.graph.Node;
 
 public class Point<T> {
     private int id;
     private Sequence<T> sequence;
+    private Node node; // Associated node
 
     public Point(int id, Sequence<T> sequence) {
         this.id = id;
         this.sequence = sequence;
+        this.node = null;
 
         if (sequence == null || sequence.getLength() == 0) {
             throw new IllegalArgumentException("Sequence cannot be null or empty");
@@ -24,6 +27,14 @@ public class Point<T> {
 
     public Sequence<T> getSequence() {
         return sequence;
+    }
+
+    public Node getNode() {
+        return node;
+    }
+
+    public void setNode(Node node) {
+        this.node = node;
     }
 
     @Override

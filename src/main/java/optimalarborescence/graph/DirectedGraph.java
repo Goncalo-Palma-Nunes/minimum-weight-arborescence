@@ -5,12 +5,12 @@ import optimalarborescence.nearestneighbour.Point;
 
 import java.util.List;
 
-public class DirectedGraph extends Graph {
+public class DirectedGraph<T> extends Graph {
 
     /** The nearest neighbour search algorithm used to find the nearest
      * neighbours for each node when adding it to the graph.
      */
-    private NearestNeighbourSearchAlgorithm nnSearch;
+    private NearestNeighbourSearchAlgorithm<T> nnSearch;
 
     /** The maximum number of neighbours each node can have. */
     private int maxNumNeighbours;
@@ -23,7 +23,7 @@ public class DirectedGraph extends Graph {
      * @param searchAlgorithm the nearest neighbour search algorithm to use
      * @param maxNumNeighbours the maximum number of neighbours each node can have
      */
-    public DirectedGraph(NearestNeighbourSearchAlgorithm searchAlgorithm, int maxNumNeighbours) {
+    public DirectedGraph(NearestNeighbourSearchAlgorithm<T> searchAlgorithm, int maxNumNeighbours) {
         super();
         this.nnSearch = searchAlgorithm;
         this.maxNumNeighbours = maxNumNeighbours;
@@ -40,7 +40,7 @@ public class DirectedGraph extends Graph {
      * @param maxNumNeighbours the maximum number of neighbours each node can have
      * @param baseGraph the base graph from which to construct the directed graph
      */
-    public DirectedGraph(NearestNeighbourSearchAlgorithm searchAlgorithm, int maxNumNeighbours, Graph baseGraph) {
+    public DirectedGraph(NearestNeighbourSearchAlgorithm<T> searchAlgorithm, int maxNumNeighbours, Graph baseGraph) {
     
         this(searchAlgorithm, maxNumNeighbours);
         for (Node node : baseGraph.getNodes()) {
@@ -58,14 +58,17 @@ public class DirectedGraph extends Graph {
     public void addNode(Node node) {
         super.addNode(node);
 
-        List<Point> nearestNeighbors = nnSearch.neighbourSearch(node, this.maxNumNeighbours);
-        nnSearch.storePoint(node);
+        @SuppressWarnings("unchecked")
+        Point<T> typedPoint = (Point<T>) node.getPoint();
+        
+        List<Point<T>> nearestNeighbors = nnSearch.neighbourSearch(typedPoint, this.maxNumNeighbours);
+        nnSearch.storePoint(typedPoint);
 
-        for (Point neighbor : nearestNeighbors) {
-            if (neighbor instanceof Node) {
-                Node neighborNode = (Node) neighbor;
+        for (Point<T> neighbor : nearestNeighbors) {
+            Node neighborNode = neighbor.getNode();
+            if (neighborNode != null) {
                 // TODO - double ou int para a distância?
-                int distance = (int) nnSearch.getDistanceFunction().calculate(node.getBitArray(), neighborNode.getBitArray());
+                int distance = (int) nnSearch.getDistanceFunction().calculate(node.getMLSTdata(), neighborNode.getMLSTdata());
                 // node.addNeighbor(neighborNode, distance);
                 neighborNode.addNeighbor(node, distance);
                 // super.addEdge(new Edge(node, neighborNode, distance));
@@ -73,56 +76,4 @@ public class DirectedGraph extends Graph {
             }
         }
     }
-
-    // @Override
-    // public void exportEdgeListAndIndex(String edgeListFile, String indexFile) throws IOException {
-    //     super.exportEdgeListAndIndex(edgeListFile, indexFile);
-
-    //     try {
-    //         FileOutputStream file = new FileOutputStream(NNSearchSerializationFilePath);
-    //         ObjectOutputStream out = new ObjectOutputStream(file);
-    //         out.writeObject(nnSearch);
-    //         out.close();
-    //     } 
-    //     catch (IOException e) {
-    //         throw new IOException("Failed to serialize Nearest Neighbour Search Algorithm: " + e.getMessage());
-    //     }
-    // }
-
-    // /**
-    //  * Static method to load a directed graph from a binary edge list and index files.
-    //  * A nearest neighbour search algorithm is also loaded from a serialized file.
-    //  * 
-    //  * Reads the index file to reconstruct nodes with their IDs and MLST data,
-    //  * then reads the edge list to reconstruct edges.
-    //  * 
-    //  * @param edgeListFile Path to the binary edge list file
-    //  * @param indexFile Path to the binary index file
-    //  * @param nnSearchFile Path to the serialized nearest neighbour search algorithm
-    //  * @return A new Graph instance populated with nodes and edges
-    //  */
-    // public static Graph loadFromEdgeListAndIndex(String edgeListFile, String indexFile, String nnSearchFile) throws IOException {
-
-    //     // Load the nearest neighbour search algorithm from the serialized file
-    //     NearestNeighbourSearchAlgorithm nnSearchAlg;
-    //     try {
-    //         FileInputStream file = new FileInputStream(nnSearchFile);
-    //         ObjectInputStream in = new ObjectInputStream(file);
-    //         nnSearchAlg = (NearestNeighbourSearchAlgorithm) in.readObject();
-    //         in.close();
-    //     } 
-    //     catch (IOException e) {
-    //         throw new IOException("Failed to deserialize Nearest Neighbour Search Algorithm: " + e.getMessage());
-    //     }
-    //     catch (ClassNotFoundException e) {
-    //         throw new IOException("Class not found during deserialization: " + e.getMessage());
-    //     }
-
-    //     Graph g = Graph.loadFromEdgeListAndIndex(edgeListFile, indexFile);
-    //     int PLACEHOLDER = 5; // maxNumNeighbours TODO - serializar
-
-    //     DirectedGraph graph = new DirectedGraph(nnSearchAlg, nnSearchFile, PLACEHOLDER , g);
-    //     return graph;
-    // }
-
 }
