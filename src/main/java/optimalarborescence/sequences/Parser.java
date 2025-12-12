@@ -1,10 +1,10 @@
 package optimalarborescence.sequences;
 
-import optimalarborescence.sequences.*;
-
 import java.util.Scanner;
 
 import com.opencsv.CSVReader;
+import com.opencsv.CSVReaderBuilder;
+import com.opencsv.CSVParserBuilder;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -21,20 +21,42 @@ public class Parser {
         try {
             File file = new File(filepath);
             Scanner scanner = new Scanner(file);
+
+            // skip the first line
+            if (scanner.hasNextLine()) {
+                scanner.nextLine();
+            }
+            else {
+                scanner.close();
+                return allelicProfiles;
+            }
+
+            String allelicProfile = "";
             while (scanner.hasNextLine()) {
                 String line = scanner.nextLine();
 
                 if (line.charAt(0) == FASTA_HEADER_SYMBOL) {
                     // ignore the description line
-                    continue;
+                    allelicProfiles.add(new AllelicProfile(
+                        allelicProfile.chars().mapToObj(c -> (char)c).toArray(Character[]::new), 
+                        allelicProfile.length())
+                    );
+                    allelicProfile = "";
                 }
-                // process the allelic profile line
-                Character[] allelicProfile = new Character[line.length()];
-                for (int i = 0; i < line.length(); i++) {
-                    allelicProfile[i] = line.charAt(i);
+                else {
+                    // process the allelic profile line
+                    for (int i = 0; i < line.length(); i++) {
+                        allelicProfile += line.charAt(i);
+                    }
                 }
-                allelicProfiles.add(new AllelicProfile(allelicProfile, allelicProfile.length));
             }
+            if (!allelicProfile.isEmpty()) { // add the last allelic profile
+                allelicProfiles.add(new AllelicProfile(
+                    allelicProfile.chars().mapToObj(c -> (char)c).toArray(Character[]::new), 
+                    allelicProfile.length())
+                );
+            }
+
             scanner.close();
         } catch (FileNotFoundException e) {
             e.printStackTrace();
@@ -48,7 +70,9 @@ public class Parser {
         try {
             FileReader filereader = new FileReader(filepath);
 
-            CSVReader csvReader = new CSVReader(filereader);
+            CSVReader csvReader = new CSVReaderBuilder(filereader)
+                .withCSVParser(new CSVParserBuilder().withSeparator('\t').build())
+                .build();
             String[] nextRecord;
 
             // skip header
@@ -68,7 +92,6 @@ public class Parser {
             e.printStackTrace();
         }
         catch (Exception e) {
-            System.out.println("Parser csvToTypingData exception: Unexpected error occurred.");
             e.printStackTrace();
         }
 

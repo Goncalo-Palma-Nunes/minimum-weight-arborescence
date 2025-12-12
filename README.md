@@ -41,3 +41,8 @@ If you just want to run a specific unit test from the a class of tests `<TestCla
 You can also use wild cards to run a set of tests. For example, the following command runs all the tests for the dynamic implementation of the minimum weight arborescence algorithm, by running all the tests whose class name starts with *FullyDynamic*:
 
 `mvn test -Dtest="FullyDyanmic*"`
+
+## Accepted file formats
+
+- Fasta files for allelic sequences
+- CSV (with tab delimitors) for typing data
