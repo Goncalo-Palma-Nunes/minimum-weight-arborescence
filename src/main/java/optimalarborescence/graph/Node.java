@@ -59,6 +59,14 @@ public class Node implements Serializable, Comparable<Node> {
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        Node other = (Node) obj;
+        return this.pointID == other.pointID && ((this.point == null && other.point == null) || this.point.equals(other.point));
+    }
+
+    @Override
     public String toString() {
         String neighborStr = neighbors.keySet().stream()
             .map(n -> n.getMLSTdata().toString())

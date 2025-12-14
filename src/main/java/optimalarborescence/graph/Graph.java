@@ -106,6 +106,33 @@ public class Graph implements Serializable{
         }
     }
 
+    /**
+     * Removes a node from the graph.
+     * Throws an exception if the node still has any incoming or outgoing edges.
+     * 
+     * @param node The node to remove
+     * @throws IllegalStateException if the node has any incoming or outgoing edges
+     */
+    public void removeNode(Node node) {
+        if (node == null) {
+            return;
+        }
+        
+        // Check for any edges involving this node
+        for (Edge edge : edges) {
+            if (edge.getSource().equals(node) || edge.getDestination().equals(node)) {
+                throw new IllegalStateException(
+                    "Cannot remove node " + node.getId() + ": node still has incident edges. " +
+                    "Remove all edges before removing the node.");
+            }
+        }
+        
+        // Remove the node and update count
+        if (nodes.remove(node)) {
+            numNodes--;
+        }
+    }
+
 
     /* ******************************************
      *

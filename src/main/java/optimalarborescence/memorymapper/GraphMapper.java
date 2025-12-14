@@ -109,20 +109,51 @@ public class GraphMapper {
     }
 
     /**
-     * Add a single node and its incoming edges to the graph files.
+     * Add a single node and its incident edges to the graph files.
+     * This method handles both incoming edges (edges to the new node) and outgoing edges
+     * (edges from the new node to existing nodes).
      *
-     * @param node
-     * @param incomingEdges
-     * @param baseName
-     * @param mlstLength
-     * @throws IOException
+     * @param node Node to add
+     * @param incomingEdges List of edges pointing TO the new node
+     * @param outgoingEdges List of edges FROM the new node to other nodes
+     * @param baseName Base name for files
+     * @param mlstLength Fixed length for MLST data
+     * @throws IOException if file operations fail
      */
-    public static void addNode(Node node, List<Edge> incomingEdges, String baseName, int mlstLength) throws IOException {
+    public static void addNode(Node node, List<Edge> incomingEdges, List<Edge> outgoingEdges, 
+                              String baseName, int mlstLength) throws IOException {
         String nodeFile = baseName + "_nodes.dat";
         String edgeFile = baseName + "_edges.dat";
 
+        // Add the node itself to the node index
         NodeIndexMapper.addNode(node, nodeFile, mlstLength);
+        
+        // Add incoming edges (stored as a linked list for this node)
         EdgeListMapper.addEdges(incomingEdges, node, edgeFile);
+        
+        // Add outgoing edges (each needs to be added to its destination's linked list)
+        for (Edge outgoingEdge : outgoingEdges) {
+            // Get the destination node's current incoming edge offset
+            long destOffset = NodeIndexMapper.getIncomingEdgeOffset(nodeFile, 
+                outgoingEdge.getDestination().getId());
+            
+            // Add this edge to the destination's incoming edge list
+            EdgeListMapper.addEdge(outgoingEdge, edgeFile);
+        }
+    }
+    
+    /**
+     * Add a single node and its incoming edges to the graph files.
+     * Use this overload when there are no outgoing edges from the new node.
+     *
+     * @param node Node to add
+     * @param incomingEdges List of edges pointing TO the new node
+     * @param baseName Base name for files
+     * @param mlstLength Fixed length for MLST data
+     * @throws IOException if file operations fail
+     */
+    public static void addNode(Node node, List<Edge> incomingEdges, String baseName, int mlstLength) throws IOException {
+        addNode(node, incomingEdges, List.of(), baseName, mlstLength);
     }
 
     public static void removeNode(Node node, String baseName, int mlstLength) throws IOException {
