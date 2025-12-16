@@ -2,7 +2,9 @@ package optimalarborescence.memorymapper;
 
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Graph;
+import optimalarborescence.graph.DirectedGraph;
 import optimalarborescence.graph.Node;
+import optimalarborescence.nearestneighbour.NearestNeighbourSearchAlgorithm;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,6 +41,7 @@ public class GraphMapper {
         NodeIndexMapper.saveGraph(graph, mlstLength, incomingEdgeOffsets, nodeFile);
     }
     
+
     /**
      * Load a graph from memory-mapped files.
      * 
@@ -66,6 +69,21 @@ public class GraphMapper {
         }
         
         return graph;
+    }
+
+    /**
+     * Load a directed graph from memory-mapped files.
+     * @param <T> Type of data in the graph nodes
+     * @param baseName Base name for input files
+     * @param nnAlgorithm Nearest neighbour search algorithm to use
+     * @param numNeighbors Maximum number of neighbours per node
+     * @return Loaded DirectedGraph object
+     * @throws IOException
+     */
+    public static <T> DirectedGraph<T> loadDirectedGraph(String baseName, NearestNeighbourSearchAlgorithm<T> nnAlgorithm, int numNeighbors) throws IOException {
+        Graph baseGraph = loadGraph(baseName); // TODO - refatorizar para não estar a criar 2 grafos
+        DirectedGraph<T> directedGraph = new DirectedGraph<>(nnAlgorithm, numNeighbors, baseGraph);
+        return directedGraph;
     }
 
     public static Map<Integer, Node> loadNodeMap(String baseName) throws IOException {

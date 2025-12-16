@@ -58,6 +58,17 @@ public class DirectedGraph<T> extends Graph {
         }
     }
 
+    public DirectedGraph(int maxNumNeighbours, List<Edge> edges, NearestNeighbourSearchAlgorithm<T> searchAlgorithm) {
+        this(searchAlgorithm, maxNumNeighbours);
+        for (Edge edge : edges) {
+            Node fromNode = edge.getSource();
+            Node toNode = edge.getDestination();
+            super.addNode(fromNode);
+            super.addNode(toNode);
+            super.addEdge(edge);
+        }
+    }
+
     /**
      * Adds a node to the graph and connects it to all existing nodes.
      *
