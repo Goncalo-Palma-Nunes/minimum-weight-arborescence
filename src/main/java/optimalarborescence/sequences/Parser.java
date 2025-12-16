@@ -65,8 +65,8 @@ public class Parser {
         return allelicProfiles;
     }
 
-    public static List<SequenceTypingData> csvToTypingData(String filepath) {
-        List<SequenceTypingData> typingDataList = new ArrayList<>();
+    public static List<Integer[]> readCSVLines(String filepath) {
+        List<Integer[]> typingDataList = new ArrayList<>();
         try {
             FileReader filereader = new FileReader(filepath);
 
@@ -80,11 +80,13 @@ public class Parser {
 
             while ((nextRecord = csvReader.readNext()) != null) {
                 Integer sequenceType = Integer.parseInt(nextRecord[0]); // not used currently
-                Integer[] typingDataSequence = new Integer[nextRecord.length - 1];
+                Integer[] typingDataSequence = new Integer[nextRecord.length];
+                typingDataSequence[0] = sequenceType;
                 for (int i = 1; i < nextRecord.length; i++) {
-                    typingDataSequence[i - 1] = Integer.parseInt(nextRecord[i]);
+                    typingDataSequence[i] = Integer.parseInt(nextRecord[i]);
                 }
-                typingDataList.add(new SequenceTypingData(typingDataSequence, typingDataSequence.length));
+                // typingDataList.add(new SequenceTypingData(typingDataSequence, typingDataSequence.length));
+                typingDataList.add(typingDataSequence);
             }
             csvReader.close();
         }
@@ -96,6 +98,20 @@ public class Parser {
         }
 
         return typingDataList;
+    }
+
+    public static List<SequenceTypingData> processedCSVToTypingData(List<Integer[]> rawData) {
+        List<SequenceTypingData> typingDataList = new ArrayList<>();
+        for (int i = 1; i < rawData.size(); i++) {
+            // start at 1 to skip ID column
+            Integer[] dataArray = rawData.get(i);
+            typingDataList.add(new SequenceTypingData(dataArray, dataArray.length));
+        }
+        return typingDataList;
+    }
+
+    public static int getSTFromProcessedCSVLine(Integer[] rawData) {
+        return rawData[0];
     }
 
 }

@@ -39,7 +39,9 @@ public class ParserTest {
 
     @Test
     public void testCsvToTypingData() {
-        List<SequenceTypingData> parsedTypingDataList = Parser.csvToTypingData(csvFilepath);
+        List<SequenceTypingData> parsedTypingDataList = Parser.processedCSVToTypingData(
+            Parser.readCSVLines(csvFilepath)
+        );
         assertEquals(typingDataList.size(), parsedTypingDataList.size());
         for (int i = 0; i < typingDataList.size(); i++) {
             assertArrayEquals(typingDataList.get(i).getData(), parsedTypingDataList.get(i).getData());

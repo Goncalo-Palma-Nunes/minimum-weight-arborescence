@@ -31,6 +31,12 @@ public class Node implements Serializable, Comparable<Node> {
         this.pointID = pointID;
     }
 
+    public Node(Point<?> point) {
+        this.point = point;
+        this.pointID = point.getId();
+        this.point.setNode(this);
+    }
+
     public Sequence<?> getMLSTdata() {
         return point.getSequence();
     }

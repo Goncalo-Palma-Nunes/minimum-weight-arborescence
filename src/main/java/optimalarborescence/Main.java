@@ -7,17 +7,22 @@ import optimalarborescence.sequences.*;
 import optimalarborescence.nearestneighbour.*;
 import optimalarborescence.inference.CameriniForest;
 import optimalarborescence.inference.dynamic.*;
+import optimalarborescence.memorymapper.GraphMapper;
 
 import java.util.List;
+import java.util.ArrayList;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 
 import javax.management.RuntimeErrorException;
 
 
 public class Main {
 
-    private static final List<String> SEQUENCE_TYPE = List.of("mlst", "allelic");
+    private static final String MLST = "mlst";
+    private static final String ALLELIC = "allelic";
+    private static final List<String> SEQUENCE_TYPE = List.of(MLST, ALLELIC);
     private static final String STATIC_ALGORITHM = "static";
     private static final String DYNAMIC_ALGORITHM = "dynamic";
     private static final String YES = "y";
@@ -37,6 +42,7 @@ public class Main {
         validateParameters(sequenceType, inputSequenceFile);
         
         String persistedGraphFile = null;
+        Graph g = null;
         if (args.length == 4) {
             persistedGraphFile = args[3];
             if (!fileExists(persistedGraphFile)) {
@@ -45,7 +51,10 @@ public class Main {
         }
 
         int numNeighbors = approximatesGraph();
+        g = initializeGraph(sequenceType, inputSequenceFile, numNeighbors, persistedGraphFile);
+
         String algorithmType = readAlgorithmType();
+        List<Point<?>> newPoints = processSequences(sequenceType, inputSequenceFile);
         
         switch (algorithmType) {
             case STATIC_ALGORITHM:
@@ -127,10 +136,50 @@ public class Main {
         return " ";
     }
 
-    private static Graph initializeGraph(String sequenceType, String inputFile, int numNeighbors) {
-        Graph graph;
+    private static List<Point<?>> processSequences(String sequenceType, String inputFile) {
+        List<Point<?>> points = new ArrayList<>();
+        
+        switch (sequenceType) {
+            case MLST:
+                List<Integer[]> rawMLSTData = Parser.readCSVLines(inputFile);
+                List<SequenceTypingData> mlstData = Parser.processedCSVToTypingData(rawMLSTData);
+                for (int i = 0; i < mlstData.size(); i++) {
+                    int identifier = Parser.getSTFromProcessedCSVLine(rawMLSTData.get(i));
+                    points.add(new Point<>(identifier, mlstData.get(i)));
+                }
+                break;
+            case ALLELIC:
+                List<AllelicProfile> allelicProfiles = Parser.fastaToAllelicProfiles(inputFile);
+
+                // TODO - estes IDs estão inválidos para os perfis alélicos
+                // - Criar IDs sequencialmete, se for a 1ª execução do algoritmo
+                // - Ou extrair do grafo persistido, se for uma continuação
+                for (int i = 0; i < allelicProfiles.size(); i++) {
+                    points.add(new Point<>(i, allelicProfiles.get(i)));
+                }
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported sequence type: " + sequenceType);
+        }
+        return points;
+    }
+
+    private static Graph initializeGraph(String sequenceType, String inputFile, 
+                                        int numNeighbors, String persistedGraphFile) throws IOException {
+        Graph graph = null;
+        if (persistedGraphFile != null) {
+            System.out.println("Loading persisted graph from file: " + persistedGraphFile);
+            graph = GraphMapper.loadGraph(persistedGraphFile);
+            System.out.println("Persisted graph loaded successfully.");
+            return graph;
+        }
+
+        List<Point<?>> points = processSequences(sequenceType, inputFile);
         if (numNeighbors > 0) { // approximate graph
-        } 
+            NearestNeighbourSearchAlgorithm<?> nnSearchAlgorithm = 
+                    new LSH(points);
+            graph = new DirectedGraph()
+        }
         else { // exact graph
         }
         return null;

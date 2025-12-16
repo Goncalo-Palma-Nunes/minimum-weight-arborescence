@@ -49,6 +49,15 @@ public class DirectedGraph<T> extends Graph {
         // this.NNSearchSerializationFilePath = NNSearchFilePath;
     }
 
+    public DirectedGraph(NearestNeighbourSearchAlgorithm<T> searchAlgorithm, int maxNumNeighbours, List<Point<T>> points) {
+        this(searchAlgorithm, maxNumNeighbours);
+        for (Point<T> point : points) {
+            Node node = new Node(point);
+            point.setNode(node);
+            this.addNode(node);
+        }
+    }
+
     /**
      * Adds a node to the graph and connects it to all existing nodes.
      *
