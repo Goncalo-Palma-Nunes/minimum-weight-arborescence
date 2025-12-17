@@ -102,10 +102,12 @@ public class Parser {
 
     public static List<SequenceTypingData> processedCSVToTypingData(List<Integer[]> rawData) {
         List<SequenceTypingData> typingDataList = new ArrayList<>();
-        for (int i = 1; i < rawData.size(); i++) {
-            // start at 1 to skip ID column
-            Integer[] dataArray = rawData.get(i);
-            typingDataList.add(new SequenceTypingData(dataArray, dataArray.length));
+        for (int i = 0; i < rawData.size(); i++) {
+            Integer[] fullArray = rawData.get(i);
+            // Extract only the allele columns (skip ST at index 0)
+            Integer[] alleles = new Integer[fullArray.length - 1];
+            System.arraycopy(fullArray, 1, alleles, 0, fullArray.length - 1);
+            typingDataList.add(new SequenceTypingData(alleles, alleles.length));
         }
         return typingDataList;
     }

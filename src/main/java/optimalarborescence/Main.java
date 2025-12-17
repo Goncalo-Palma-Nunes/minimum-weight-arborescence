@@ -15,10 +15,10 @@ import optimalarborescence.memorymapper.GraphMapper;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.security.spec.EdDSAParameterSpec;
 
 import javax.management.RuntimeErrorException;
 
@@ -36,18 +36,25 @@ public class Main {
     private static final String YES = "y";
     private static final String NO = "n";
     private static final String EXIT = "exit";
+    private static final String ADD = "add";
+    private static final String REMOVE = "remove";
+    private static final String UPDATE = "update";
+    private static final List<String> OPERATION_TYPE = List.of(ADD, REMOVE, UPDATE);
+    private static final Comparator<Edge> EDGE_COMPARATOR = 
+        (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
     
     
-    public static void main(String[] args) throws FileNotFoundException {
+    public static void main(String[] args) throws FileNotFoundException, IOException {
         
-        if (args.length < 3 || args.length > 4) {
-            System.err.println("Wrong Invocation: java -jar OptimalArborescence.jar <sequence_type> <input_sequence_file> <output_file> [<persisted_graph_file>]\nWhere:\n\t- <sequence_type> is either 'mlst' or 'allelic'\n\t- <input_sequence_file> is the path to the input sequence file\n\t- <output_file> is the path to the output file\n\t- <persisted_graph_file> is an optional path to a persisted graph file to continue from a previous run.");
+        if (args.length < 4 || args.length > 5) {
+            System.err.println("Wrong Invocation: java -jar OptimalArborescence.jar <sequence_type> <input_sequence_file> <output_file> <operation_type> [<persisted_graph_file>]\nWhere:\n\t- <sequence_type> is either 'mlst' or 'allelic'\n\t- <input_sequence_file> is the path to the input sequence file\n\t- <output_file> is the path to the output file\n\t- <operation_type> is either 'add', 'remove', or 'update'\n\t - <persisted_graph_file> is an optional path to a persisted graph file to continue from a previous run.");
             System.exit(1);
         }
         String sequenceType = args[0];
         sequenceType = sequenceType.toLowerCase();
         String inputSequenceFile = args[1]; String outputFile = args[2];
-        validateParameters(sequenceType, inputSequenceFile);
+        String operationType = args[3].toLowerCase();
+        validateParameters(sequenceType, inputSequenceFile, operationType);
         
         String persistedGraphFile = null;
         int sequenceLength = -1;
@@ -71,10 +78,13 @@ public class Main {
         
         switch (algorithmType) {
             case STATIC_ALGORITHM:
-                runStaticCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors);
+                runStaticCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, g, operationType);
                 break;
             case DYNAMIC_ALGORITHM:
-                runDynamicCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors);
+                // runDynamicCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors);
+                break;
+            case NEIGHBOR_JOINING:
+                // runNeighborJoiningAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors);
                 break;
             default:
                 throw new RuntimeErrorException(new Error("Something went wrong while selecting the algorithm type."));
@@ -110,12 +120,15 @@ public class Main {
         return -1;
     }
 
-    private static void validateParameters(String sequenceType, String inputFile) throws FileNotFoundException {
+    private static void validateParameters(String sequenceType, String inputFile, String operationType) throws FileNotFoundException {
         if (!validSequenceType(sequenceType)) {
             throw new IllegalArgumentException("Invalid sequence type: " + sequenceType + ". Valid types are: " + SEQUENCE_TYPE);
         }
         if (!fileExists(inputFile)) {
             throw new FileNotFoundException("Input file does not exist: " + inputFile);
+        }
+        if (!OPERATION_TYPE.contains(operationType)) {
+            throw new IllegalArgumentException("Invalid operation type: " + operationType + ". Valid types are: " + OPERATION_TYPE);
         }
     }
 
@@ -293,5 +306,66 @@ public class Main {
             }
         }
         return new Graph(edges);
+    }
+
+    private static List<Edge> runStaticCameriniAlgorithm(String sequenceType, String inputFile, String outputFile, int numNeighbors, List<Point<?>> points, String persistedGraphFile, Graph g, String operationType) throws IOException {
+
+        List<Node> nodesToProcess = null;
+        if (persistedGraphFile != null) {
+            // Just add/remove/update nodes from the persisted graph
+            nodesToProcess = points.stream().map(p -> new Node(p.getSequence(), p.getId())).toList();
+            switch (operationType) {
+                case ADD:
+                    g.addNodes(nodesToProcess);
+                    break;
+                case REMOVE:
+                    g.removeNodes(nodesToProcess);
+                    break;
+                case UPDATE:
+                    g.removeNodes(nodesToProcess);
+                    g.addNodes(nodesToProcess);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unsupported operation type: " + operationType);
+                
+            }
+        }
+        CameriniForest camerini = new CameriniForest(g, EDGE_COMPARATOR);
+        List<Edge> edges = camerini.inferPhylogeny(g).getEdges();
+
+        if (persistedGraphFile != null) {
+            saveChanges(g, persistedGraphFile, outputFile, points, operationType);
+        }
+        else {
+            GraphMapper.saveGraph(g, points.get(0).getSequence().getLength(), outputFile);
+        }
+        return edges;
+    }
+
+    private static void saveChanges(Graph g, String persistedGraphFile, String outputFile, List<Point<?>> points, String operationType) throws IOException {
+        switch (operationType) {
+            case ADD:
+                for (Node node : g.getNodes()) {
+                    List<Edge> incomingEdges = g.getNodeIncomingEdges(node);
+                    GraphMapper.addNode(node, incomingEdges, outputFile, points.get(0).getSequence().getLength());
+                }
+                break;
+            case REMOVE:
+                for (Node node : g.getNodes()) {
+                    GraphMapper.removeNode(node, outputFile, points.get(0).getSequence().getLength());
+                }
+                break;
+            case UPDATE:
+                for (Node node : g.getNodes()) {
+                    GraphMapper.removeNode(node, outputFile, points.get(0).getSequence().getLength());
+                }
+                for (Node node : g.getNodes()) {
+                    List<Edge> incomingEdges = g.getNodeIncomingEdges(node);
+                    GraphMapper.addNode(node, incomingEdges, outputFile, points.get(0).getSequence().getLength());
+                }
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported operation type: " + operationType);
+        }
     }
 }

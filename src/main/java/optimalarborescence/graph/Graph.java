@@ -5,6 +5,7 @@ import java.io.*;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 
 public class Graph implements Serializable{
     
@@ -107,25 +108,17 @@ public class Graph implements Serializable{
     }
 
     /**
-     * Removes a node from the graph.
-     * Throws an exception if the node still has any incoming or outgoing edges.
+     * Removes a node from the graph. Also removes any edge incident or outgoing from this node.
      * 
      * @param node The node to remove
-     * @throws IllegalStateException if the node has any incoming or outgoing edges
      */
     public void removeNode(Node node) {
         if (node == null) {
             return;
         }
         
-        // Check for any edges involving this node
-        for (Edge edge : edges) {
-            if (edge.getSource().equals(node) || edge.getDestination().equals(node)) {
-                throw new IllegalStateException(
-                    "Cannot remove node " + node.getId() + ": node still has incident edges. " +
-                    "Remove all edges before removing the node.");
-            }
-        }
+        // Remove edges incident or outgoing from this node
+        edges.removeIf(edge -> edge.getSource().equals(node) || edge.getDestination().equals(node));
         
         // Remove the node and update count
         if (nodes.remove(node)) {
@@ -133,6 +126,33 @@ public class Graph implements Serializable{
         }
     }
 
+    public void addNodes(List<Node> nodesToAdd) {
+        for (Node node : nodesToAdd) {
+            addNode(node);
+        }
+    }
+
+    public void removeNodes(List<Node> nodesToRemove) {
+        for (Node node : nodesToRemove) {
+            removeNode(node);
+        }
+    }
+    
+    public List<Edge> getNodeIncomingEdges(Node node) {
+        List<Edge> incomingEdges = new ArrayList<>();
+        for (Edge edge : edges) {
+            if (edge.getDestination().equals(node)) {
+                incomingEdges.add(edge);
+            }
+        }
+        return incomingEdges;
+    }
+
+    public List<Edge> getNodeOutgoingEdges(Node node) {
+        return node.getNeighbors().entrySet().stream()
+            .map(entry -> new Edge(node, entry.getKey(), entry.getValue()))
+            .toList();
+    }
 
     /* ******************************************
      *
