@@ -15,6 +15,7 @@ import optimalarborescence.memorymapper.GraphMapper;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Comparator;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -81,7 +82,7 @@ public class Main {
                 runStaticCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, g, operationType);
                 break;
             case DYNAMIC_ALGORITHM:
-                // runDynamicCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors);
+                runDynamicCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, g, operationType);
                 break;
             case NEIGHBOR_JOINING:
                 // runNeighborJoiningAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors);
@@ -345,27 +346,128 @@ public class Main {
     private static void saveChanges(Graph g, String persistedGraphFile, String outputFile, List<Point<?>> points, String operationType) throws IOException {
         switch (operationType) {
             case ADD:
-                for (Node node : g.getNodes()) {
+                for (Node node : g.getNodes()) { // TODO - iterar sobre nós ou pontos? Acho que é pontos
                     List<Edge> incomingEdges = g.getNodeIncomingEdges(node);
                     GraphMapper.addNode(node, incomingEdges, outputFile, points.get(0).getSequence().getLength());
                 }
                 break;
             case REMOVE:
-                for (Node node : g.getNodes()) {
+                for (Node node : g.getNodes()) { // TODO - iterar sobre nós ou pontos? Acho que é pontos
                     GraphMapper.removeNode(node, outputFile, points.get(0).getSequence().getLength());
                 }
                 break;
             case UPDATE:
-                for (Node node : g.getNodes()) {
+                for (Node node : g.getNodes()) { // TODO - iterar sobre nós ou pontos? Acho que é pontos
                     GraphMapper.removeNode(node, outputFile, points.get(0).getSequence().getLength());
                 }
-                for (Node node : g.getNodes()) {
+                for (Node node : g.getNodes()) { // TODO - iterar sobre nós ou pontos? Acho que é pontos
                     List<Edge> incomingEdges = g.getNodeIncomingEdges(node);
                     GraphMapper.addNode(node, incomingEdges, outputFile, points.get(0).getSequence().getLength());
                 }
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported operation type: " + operationType);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Edge> runDynamicCameriniAlgorithm(String sequenceType, String inputFile, String outputFile, int numNeighbors, List<Point<?>> points, String persistedGraphFile, Graph g, String operationType) throws IOException {
+        // if (!(g instanceof DirectedGraph<?>)) {
+        //     throw new IllegalArgumentException("Graph must be a DirectedGraph for the Dynamic Camerini Algorithm.");
+        // }
+        SerializableDynamicTarjanArborescence dynamicCamerini;
+        FullyDynamicArborescence dynamicAlgorithm;
+        List<Edge> edges;
+        if (persistedGraphFile != null ) {
+            DirectedGraph<Object> directedGraph = (DirectedGraph<Object>) g;
+            int sequenceLength = points.get(0).getSequence().getLength();
+            dynamicCamerini = new SerializableDynamicTarjanArborescence(inputFile, sequenceLength, g);
+
+            // stream and cast dynamicCamerini.getRoots() to List<ATreeNode>
+            List<ATreeNode> roots = dynamicCamerini.getRoots().stream()
+                .map(root -> (ATreeNode) root)
+                .toList();
+            dynamicAlgorithm = new SerializableFullyDynamicArborescence(g, roots, dynamicCamerini);
+
+            switch (operationType) {
+                case ADD:
+                    addEdgesForPoints(directedGraph, (List<Point<Object>>) (List<?>) points, dynamicAlgorithm);
+                    break;
+                case REMOVE:
+                    removeEdgesForPoints(directedGraph, (List<Point<Object>>) (List<?>) points, dynamicAlgorithm, g);
+                    break;
+                case UPDATE:
+                    updateEdgesForPoints(directedGraph, (List<Point<Object>>) (List<?>) points, dynamicAlgorithm, g);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unsupported operation type: " + operationType);
+            }
+            edges = dynamicAlgorithm.getCurrentArborescence();
+        }
+        else { // first time running the algorithm
+            dynamicCamerini = new SerializableDynamicTarjanArborescence(
+                new ArrayList<>(), new ArrayList<>(), new HashMap<>(), g);
+            dynamicAlgorithm = new SerializableFullyDynamicArborescence(g, new ArrayList<>(), dynamicCamerini);
+            edges = dynamicAlgorithm.inferPhylogeny(g).getEdges();
+        }
+
+        return edges;
+    }
+
+    private static <T> void addEdgesForPoints(DirectedGraph<T> graph, List<Point<T>> points, FullyDynamicArborescence algorithm) {
+        for (Point<T> point : points) {
+            List<Point<T>> neighbors = graph.getNeighbors(point);
+            List<Edge> edges = graph.getNNEdges(neighbors, new Node(point.getSequence(), point.getId()));
+            for (Edge edge : edges) {
+                algorithm.addEdge(edge);
+            }
+        }
+    }
+
+    private static <T> void removeEdgesForPoints(DirectedGraph<T> graph, List<Point<T>> points, FullyDynamicArborescence algorithm, Graph g) {
+        for (Point<T> point : points) {
+            Node nodeToRemove = new Node(point.getSequence(), point.getId());
+            
+            // Get all edges connected to this node (both incoming and outgoing)
+            List<Edge> incomingEdges = g.getNodeIncomingEdges(nodeToRemove);
+            List<Edge> outgoingEdges = g.getNodeOutgoingEdges(nodeToRemove);
+            
+            // Remove incoming edges from the dynamic algorithm
+            for (Edge edge : incomingEdges) {
+                algorithm.removeEdge(edge);
+            }
+            
+            // Remove outgoing edges from the dynamic algorithm
+            for (Edge edge : outgoingEdges) {
+                algorithm.removeEdge(edge);
+            }
+        }
+    }
+
+    private static <T> void updateEdgesForPoints(DirectedGraph<T> graph, List<Point<T>> points, FullyDynamicArborescence algorithm, Graph g) {
+        for (Point<T> point : points) {
+            Node nodeToUpdate = new Node(point.getSequence(), point.getId());
+            
+            // Get all edges connected to this node (both incoming and outgoing)
+            List<Edge> incomingEdges = g.getNodeIncomingEdges(nodeToUpdate);
+            List<Edge> outgoingEdges = g.getNodeOutgoingEdges(nodeToUpdate);
+            
+            // Remove incoming edges from the dynamic algorithm
+            for (Edge edge : incomingEdges) {
+                algorithm.removeEdge(edge);
+            }
+            
+            // Remove outgoing edges from the dynamic algorithm
+            for (Edge edge : outgoingEdges) {
+                algorithm.removeEdge(edge);
+            }
+
+            // Re-add updated edges
+            List<Point<T>> neighbors = graph.getNeighbors(point);
+            List<Edge> newEdges = graph.getNNEdges(neighbors, nodeToUpdate);
+            for (Edge edge : newEdges) {
+                algorithm.addEdge(edge);
+            }
         }
     }
 }

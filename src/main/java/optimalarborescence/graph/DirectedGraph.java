@@ -4,6 +4,7 @@ import optimalarborescence.nearestneighbour.NearestNeighbourSearchAlgorithm;
 import optimalarborescence.nearestneighbour.Point;
 
 import java.util.List;
+import java.util.ArrayList;
 
 public class DirectedGraph<T> extends Graph {
 
@@ -95,5 +96,41 @@ public class DirectedGraph<T> extends Graph {
                 super.addEdge(new Edge(neighborNode, node, distance));
             }
         }
+    }
+
+    /**
+     * Gets the nearest neighbour search algorithm used by this directed graph.
+     * @return The nearest neighbour search algorithm
+     */
+    public NearestNeighbourSearchAlgorithm<T> getNnSearch() {
+        return nnSearch;
+    }
+
+    /**
+     * Gets the neighbors of a given point in the directed graph.
+     * @param point The point for which to find neighbors
+     * @return List of neighboring points
+     */
+    public List<Point<T>> getNeighbors(Point<T> point) {
+        return nnSearch.neighbourSearch(point, this.maxNumNeighbours);
+    }
+
+    /**
+     * Gets the edges from a node to its nearest neighbours.
+     * @param neighboringPoints List of neighboring points
+     * @param node The node from which to get edges
+     * @return List of edges to nearest neighbours
+     */
+    public List<Edge> getNNEdges(List<Point<T>> neighboringPoints, Node node) {
+        List<Edge> edges = new ArrayList<>();
+
+        for (Point<T> point : neighboringPoints) {
+            Node neighborNode = point.getNode();
+            if (neighborNode != null) {
+                int distance = (int) nnSearch.getDistanceFunction().calculate(node.getMLSTdata(), neighborNode.getMLSTdata());
+                edges.add(new Edge(point.getNode(), neighborNode, distance));
+            }
+        }
+        return edges;
     }
 }
