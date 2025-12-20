@@ -4,6 +4,8 @@ import optimalarborescence.graph.Node;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.DirectedGraph;
+import optimalarborescence.graph.PhylogeneticData;
+import optimalarborescence.graph.DistanceMatrix;
 import optimalarborescence.distance.DistanceFunction;
 import optimalarborescence.distance.HammingDistance;
 import optimalarborescence.exception.NotImplementedException;
@@ -11,6 +13,7 @@ import optimalarborescence.sequences.*;
 import optimalarborescence.nearestneighbour.*;
 import optimalarborescence.inference.CameriniForest;
 import optimalarborescence.inference.dynamic.*;
+import optimalarborescence.inference.NeighbourJoining;
 import optimalarborescence.memorymapper.GraphMapper;
 
 import java.util.List;
@@ -59,7 +62,7 @@ public class Main {
         
         String persistedGraphFile = null;
         int sequenceLength = -1;
-        Graph g = null;
+        PhylogeneticData g = null;
         if (args.length == 4) {
             persistedGraphFile = args[3];
             if (!fileExists(persistedGraphFile)) {
@@ -67,25 +70,36 @@ public class Main {
             }
         }
 
-        int numNeighbors = approximatesGraph();
+        String algorithmType = readAlgorithmType();
+        int numNeighbors = -1;
+        if (!algorithmType.equals(NEIGHBOR_JOINING)) {
+            // NJ always uses the full graph
+            numNeighbors = approximatesGraph();
+        }
         List<Point<?>> newPoints = processSequences(sequenceType, inputSequenceFile);
         NearestNeighbourSearchAlgorithm<?> nnAlgorithm = null;
         if (numNeighbors > 0) {
             sequenceLength = newPoints.get(0).getSequence().getLength();
             nnAlgorithm = selectNNAlgorithm(sequenceType, sequenceLength);
         }
-        g = initializeGraph(sequenceType, inputSequenceFile, numNeighbors, persistedGraphFile, nnAlgorithm, newPoints);
-        String algorithmType = readAlgorithmType();
+        g = initializeGraph(sequenceType, inputSequenceFile, numNeighbors, persistedGraphFile, nnAlgorithm, newPoints, algorithmType, operationType);
         
+        Graph graph;
         switch (algorithmType) {
             case STATIC_ALGORITHM:
-                runStaticCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, g, operationType);
+                graph = (Graph) g;
+                runStaticCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, graph, operationType);
                 break;
             case DYNAMIC_ALGORITHM:
-                runDynamicCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, g, operationType);
+                graph = (Graph) g;
+                runDynamicCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, graph, operationType);
                 break;
             case NEIGHBOR_JOINING:
-                // runNeighborJoiningAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors);
+                DistanceMatrix distanceMatrix = (DistanceMatrix) g;
+                NeighbourJoining nj = new NeighbourJoining(distanceMatrix, distanceMatrix.getDistanceFunction());
+                graph = nj.inferPhylogeny(null);
+
+                // TODO - save the graph
                 break;
             default:
                 throw new RuntimeErrorException(new Error("Something went wrong while selecting the algorithm type."));
@@ -153,6 +167,8 @@ public class Main {
                 return STATIC_ALGORITHM;
             } else if (response.equals(DYNAMIC_ALGORITHM)) {
                 return DYNAMIC_ALGORITHM;
+            } else if (response.equals(NEIGHBOR_JOINING)) {
+                return NEIGHBOR_JOINING;
             } else if (response.equals(EXIT)) {
                 System.out.println("Exiting the program.");
                 System.exit(0);
@@ -193,19 +209,48 @@ public class Main {
         return points;
     }
 
-    private static Graph initializeGraph(String sequenceType, String inputFile, 
+    private static PhylogeneticData initializeGraph(String sequenceType, String inputFile, 
                                         int numNeighbors, String persistedGraphFile,
-                                        NearestNeighbourSearchAlgorithm<?> nnAlgorithm, List<Point<?>> points) throws IOException {
+                                        NearestNeighbourSearchAlgorithm<?> nnAlgorithm, List<Point<?>> points,
+                                        String algorithmType, String operationType) throws IOException {
+
         if (persistedGraphFile != null) {
             if (numNeighbors > 0) {
                 return GraphMapper.loadDirectedGraph(persistedGraphFile, nnAlgorithm, numNeighbors);
             } 
             else {
-                return GraphMapper.loadGraph(persistedGraphFile);
+                Graph g = GraphMapper.loadGraph(persistedGraphFile);
+                if (algorithmType.equals(NEIGHBOR_JOINING)) {
+                    // Convert to DistanceMatrix
+                    List<Point<?>> graphPoints = new ArrayList<>(g.getNodes().stream()
+                        .map(n -> n.getPoint())
+                        .toList());
+                    switch (operationType) { // TODO - pensar em como optimizar/re-aproveitar as distâncias já calculadas
+                        case ADD:
+                            graphPoints.addAll(points);
+                            break;
+                        case REMOVE:
+                            graphPoints.removeAll(points);
+                            break;
+                        case UPDATE:
+                            graphPoints.removeAll(points);
+                            graphPoints.addAll(points);
+                            break;
+                        default:
+                            throw new IllegalArgumentException("Unsupported operation type: " + operationType);
+                    }
+
+                    return new DistanceMatrix(new HammingDistance(), graphPoints);
+                }
+                return g;
             }
         }
 
-        if (numNeighbors > 0) { // approximate graph
+        if (algorithmType.equals(NEIGHBOR_JOINING)) {
+            // Create full DistanceMatrix from points
+            return new DistanceMatrix(new HammingDistance(), points);
+        }
+        else if (numNeighbors > 0) { // approximate graph
             switch (sequenceType) {
                 case MLST:
                     return createMLSTDirectedGraph(nnAlgorithm, numNeighbors, points);

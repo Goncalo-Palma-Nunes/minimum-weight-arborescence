@@ -7,10 +7,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-public class Graph implements Serializable{
+public class Graph implements Serializable, PhylogeneticData {
     
     private List<Node> nodes;
-    private List<Edge> edges; // TODO - forma eficiente de representar para dar delete de arestas e nós facilmente?
+    private List<Edge> edges;
     private int numNodes;
     private int numEdges;
 
