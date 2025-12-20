@@ -346,21 +346,25 @@ public class Main {
     private static void saveChanges(Graph g, String persistedGraphFile, String outputFile, List<Point<?>> points, String operationType) throws IOException {
         switch (operationType) {
             case ADD:
-                for (Node node : g.getNodes()) { // TODO - iterar sobre nós ou pontos? Acho que é pontos
+                for (Point<?> point : points) {
+                    Node node = new Node(point);
                     List<Edge> incomingEdges = g.getNodeIncomingEdges(node);
                     GraphMapper.addNode(node, incomingEdges, outputFile, points.get(0).getSequence().getLength());
                 }
                 break;
             case REMOVE:
-                for (Node node : g.getNodes()) { // TODO - iterar sobre nós ou pontos? Acho que é pontos
+                for (Point<?> point : points) {
+                    Node node = new Node(point);
                     GraphMapper.removeNode(node, outputFile, points.get(0).getSequence().getLength());
                 }
                 break;
             case UPDATE:
-                for (Node node : g.getNodes()) { // TODO - iterar sobre nós ou pontos? Acho que é pontos
+                for (Point<?> point : points) {
+                    Node node = new Node(point);
                     GraphMapper.removeNode(node, outputFile, points.get(0).getSequence().getLength());
                 }
-                for (Node node : g.getNodes()) { // TODO - iterar sobre nós ou pontos? Acho que é pontos
+                for (Point<?> point : points) {
+                    Node node = new Node(point);
                     List<Edge> incomingEdges = g.getNodeIncomingEdges(node);
                     GraphMapper.addNode(node, incomingEdges, outputFile, points.get(0).getSequence().getLength());
                 }
