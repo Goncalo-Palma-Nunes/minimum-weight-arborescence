@@ -6,14 +6,26 @@ import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Random;
 import java.util.stream.Collectors;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 
 import java.util.Set;
 import java.util.TreeSet;
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.kryo.serializers.JavaSerializer;
 
 import org.apache.commons.math3.util.CombinatoricsUtils;
 
 import optimalarborescence.distance.DistanceFunction;
+import optimalarborescence.distance.HammingDistance;
+import optimalarborescence.sequences.Sequence;
+import optimalarborescence.sequences.SequenceTypingData;
+import optimalarborescence.sequences.AllelicProfile;
+import optimalarborescence.graph.Node;
 import optimalarborescence.exception.NotImplementedException;
 
 /* TODO (importante) - Acho que há um bug com o parâmetero widthConcatenatedHashes
@@ -255,6 +267,79 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
         return result;
     }
 
+
+    /****************************************
+     *              Serialization           *
+     ****************************************/
+
+    /**
+     * Configures and returns a Kryo instance with all necessary classes registered.
+     * This ensures consistent serialization/deserialization.
+     * 
+     * @return Configured Kryo instance
+     */
+    private static Kryo createKryoInstance() {
+        Kryo kryo = new Kryo();
+        kryo.setRegistrationRequired(false); // Allow unregistered classes for flexibility
+        
+        // Register LSH-specific classes
+        kryo.register(LSH.class);
+        kryo.register(Hash.class);
+        
+        // Register collection types
+        kryo.register(ArrayList.class);
+        kryo.register(HashSet.class);
+        kryo.register(TreeSet.class);
+        kryo.register(Hashtable.class);
+        
+        // Register Point and related classes
+        kryo.register(Point.class);
+        kryo.register(Node.class);
+        
+        // Register Sequence types - use JavaSerializer for compatibility with arrays
+        kryo.register(Sequence.class, new JavaSerializer());
+        kryo.register(SequenceTypingData.class, new JavaSerializer());
+        kryo.register(AllelicProfile.class, new JavaSerializer());
+        kryo.register(Integer[].class);
+        kryo.register(Character[].class);
+        kryo.register(byte[].class);
+        
+        // Register DistanceFunction implementations
+        kryo.register(HammingDistance.class);
+        
+        return kryo;
+    }
+
+    /**
+     * Saves an LSH instance to a file using Kryo serialization.
+     * 
+     * @param lsh The LSH instance to save
+     * @param filePath The path where the LSH should be saved
+     * @throws IOException If an I/O error occurs during saving
+     */
+    public static <T> void saveLSH(LSH<T> lsh, String filePath) throws IOException {
+        Kryo kryo = createKryoInstance();
+        
+        try (Output output = new Output(new FileOutputStream(filePath))) {
+            kryo.writeObject(output, lsh);
+        }
+    }
+
+    /**
+     * Loads an LSH instance from a file using Kryo deserialization.
+     * 
+     * @param filePath The path to the saved LSH file
+     * @return The deserialized LSH instance
+     * @throws IOException If an I/O error occurs during loading
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> LSH<T> loadLSH(String filePath) throws IOException {
+        Kryo kryo = createKryoInstance();
+        
+        try (Input input = new Input(new FileInputStream(filePath))) {
+            return (LSH<T>) kryo.readObject(input, LSH.class);
+        }
+    }
 
     /****************************************
      *              Debug                   *

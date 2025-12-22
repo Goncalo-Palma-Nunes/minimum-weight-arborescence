@@ -8,6 +8,13 @@ public class Point<T> {
     private Sequence<T> sequence;
     private Node node; // Associated node
 
+    // No-arg constructor for Kryo serialization
+    private Point() {
+        this.id = -1;
+        this.sequence = null;
+        this.node = null;
+    }
+
     public Point(int id, Sequence<T> sequence) {
         this.id = id;
         this.sequence = sequence;

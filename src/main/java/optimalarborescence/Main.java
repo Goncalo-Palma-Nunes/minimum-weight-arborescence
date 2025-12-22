@@ -80,7 +80,7 @@ public class Main {
         NearestNeighbourSearchAlgorithm<?> nnAlgorithm = null;
         if (numNeighbors > 0) {
             sequenceLength = newPoints.get(0).getSequence().getLength();
-            nnAlgorithm = selectNNAlgorithm(sequenceType, sequenceLength);
+            nnAlgorithm = selectNNAlgorithm(sequenceType, sequenceLength, persistedGraphFile);
         }
         g = initializeGraph(sequenceType, inputSequenceFile, numNeighbors, persistedGraphFile, nnAlgorithm, newPoints, algorithmType, operationType);
         
@@ -103,6 +103,13 @@ public class Main {
                 break;
             default:
                 throw new RuntimeErrorException(new Error("Something went wrong while selecting the algorithm type."));
+        }
+
+        if (g instanceof DirectedGraph<?>) {
+            // Serialize the Nearest Neighbour Search Algorithm parameters if applicable
+            if (nnAlgorithm != null && nnAlgorithm instanceof optimalarborescence.nearestneighbour.LSH<?>) {
+                serializeNNAlgorithm(nnAlgorithm, persistedGraphFile, outputFile);
+            }
         }
     }
 
@@ -281,7 +288,7 @@ public class Main {
         return NN_ALGORITHMS.contains(response);
     }
 
-    private static NearestNeighbourSearchAlgorithm<?> selectNNAlgorithm(String sequenceType, int sequenceLength) {
+    private static NearestNeighbourSearchAlgorithm<?> selectNNAlgorithm(String sequenceType, int sequenceLength, String persistedGraphFile) throws IOException {
         System.out.println("Select the Nearest Neighbour Search Algorithm:\n'"+ LSH + "' for Locality Sensitive Hashing\nEnter " + EXIT + " to quit.");
         String response = "";
 
@@ -289,6 +296,25 @@ public class Main {
             response = System.console().readLine().trim().toLowerCase();
             switch (response) {
                 case LSH:
+                    if (persistedGraphFile != null) {
+                        // Load previously saved LSH parameters
+                        try {
+                            String lshParamsFile = persistedGraphFile;
+
+                            // replace file extension with .lshparams
+                            int dotIndex = lshParamsFile.lastIndexOf('.');
+                            if (dotIndex != -1) {
+                                lshParamsFile = lshParamsFile.substring(0, dotIndex) + ".lshparams";
+                            } else {
+                                lshParamsFile = lshParamsFile + ".lshparams";
+                            }
+
+                            return optimalarborescence.nearestneighbour.LSH.loadLSH(lshParamsFile);
+                        }
+                        catch (Exception e) { // File doesn't exist or can't be loaded
+                            break; // proceed to build new LSH
+                        }
+                    }
                     return buildLSH(sequenceLength);
                 case EXIT:
                     System.out.println("Exiting the program.");
@@ -518,5 +544,26 @@ public class Main {
                 algorithm.addEdge(edge);
             }
         }
+    }
+
+    private static void serializeNNAlgorithm(NearestNeighbourSearchAlgorithm<?> nnAlgorithm, String persistedGraphFile, String outputFile) throws IOException {
+        String lshParamsFile;
+        if (persistedGraphFile != null) {
+            lshParamsFile = persistedGraphFile;
+            // replace file extension with .lshparams
+            int dotIndex = lshParamsFile.lastIndexOf('.');
+            if (dotIndex != -1) {
+                lshParamsFile = lshParamsFile.substring(0, dotIndex) + ".lshparams";
+            } else {
+                lshParamsFile = lshParamsFile + ".lshparams";
+            }
+        }
+        else {
+            throw new IllegalArgumentException("Persisted graph file must be provided to serialize the NN algorithm.");
+        }
+        optimalarborescence.nearestneighbour.LSH.saveLSH(
+            (optimalarborescence.nearestneighbour.LSH<?>) nnAlgorithm, 
+            lshParamsFile
+        );
     }
 }
