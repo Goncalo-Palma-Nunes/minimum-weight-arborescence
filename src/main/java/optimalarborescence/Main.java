@@ -36,6 +36,7 @@ public class Main {
     private static final String DYNAMIC_ALGORITHM = "dynamic";
     private static final String NEIGHBOR_JOINING = "neighborJoining";
     private static final String LSH = "lsh";
+    private static final String LSH_EXTENSION = ".lshparams";
     private static final List<String> NN_ALGORITHMS = List.of(LSH);
     private static final String YES = "y";
     private static final String NO = "n";
@@ -304,9 +305,9 @@ public class Main {
                             // replace file extension with .lshparams
                             int dotIndex = lshParamsFile.lastIndexOf('.');
                             if (dotIndex != -1) {
-                                lshParamsFile = lshParamsFile.substring(0, dotIndex) + ".lshparams";
+                                lshParamsFile = lshParamsFile.substring(0, dotIndex) + LSH_EXTENSION;
                             } else {
-                                lshParamsFile = lshParamsFile + ".lshparams";
+                                lshParamsFile = lshParamsFile + LSH_EXTENSION;
                             }
 
                             return optimalarborescence.nearestneighbour.LSH.loadLSH(lshParamsFile);
@@ -553,9 +554,9 @@ public class Main {
             // replace file extension with .lshparams
             int dotIndex = lshParamsFile.lastIndexOf('.');
             if (dotIndex != -1) {
-                lshParamsFile = lshParamsFile.substring(0, dotIndex) + ".lshparams";
+                lshParamsFile = lshParamsFile.substring(0, dotIndex) + LSH_EXTENSION;
             } else {
-                lshParamsFile = lshParamsFile + ".lshparams";
+                lshParamsFile = lshParamsFile + LSH_EXTENSION;
             }
         }
         else {
