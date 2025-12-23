@@ -164,8 +164,8 @@ public class ATreeMapper {
         
         // Write edge data (use -1 for null/root)
         if (edge != null) {
-            mbb.putInt(edge.getSource().getID());
-            mbb.putInt(edge.getDestination().getID());
+            mbb.putInt(edge.getSource().getId());
+            mbb.putInt(edge.getDestination().getId());
             mbb.putInt(edge.getWeight());
         } else {
             mbb.putInt(-1); // source
@@ -203,8 +203,8 @@ public class ATreeMapper {
         
         if (numContractedEdges > 0) {
             for (Edge contractedEdge : contractedEdges) {
-                mbb.putInt(contractedEdge.getSource().getID());
-                mbb.putInt(contractedEdge.getDestination().getID());
+                mbb.putInt(contractedEdge.getSource().getId());
+                mbb.putInt(contractedEdge.getDestination().getId());
                 mbb.putInt(contractedEdge.getWeight());
             }
         }

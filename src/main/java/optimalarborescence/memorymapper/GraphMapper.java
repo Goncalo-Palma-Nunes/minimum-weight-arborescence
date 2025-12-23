@@ -2,7 +2,9 @@ package optimalarborescence.memorymapper;
 
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Graph;
+import optimalarborescence.graph.DirectedGraph;
 import optimalarborescence.graph.Node;
+import optimalarborescence.nearestneighbour.NearestNeighbourSearchAlgorithm;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,6 +41,7 @@ public class GraphMapper {
         NodeIndexMapper.saveGraph(graph, mlstLength, incomingEdgeOffsets, nodeFile);
     }
     
+
     /**
      * Load a graph from memory-mapped files.
      * 
@@ -66,6 +69,21 @@ public class GraphMapper {
         }
         
         return graph;
+    }
+
+    /**
+     * Load a directed graph from memory-mapped files.
+     * @param <T> Type of data in the graph nodes
+     * @param baseName Base name for input files
+     * @param nnAlgorithm Nearest neighbour search algorithm to use
+     * @param numNeighbors Maximum number of neighbours per node
+     * @return Loaded DirectedGraph object
+     * @throws IOException
+     */
+    public static <T> DirectedGraph<T> loadDirectedGraph(String baseName, NearestNeighbourSearchAlgorithm<T> nnAlgorithm, int numNeighbors) throws IOException {
+        Graph baseGraph = loadGraph(baseName); // TODO - refatorizar para não estar a criar 2 grafos
+        DirectedGraph<T> directedGraph = new DirectedGraph<>(nnAlgorithm, numNeighbors, baseGraph);
+        return directedGraph;
     }
 
     public static Map<Integer, Node> loadNodeMap(String baseName) throws IOException {
@@ -109,20 +127,51 @@ public class GraphMapper {
     }
 
     /**
-     * Add a single node and its incoming edges to the graph files.
+     * Add a single node and its incident edges to the graph files.
+     * This method handles both incoming edges (edges to the new node) and outgoing edges
+     * (edges from the new node to existing nodes).
      *
-     * @param node
-     * @param incomingEdges
-     * @param baseName
-     * @param mlstLength
-     * @throws IOException
+     * @param node Node to add
+     * @param incomingEdges List of edges pointing TO the new node
+     * @param outgoingEdges List of edges FROM the new node to other nodes
+     * @param baseName Base name for files
+     * @param mlstLength Fixed length for MLST data
+     * @throws IOException if file operations fail
      */
-    public static void addNode(Node node, List<Edge> incomingEdges, String baseName, int mlstLength) throws IOException {
+    public static void addNode(Node node, List<Edge> incomingEdges, List<Edge> outgoingEdges, 
+                              String baseName, int mlstLength) throws IOException {
         String nodeFile = baseName + "_nodes.dat";
         String edgeFile = baseName + "_edges.dat";
 
+        // Add the node itself to the node index
         NodeIndexMapper.addNode(node, nodeFile, mlstLength);
+        
+        // Add incoming edges (stored as a linked list for this node)
         EdgeListMapper.addEdges(incomingEdges, node, edgeFile);
+        
+        // Add outgoing edges (each needs to be added to its destination's linked list)
+        for (Edge outgoingEdge : outgoingEdges) {
+            // Get the destination node's current incoming edge offset
+            long destOffset = NodeIndexMapper.getIncomingEdgeOffset(nodeFile, 
+                outgoingEdge.getDestination().getId());
+            
+            // Add this edge to the destination's incoming edge list
+            EdgeListMapper.addEdge(outgoingEdge, edgeFile);
+        }
+    }
+    
+    /**
+     * Add a single node and its incoming edges to the graph files.
+     * Use this overload when there are no outgoing edges from the new node.
+     *
+     * @param node Node to add
+     * @param incomingEdges List of edges pointing TO the new node
+     * @param baseName Base name for files
+     * @param mlstLength Fixed length for MLST data
+     * @throws IOException if file operations fail
+     */
+    public static void addNode(Node node, List<Edge> incomingEdges, String baseName, int mlstLength) throws IOException {
+        addNode(node, incomingEdges, List.of(), baseName, mlstLength);
     }
 
     public static void removeNode(Node node, String baseName, int mlstLength) throws IOException {

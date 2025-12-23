@@ -7,6 +7,7 @@ import optimalarborescence.memorymapper.GraphMapper;
 import optimalarborescence.memorymapper.NodeIndexMapper;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
+import optimalarborescence.sequences.AllelicProfile;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -18,6 +19,14 @@ import org.junit.Before;
 import org.junit.Test;
 
 public class GraphMapperTest {
+
+    private static AllelicProfile createProfile(String data) {
+        Character[] chars = new Character[data.length()];
+        for (int i = 0; i < data.length(); i++) {
+            chars[i] = data.charAt(i);
+        }
+        return new AllelicProfile(chars, data.length());
+    }
     
     private static final String TEST_BASE_NAME = "test_graph_mapper";
     private static final int MLST_LENGTH = 20;
@@ -56,8 +65,8 @@ public class GraphMapperTest {
         // Edge file: 4 bytes (header = num edges) + 6 edges * 28 bytes = 172 bytes
         Assert.assertEquals("Edge file size should be 172 bytes", 172, edgeFile.length());
         
-        // Node file: header (8 bytes) + 4 nodes × (20 bytes MLST + 8 bytes offset) = 8 + 4×28 = 120 bytes
-        Assert.assertEquals("Node file size should be 120 bytes", 120, nodeFile.length());
+        // Node file: header (9 bytes: 4+4+1 for num_nodes, mlst_length, sequence_type) + 4 nodes × (20 bytes MLST + 8 bytes offset) = 9 + 4×28 = 121 bytes
+        Assert.assertEquals("Node file size should be 121 bytes", 121, nodeFile.length());
 
     }
     
@@ -88,13 +97,13 @@ public class GraphMapperTest {
         // Verify at least one edge has correct data
         boolean foundMatchingEdge = false;
         for (Edge loadedEdge : loadedEdges) {
-            if (loadedEdge.getSource().getID() == 0 && 
-                loadedEdge.getDestination().getID() == 1 && 
+            if (loadedEdge.getSource().getId() == 0 && 
+                loadedEdge.getDestination().getId() == 1 && 
                 loadedEdge.getWeight() == 5) {
                 foundMatchingEdge = true;
-                Assert.assertEquals("Source MLST should match", "ATCGATCGATCGATCGATCG", 
+                Assert.assertEquals("Source MLST should match", createProfile("ATCGATCGATCGATCGATCG"), 
                                   loadedEdge.getSource().getMLSTdata());
-                Assert.assertEquals("Destination MLST should match", "GCTAGCTAGCTAGCTAGCTA", 
+                Assert.assertEquals("Destination MLST should match", createProfile("GCTAGCTAGCTAGCTAGCTA"), 
                                   loadedEdge.getDestination().getMLSTdata());
                 break;
             }
@@ -118,13 +127,13 @@ public class GraphMapperTest {
         // Create a map of original edges for easy lookup
         Map<String, Edge> originalEdgeMap = new java.util.HashMap<>();
         for (Edge edge : testGraph.getEdges()) {
-            String key = edge.getSource().getID() + "->" + edge.getDestination().getID();
+            String key = edge.getSource().getId() + "->" + edge.getDestination().getId();
             originalEdgeMap.put(key, edge);
         }
         
         // Verify each loaded edge matches an original edge
         for (Edge loadedEdge : loadedGraph.getEdges()) {
-            String key = loadedEdge.getSource().getID() + "->" + loadedEdge.getDestination().getID();
+            String key = loadedEdge.getSource().getId() + "->" + loadedEdge.getDestination().getId();
             Edge originalEdge = originalEdgeMap.get(key);
             
             Assert.assertNotNull("Should find matching original edge for " + key, originalEdge);
@@ -145,9 +154,9 @@ public class GraphMapperTest {
     @Test
     public void testGetIncomingEdgeOffsetNoIncoming() throws IOException {
         // Arrange - create a graph with a node that has no incoming edges
-        Node n0 = new Node("AAAA", 0);
-        Node n1 = new Node("TTTT", 1);
-        Node n2 = new Node("GGGG", 2);
+        Node n0 = new Node(createProfile("AAAA"), 0);
+        Node n1 = new Node(createProfile("TTTT"), 1);
+        Node n2 = new Node(createProfile("GGGG"), 2);
         
         List<Edge> edges = new ArrayList<>();
         edges.add(new Edge(n0, n1, 10));
@@ -196,11 +205,11 @@ public class GraphMapperTest {
         boolean foundEdge1to2 = false;
         
         for (Edge edge : incomingEdges) {
-            Assert.assertEquals("All edges should have destination 2", 2, edge.getDestination().getID());
+            Assert.assertEquals("All edges should have destination 2", 2, edge.getDestination().getId());
             
-            if (edge.getSource().getID() == 0 && edge.getWeight() == 3) {
+            if (edge.getSource().getId() == 0 && edge.getWeight() == 3) {
                 foundEdge0to2 = true;
-            } else if (edge.getSource().getID() == 1 && edge.getWeight() == 2) {
+            } else if (edge.getSource().getId() == 1 && edge.getWeight() == 2) {
                 foundEdge1to2 = true;
             }
         }
@@ -228,8 +237,8 @@ public class GraphMapperTest {
         Assert.assertEquals("Node 1 should have 1 incoming edge", 1, incomingEdges.size());
         
         Edge edge = incomingEdges.get(0);
-        Assert.assertEquals("Source should be node 0", 0, edge.getSource().getID());
-        Assert.assertEquals("Destination should be node 1", 1, edge.getDestination().getID());
+        Assert.assertEquals("Source should be node 0", 0, edge.getSource().getId());
+        Assert.assertEquals("Destination should be node 1", 1, edge.getDestination().getId());
         Assert.assertEquals("Weight should be 5", 5, edge.getWeight());
     }
     
@@ -239,8 +248,8 @@ public class GraphMapperTest {
     @Test
     public void testGetIncomingEdgesNone() throws IOException {
         // Arrange
-        Node n0 = new Node("AAAA", 0);
-        Node n1 = new Node("TTTT", 1);
+        Node n0 = new Node(createProfile("AAAA"), 0);
+        Node n1 = new Node(createProfile("TTTT"), 1);
         
         List<Edge> edges = new ArrayList<>();
         edges.add(new Edge(n0, n1, 10));
@@ -293,7 +302,7 @@ public class GraphMapperTest {
     @Test
     public void testSingleNodeGraph() throws IOException {
         // Arrange
-        Node n0 = new Node("ATCG", 0);
+        Node n0 = new Node(createProfile("ATCG"), 0);
         Graph graph = new Graph();
         graph.addNode(n0);
         
@@ -344,9 +353,9 @@ public class GraphMapperTest {
     @Test
     public void testGraphWithCycle() throws IOException {
         // Arrange - graph with cycle: 0->1->2->0
-        Node n0 = new Node("AAAA", 0);
-        Node n1 = new Node("TTTT", 1);
-        Node n2 = new Node("GGGG", 2);
+        Node n0 = new Node(createProfile("AAAA"), 0);
+        Node n1 = new Node(createProfile("TTTT"), 1);
+        Node n2 = new Node(createProfile("GGGG"), 2);
         
         List<Edge> edges = new ArrayList<>();
         edges.add(new Edge(n0, n1, 10));
@@ -381,7 +390,7 @@ public class GraphMapperTest {
         GraphMapper.saveGraph(testGraph, MLST_LENGTH, baseName);
         
         // Create new node with no incoming edges
-        Node newNode = new Node("AAAAAAAAAAAAAAAAAAAA", 4);
+        Node newNode = new Node(createProfile("AAAAAAAAAAAAAAAAAAAA"), 4);
         List<Edge> incomingEdges = new ArrayList<>();
         
         // Act
@@ -397,9 +406,9 @@ public class GraphMapperTest {
         // Verify the new node exists
         boolean foundNewNode = false;
         for (Node node : loadedGraph.getNodes()) {
-            if (node.getID() == 4) {
+            if (node.getId() == 4) {
                 foundNewNode = true;
-                Assert.assertEquals("New node MLST should match", "AAAAAAAAAAAAAAAAAAAA", node.getMLSTdata());
+                Assert.assertEquals("New node MLST should match", createProfile("AAAAAAAAAAAAAAAAAAAA"), node.getMLSTdata());
                 break;
             }
         }
@@ -419,8 +428,8 @@ public class GraphMapperTest {
         GraphMapper.saveGraph(testGraph, MLST_LENGTH, baseName);
         
         // Create new node with one incoming edge
-        Node newNode = new Node("AACCAACCAACCAACCAACC", 4);
-        Node existingNode = new Node("ATCGATCGATCGATCGATCG", 0); // Node from original graph
+        Node newNode = new Node(createProfile("AACCAACCAACCAACCAACC"), 4);
+        Node existingNode = new Node(createProfile("ATCGATCGATCGATCGATCG"), 0); // Node from original graph
         List<Edge> incomingEdges = new ArrayList<>();
         incomingEdges.add(new Edge(existingNode, newNode, 100));
         
@@ -436,8 +445,8 @@ public class GraphMapperTest {
         // Verify the new edge exists
         boolean foundNewEdge = false;
         for (Edge edge : loadedGraph.getEdges()) {
-            if (edge.getSource().getID() == 0 && 
-                edge.getDestination().getID() == 4 && 
+            if (edge.getSource().getId() == 0 && 
+                edge.getDestination().getId() == 4 && 
                 edge.getWeight() == 100) {
                 foundNewEdge = true;
                 break;
@@ -459,10 +468,10 @@ public class GraphMapperTest {
         GraphMapper.saveGraph(testGraph, MLST_LENGTH, baseName);
         
         // Create new node with multiple incoming edges
-        Node newNode = new Node("AACCAACCAACCAACCAACC", 4);
-        Node node0 = new Node("ATCGATCGATCGATCGATCG", 0);
-        Node node1 = new Node("GCTAGCTAGCTAGCTAGCTA", 1);
-        Node node2 = new Node("TGACTGACTGACTGACTGAC", 2);
+        Node newNode = new Node(createProfile("AACCAACCAACCAACCAACC"), 4);
+        Node node0 = new Node(createProfile("ATCGATCGATCGATCGATCG"), 0);
+        Node node1 = new Node(createProfile("GCTAGCTAGCTAGCTAGCTA"), 1);
+        Node node2 = new Node(createProfile("TGACTGACTGACTGACTGAC"), 2);
         
         List<Edge> incomingEdges = new ArrayList<>();
         incomingEdges.add(new Edge(node0, newNode, 50));
@@ -481,7 +490,7 @@ public class GraphMapperTest {
         // Verify all new edges exist
         int newEdgesFound = 0;
         for (Edge edge : loadedGraph.getEdges()) {
-            if (edge.getDestination().getID() == 4) {
+            if (edge.getDestination().getId() == 4) {
                 newEdgesFound++;
                 Assert.assertTrue("Weight should be 50, 60, or 70", 
                     edge.getWeight() == 50 || edge.getWeight() == 60 || edge.getWeight() == 70);
@@ -503,19 +512,19 @@ public class GraphMapperTest {
         GraphMapper.saveGraph(testGraph, MLST_LENGTH, baseName);
         
         // Add first new node
-        Node newNode1 = new Node("AAATAAATAAATAAATAAAT", 4);
+        Node newNode1 = new Node(createProfile("AAATAAATAAATAAATAAAT"), 4);
         List<Edge> edges1 = new ArrayList<>();
-        edges1.add(new Edge(new Node("ATCGATCGATCGATCGATCG", 0), newNode1, 10));
+        edges1.add(new Edge(new Node(createProfile("ATCGATCGATCGATCGATCG"), 0), newNode1, 10));
         GraphMapper.addNode(newNode1, edges1, baseName, MLST_LENGTH);
         
         // Add second new node
-        Node newNode2 = new Node("AAAGAAAGAAAGAAAGAAAG", 5);
+        Node newNode2 = new Node(createProfile("AAAGAAAGAAAGAAAGAAAG"), 5);
         List<Edge> edges2 = new ArrayList<>();
-        edges2.add(new Edge(new Node("GCTAGCTAGCTAGCTAGCTA", 1), newNode2, 20));
+        edges2.add(new Edge(new Node(createProfile("GCTAGCTAGCTAGCTAGCTA"), 1), newNode2, 20));
         GraphMapper.addNode(newNode2, edges2, baseName, MLST_LENGTH);
         
         // Add third new node
-        Node newNode3 = new Node("AAACAAACAAACAAACAAAC", 6);
+        Node newNode3 = new Node(createProfile("AAACAAACAAACAAACAAAC"), 6);
         List<Edge> edges3 = new ArrayList<>();
         edges3.add(new Edge(newNode1, newNode3, 30)); // Edge from first new node
         GraphMapper.addNode(newNode3, edges3, baseName, MLST_LENGTH);
@@ -530,7 +539,7 @@ public class GraphMapperTest {
         // Verify all new nodes exist
         int newNodesFound = 0;
         for (Node node : loadedGraph.getNodes()) {
-            if (node.getID() >= 4 && node.getID() <= 6) {
+            if (node.getId() >= 4 && node.getId() <= 6) {
                 newNodesFound++;
             }
         }
@@ -550,12 +559,12 @@ public class GraphMapperTest {
         GraphMapper.saveGraph(testGraph, MLST_LENGTH, baseName);
         
         // Create new node with edges of various weights
-        Node newNode = new Node("AAAAAAAAAAAAAAAAAAAA", 4);
+        Node newNode = new Node(createProfile("AAAAAAAAAAAAAAAAAAAA"), 4);
         List<Edge> incomingEdges = new ArrayList<>();
-        incomingEdges.add(new Edge(new Node("ATCGATCGATCGATCGATCG", 0), newNode, 0));
-        incomingEdges.add(new Edge(new Node("GCTAGCTAGCTAGCTAGCTA", 1), newNode, Integer.MAX_VALUE));
-        incomingEdges.add(new Edge(new Node("TGACTGACTGACTGACTGAC", 2), newNode, Integer.MIN_VALUE));
-        incomingEdges.add(new Edge(new Node("CGATCGATCGATCGATCGAT", 3), newNode, -999));
+        incomingEdges.add(new Edge(new Node(createProfile("ATCGATCGATCGATCGATCG"), 0), newNode, 0));
+        incomingEdges.add(new Edge(new Node(createProfile("GCTAGCTAGCTAGCTAGCTA"), 1), newNode, Integer.MAX_VALUE));
+        incomingEdges.add(new Edge(new Node(createProfile("TGACTGACTGACTGACTGAC"), 2), newNode, Integer.MIN_VALUE));
+        incomingEdges.add(new Edge(new Node(createProfile("CGATCGATCGATCGATCGAT"), 3), newNode, -999));
         
         // Act
         GraphMapper.addNode(newNode, incomingEdges, baseName, MLST_LENGTH);
@@ -573,7 +582,7 @@ public class GraphMapperTest {
         boolean foundNegativeWeight = false;
         
         for (Edge edge : loadedGraph.getEdges()) {
-            if (edge.getDestination().getID() == 4) {
+            if (edge.getDestination().getId() == 4) {
                 if (edge.getWeight() == 0) foundZeroWeight = true;
                 if (edge.getWeight() == Integer.MAX_VALUE) foundMaxWeight = true;
                 if (edge.getWeight() == Integer.MIN_VALUE) foundMinWeight = true;
@@ -601,7 +610,7 @@ public class GraphMapperTest {
         GraphMapper.saveGraph(emptyGraph, MLST_LENGTH, baseName);
         
         // Create new node with no incoming edges
-        Node newNode = new Node("ACGTACGTACGTACGTACGT", 0);
+        Node newNode = new Node(createProfile("ACGTACGTACGTACGTACGT"), 0);
         List<Edge> incomingEdges = new ArrayList<>();
         
         // Act
@@ -611,8 +620,8 @@ public class GraphMapperTest {
         Graph loadedGraph = GraphMapper.loadGraph(baseName);
         Assert.assertEquals("Should have 1 node", 1, loadedGraph.getNumNodes());
         Assert.assertEquals("Should have 0 edges", 0, loadedGraph.getNumEdges());
-        Assert.assertEquals("Node ID should be 0", 0, loadedGraph.getNodes().get(0).getID());
-        Assert.assertEquals("Node MLST should match", "ACGTACGTACGTACGTACGT", 
+        Assert.assertEquals("Node ID should be 0", 0, loadedGraph.getNodes().get(0).getId());
+        Assert.assertEquals("Node MLST should match", createProfile("ACGTACGTACGTACGTACGT"), 
                           loadedGraph.getNodes().get(0).getMLSTdata());
         
         // Clean up
@@ -628,7 +637,7 @@ public class GraphMapperTest {
         GraphMapper.saveGraph(testGraph, MLST_LENGTH, baseName);
         
         // Add a new isolated node
-        Node isolatedNode = new Node("CCCCCCCCCCCCCCCCCCCC", 4);
+        Node isolatedNode = new Node(createProfile("CCCCCCCCCCCCCCCCCCCC"), 4);
         GraphMapper.addNode(isolatedNode, new ArrayList<>(), baseName, MLST_LENGTH);
         
         // Act - remove the isolated node
@@ -641,7 +650,7 @@ public class GraphMapperTest {
         
         // Verify the isolated node is gone
         for (Node node : loadedGraph.getNodes()) {
-            Assert.assertNotEquals("Isolated node should be removed", 4, node.getID());
+            Assert.assertNotEquals("Isolated node should be removed", 4, node.getId());
         }
         
         // Clean up
@@ -655,7 +664,7 @@ public class GraphMapperTest {
         GraphMapper.saveGraph(testGraph, MLST_LENGTH, baseName);
 
         // Add a new node with incoming edges
-        Node newNode = new Node("CCCCCCCCCCCCCCCCCCCC", 4);
+        Node newNode = new Node(createProfile("CCCCCCCCCCCCCCCCCCCC"), 4);
         List<Edge> incomingEdges = new ArrayList<>();
         incomingEdges.add(new Edge(testGraph.getNodes().get(0), newNode, 1));
         GraphMapper.addNode(newNode, incomingEdges, baseName, MLST_LENGTH);
@@ -670,7 +679,7 @@ public class GraphMapperTest {
 
         // Verify the new node is gone
         for (Node node : loadedGraph.getNodes()) {
-            Assert.assertNotEquals("New node should be removed", 4, node.getID());
+            Assert.assertNotEquals("New node should be removed", 4, node.getId());
         }
 
         // Clean up
@@ -694,7 +703,7 @@ public class GraphMapperTest {
 
         // Verify the new node is gone
         for (Node node : loadedGraph.getNodes()) {
-            Assert.assertNotEquals("New node should be removed", 4, node.getID());
+            Assert.assertNotEquals("New node should be removed", 4, node.getId());
         }
 
         // Clean up
@@ -717,7 +726,7 @@ public class GraphMapperTest {
     //     GraphMapper.saveGraph(emptyGraph, MLST_LENGTH, baseName);
 
     //     // Create a node that does not exist in the graph
-    //     Node nonExistentNode = new Node("ACGTACGTACGTACGTACGT", 0);
+    //     Node nonExistentNode = new Node(createProfile("ACGTACGTACGTACGTACGT"), 0);
     //     // Act - attempt to remove the non-existent node
     //     GraphMapper.removeNode(nonExistentNode, baseName, MLST_LENGTH);
     //     // Assert - reload graph and verify it is still empty
@@ -1114,10 +1123,10 @@ public class GraphMapperTest {
     // Helper methods
 
     private List<Edge> prepareEdges() {
-        Node n0 = new Node("ATCGATCGATCGATCGATCG", 0);
-        Node n1 = new Node("GCTAGCTAGCTAGCTAGCTA", 1);
-        Node n2 = new Node("TGACTGACTGACTGACTGAC", 2);
-        Node n3 = new Node("CGATCGATCGATCGATCGAT", 3);
+        Node n0 = new Node(createProfile("ATCGATCGATCGATCGATCG"), 0);
+        Node n1 = new Node(createProfile("GCTAGCTAGCTAGCTAGCTA"), 1);
+        Node n2 = new Node(createProfile("TGACTGACTGACTGACTGAC"), 2);
+        Node n3 = new Node(createProfile("CGATCGATCGATCGATCGAT"), 3);
         
         List<Edge> edges = new ArrayList<>();
         edges.add(new Edge(n0, n1, 5));
@@ -1142,7 +1151,7 @@ public class GraphMapperTest {
      */
     private Graph createTestGraphWithNodeWithoutIncomingEdges() {
         List<Edge> edges = prepareEdges();
-        Node n4 = new Node("TTTTTTTTTTTTTTTTTTTT", 4);
+        Node n4 = new Node(createProfile("TTTTTTTTTTTTTTTTTTTT"), 4);
         // No edges to n4
         Edge e1 = new Edge(n4, edges.get(0).getSource(), 7);
         Edge e2 = new Edge(n4, edges.get(3).getSource(), 8);
@@ -1155,9 +1164,9 @@ public class GraphMapperTest {
      * Create a test graph with a cycle.
      */
     // private Graph createTestGraphWithCycle() {
-    //     Node n0 = new Node("AAAA", 0);
-    //     Node n1 = new Node("TTTT", 1);
-    //     Node n2 = new Node("GGGG", 2);
+    //     Node n0 = new Node(createProfile("AAAA"), 0);
+    //     Node n1 = new Node(createProfile("TTTT"), 1);
+    //     Node n2 = new Node(createProfile("GGGG"), 2);
         
     //     List<Edge> edges = new ArrayList<>();
     //     edges.add(new Edge(n0, n1, 10));
@@ -1169,7 +1178,7 @@ public class GraphMapperTest {
 
     // private Graph createTestGraphWithNodeWithIncomingEdgesAndOutgoingEdges() {
     //     List<Edge> edges = prepareEdges();
-    //     Node n4 = new Node("TTTTTTTTTTTTTTTTTTTT", 4);
+    //     Node n4 = new Node(createProfile("TTTTTTTTTTTTTTTTTTTT"), 4);
     //     Edge e1 = new Edge(edges.get(0).getDestination(), n4, 7);
     //     Edge e3 = new Edge(n4, edges.get(1).getDestination(), 5);
     //     Edge e2 = new Edge(edges.get(2).getDestination(), n4, 8);

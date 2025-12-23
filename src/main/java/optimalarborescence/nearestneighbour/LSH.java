@@ -6,14 +6,26 @@ import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Random;
 import java.util.stream.Collectors;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 
 import java.util.Set;
 import java.util.TreeSet;
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.kryo.serializers.JavaSerializer;
 
 import org.apache.commons.math3.util.CombinatoricsUtils;
 
 import optimalarborescence.distance.DistanceFunction;
+import optimalarborescence.distance.HammingDistance;
+import optimalarborescence.sequences.Sequence;
+import optimalarborescence.sequences.SequenceTypingData;
+import optimalarborescence.sequences.AllelicProfile;
+import optimalarborescence.graph.Node;
 import optimalarborescence.exception.NotImplementedException;
 
 /* TODO (importante) - Acho que há um bug com o parâmetero widthConcatenatedHashes
@@ -38,7 +50,7 @@ import optimalarborescence.exception.NotImplementedException;
  * - CLRS intro to algorithms
  */
 
-public class LSH extends NearestNeighbourSearchAlgorithm {
+public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
 
     /*
      * References:
@@ -51,34 +63,33 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
      * Wikipedia contributors. "Locality-sensitive hashing." Wikipedia, The Free Encyclopedia. Wikipedia, The Free Encyclopedia, 9 Aug. 2025. Web. 11 Aug. 2025. 
      */
 
-    public class Hash implements Comparable<Hash> {
+    public static class Hash<T> implements Comparable<Hash<T>> {
 
         private int index;
 
         /**
-         * Constructs a hash function that returns a single bit from the point's bit array.
-         * The index specifies which bit to return.
+         * Constructs a hash function that returns a element from the point's sequence.
+         * The index specifies which element to return.
          * 
-         * @param index The index of the bit to return.
+         * @param index The index of the element to return.
          */
         public Hash(int index) {
             this.index = index;
         }
 
         /**
-         * Hashes a point by returning the bit at the specified index.
+         * Hashes a point by returning the element at the specified index.
          * 
          * @param point The point to hash.
-         * @return The bit at the specified index.
+         * @return The element at the specified index.
          */
-        public int hash(Point point) {
-            if (point.getBitArray() == null) {
+        public T hash(Point<T> point) {
+            if (point.getSequence() == null) {
                 throw new NotImplementedException("Hash function not implemented for this point.");
             }
-            // Extract the bit at the specified index
-            return (point.getBitArray()[index / 8] >> (index % 8)) & 1;
 
-            // TODO - basta devolver 1 bit? As bases são representadas por 2 bits
+
+            return point.getSequence().getElementAt(index);
         }
 
         @Override
@@ -91,13 +102,13 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
         @Override
         public boolean equals(Object obj) {
             if (this == obj) return true;
-            if (!(obj instanceof Hash)) return false;
-            Hash other = (Hash) obj;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            Hash<?> other = (Hash<?>) obj;
             return index == other.index;
         }
 
         @Override
-        public int compareTo(Hash other) {
+        public int compareTo(Hash<T> other) {
             return Integer.compare(this.index, other.index);
         }
 
@@ -116,8 +127,8 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
     private int numTables;
     private int minHashIndex = 0;
     private int maxHashIndex = 0;
-    public List<Set<Hash>> concatenatedHashes = new ArrayList<>();
-    private List<Hashtable<List<Integer>, List<Point>>> tables = new ArrayList<>(); // TODO - rename to tables
+    public List<Set<Hash<T>>> concatenatedHashes = new ArrayList<>();
+    private List<Hashtable<List<T>, List<Point<T>>>> tables = new ArrayList<>(); // TODO - rename to tables
     // private DistanceFunction distanceFunction;
     private float radius;
 
@@ -179,14 +190,14 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
         Set<Set<Integer>> uniqueHashes = new HashSet<>(); // Used to prevent repeated concatenated hashes
         int tablesCreated = 0;
         while (tablesCreated < this.numTables) {
-            Set<Hash> hashes = new TreeSet<>(); // Used to prevent repeated indices within a concatenated hash
+            Set<Hash<T>> hashes = new TreeSet<>(); // Used to prevent repeated indices within a concatenated hash
             Set<Integer> indices = new TreeSet<>();
 
             /* Each concatenated hash is obtained by concatenating widthConcatenatedHashes
              * hamming hashes uniformly sampled */
             while (hashes.size() < this.widthConcatenatedHashes) {
                 int index = r.nextInt(maxHashIndex - minHashIndex + 1) + minHashIndex;
-                boolean added = hashes.add(new Hash(index)); // TreeSet so it won't add if it is already there
+                boolean added = hashes.add(new Hash<T>(index)); // TreeSet so it won't add if it is already there
                 if (added) { indices.add(index); }
             }
 
@@ -202,21 +213,21 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
         }
     }
 
-    private List<Integer> computeHash(Set<Hash> concatenatedHash, Point p) {
+    private List<T> computeHash(Set<Hash<T>> concatenatedHash, Point<T> p) {
         return concatenatedHash.stream()
                 .map(h -> h.hash(p))
                 .collect(Collectors.toList());
     }
 
     @Override
-    public void storePoint(Point p) { // Guarda-se o ponto em todas as tabelas?
+    public void storePoint(Point<T> p) { // Guarda-se o ponto em todas as tabelas?
         if (p.getBitArray() == null) {
             throw new IllegalArgumentException("Point does not have a bit array.");
         }
 
         for (int i = 0; i < this.numTables; i++) {
-            Set<Hash> concatenatedHash = concatenatedHashes.get(i);
-            List<Integer> bucketIndices = computeHash(concatenatedHash, p);
+            Set<Hash<T>> concatenatedHash = concatenatedHashes.get(i);
+            List<T> bucketIndices = computeHash(concatenatedHash, p);
 
             tables.get(i).putIfAbsent(bucketIndices, new ArrayList<>());
             tables.get(i).get(bucketIndices).add(p);
@@ -224,7 +235,7 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
     }
 
     @Override
-    public List<Point> neighbourSearch(Point point, int numNeighbours) {
+    public List<Point<T>> neighbourSearch(Point<T> point, int numNeighbours) {
         if (point.getBitArray() == null) {
             throw new IllegalArgumentException("Point does not have a bit array.");
         }
@@ -232,18 +243,18 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
             throw new IllegalArgumentException("Number of neighbours must be greater than zero.");
         }
 
-        List<Point> result = new ArrayList<>();
+        List<Point<T>> result = new ArrayList<>();
         int i = 0;
         while ((i < numTables) && (result.size() < numNeighbours)) {
-            Set<Hash> concatenatedHash = concatenatedHashes.get(i);
-            List<Integer> bucketIndices = computeHash(concatenatedHash, point);
+            Set<Hash<T>> concatenatedHash = concatenatedHashes.get(i);
+            List<T> bucketIndices = computeHash(concatenatedHash, point);
 
             if (tables.get(i).containsKey(bucketIndices)) {
-                List<Point> pointsInBucket = tables.get(i).get(bucketIndices);
+                List<Point<T>> pointsInBucket = tables.get(i).get(bucketIndices);
                 
                 if (pointsInBucket != null && !pointsInBucket.isEmpty()) {
                     result.addAll(pointsInBucket.stream()
-                            .filter(p -> p != point && getDistanceFunction().calculate(point.getBitArray(), p.getBitArray()) <= radius)
+                            .filter(p -> p != point && getDistanceFunction().calculate(point.getSequence(), p.getSequence()) <= radius)
                             .filter(p -> !result.contains(p))
                             .limit(numNeighbours - result.size())
                             .collect(Collectors.toList()));
@@ -256,6 +267,79 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
         return result;
     }
 
+
+    /****************************************
+     *              Serialization           *
+     ****************************************/
+
+    /**
+     * Configures and returns a Kryo instance with all necessary classes registered.
+     * This ensures consistent serialization/deserialization.
+     * 
+     * @return Configured Kryo instance
+     */
+    private static Kryo createKryoInstance() {
+        Kryo kryo = new Kryo();
+        kryo.setRegistrationRequired(false); // Allow unregistered classes for flexibility
+        
+        // Register LSH-specific classes
+        kryo.register(LSH.class);
+        kryo.register(Hash.class);
+        
+        // Register collection types
+        kryo.register(ArrayList.class);
+        kryo.register(HashSet.class);
+        kryo.register(TreeSet.class);
+        kryo.register(Hashtable.class);
+        
+        // Register Point and related classes
+        kryo.register(Point.class);
+        kryo.register(Node.class);
+        
+        // Register Sequence types - use JavaSerializer for compatibility with arrays
+        kryo.register(Sequence.class, new JavaSerializer());
+        kryo.register(SequenceTypingData.class, new JavaSerializer());
+        kryo.register(AllelicProfile.class, new JavaSerializer());
+        kryo.register(Integer[].class);
+        kryo.register(Character[].class);
+        kryo.register(byte[].class);
+        
+        // Register DistanceFunction implementations
+        kryo.register(HammingDistance.class);
+        
+        return kryo;
+    }
+
+    /**
+     * Saves an LSH instance to a file using Kryo serialization.
+     * 
+     * @param lsh The LSH instance to save
+     * @param filePath The path where the LSH should be saved
+     * @throws IOException If an I/O error occurs during saving
+     */
+    public static <T> void saveLSH(LSH<T> lsh, String filePath) throws IOException {
+        Kryo kryo = createKryoInstance();
+        
+        try (Output output = new Output(new FileOutputStream(filePath))) {
+            kryo.writeObject(output, lsh);
+        }
+    }
+
+    /**
+     * Loads an LSH instance from a file using Kryo deserialization.
+     * 
+     * @param filePath The path to the saved LSH file
+     * @return The deserialized LSH instance
+     * @throws IOException If an I/O error occurs during loading
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> LSH<T> loadLSH(String filePath) throws IOException {
+        Kryo kryo = createKryoInstance();
+        
+        try (Input input = new Input(new FileInputStream(filePath))) {
+            return (LSH<T>) kryo.readObject(input, LSH.class);
+        }
+    }
 
     /****************************************
      *              Debug                   *
@@ -276,7 +360,7 @@ public class LSH extends NearestNeighbourSearchAlgorithm {
 
         StringBuilder tableString = new StringBuilder();
         int tableIndex = 1;
-        for (Hashtable<List<Integer>, List<Point>> table : tables) {
+        for (Hashtable<List<T>, List<Point<T>>> table : tables) {
             tableString.append("Table ").append(tableIndex++).append(" = ").append(table.toString()).append("\n\n");
             tableIndex = tableIndex + 1;
         }

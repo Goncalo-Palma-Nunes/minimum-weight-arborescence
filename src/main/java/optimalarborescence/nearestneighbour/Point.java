@@ -1,30 +1,100 @@
 package optimalarborescence.nearestneighbour;
 
-public class Point {
-    private int id;
-    private String sequence; // TODO - retirar sequence na versão final, para poupar espaço
-    private byte[] bitArray; // 2 bits per base, packed
+import optimalarborescence.sequences.Sequence;
+import optimalarborescence.graph.Node;
 
-    public Point(int id, String sequence) {
+public class Point<T> {
+    private int id;
+    private Sequence<T> sequence;
+    private Node node; // Associated node
+
+    // No-arg constructor for Kryo serialization
+    private Point() {
+        this.id = -1;
+        this.sequence = null;
+        this.node = null;
+    }
+
+    public Point(int id, Sequence<T> sequence) {
         this.id = id;
         this.sequence = sequence;
+        this.node = null;
 
-        if (sequence == null || sequence.isEmpty()) {
+        if (sequence == null || sequence.getLength() == 0) {
             throw new IllegalArgumentException("Sequence cannot be null or empty");
         }
-        if (!sequence.matches("[ACGT]*")) {
-            throw new IllegalArgumentException("Sequence must contain only A, C, G, T characters");
+        if (id < 0) {
+            throw new IllegalArgumentException("ID must be a non-negative integer");
+        }
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public Sequence<T> getSequence() {
+        return sequence;
+    }
+
+    public Node getNode() {
+        return node;
+    }
+
+    public void setNode(Node node) {
+        this.node = node;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof Point<?>)) return false;
+        Point<?> other = (Point<?>) obj;
+        System.out.println("Comparing Point " + id + " with Point " + other.id);
+        System.out.println("This sequence: " + sequence);
+        System.out.println("Other sequence: " + other.sequence);
+
+        return id == other.id && sequence.equals(other.sequence);
+    }
+
+    @Override
+    public String toString() {
+        return "Point{" +
+                "id=" + id +
+                ", sequence='" + sequence + '\'' +
+                // ", bitArray=" + (bitArray != null ? getBinaryRepresentation() : "null") +
+                '}';
+    }
+
+    /*********************************************************************************
+     * 
+     * 
+     *    TODO - Apagar tudo o que está abaixo e só usar a versão com Sequence<?>
+     * 
+     *********************************************************************************/
+
+    private String sequenceString; // TODO - retirar sequenceString na versão final, para poupar espaço
+    private byte[] bitArray; // 2 bits per base, packed
+
+    public Point(int id, String sequenceString) {
+        this.id = id;
+        this.sequenceString = sequenceString;
+
+        if (sequenceString == null || sequenceString.isEmpty()) {
+            throw new IllegalArgumentException("sequenceString cannot be null or empty");
+        }
+        if (!sequenceString.matches("[ACGT]*")) {
+            throw new IllegalArgumentException("sequenceString must contain only A, C, G, T characters");
         }
         if (id < 0) {
             throw new IllegalArgumentException("ID must be a non-negative integer");
         }
 
-        // Convert sequence to array of bits (2 bits per base)
-        int len = sequence.length();
+        // Convert sequenceString to array of bits (2 bits per base)
+        int len = sequenceString.length();
         int numBytes = (len * 2 + 7) / 8; // 2 bits per base, 8 bits per byte
         bitArray = new byte[numBytes];
         for (int i = 0; i < len; i++) {
-            int bits = encodeBase(sequence.charAt(i));
+            int bits = encodeBase(sequenceString.charAt(i));
             int bitIndex = i * 2;
             int byteIndex = bitIndex / 8;
             int bitOffset = bitIndex % 8;
@@ -42,12 +112,8 @@ public class Point {
         }
     }
 
-    public int getId() {
-        return id;
-    }
-
-    public String getSequence() {
-        return sequence;
+    public String getsequenceString() {
+        return sequenceString;
     }
 
     public byte[] getBitArray() {
@@ -59,23 +125,6 @@ public class Point {
         for (byte b : bitArray) {
             binary.append(String.format("%8s", Integer.toBinaryString(b & 0xFF)).replace(' ', '0'));
         }
-        return binary.toString().substring(0, sequence.length() * 2); // Only the relevant bits
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (!(obj instanceof Point)) return false;
-        Point other = (Point) obj;
-        return id == other.id && sequence.equals(other.sequence);
-    }
-
-    @Override
-    public String toString() {
-        return "Point{" +
-                "id=" + id +
-                ", sequence='" + sequence + '\'' +
-                ", bitArray=" + (bitArray != null ? getBinaryRepresentation() : "null") +
-                '}';
+        return binary.toString().substring(0, sequenceString.length() * 2); // Only the relevant bits
     }
 }

@@ -4,7 +4,6 @@ package optimalarborescence.unittests.inference.dynamicalgorithms;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
 import optimalarborescence.graph.Graph;
-import optimalarborescence.inference.CameriniForest;
 import optimalarborescence.inference.dynamic.FullyDynamicArborescence;
 import optimalarborescence.inference.dynamic.ATreeNode;
 import optimalarborescence.inference.dynamic.DynamicTarjanArborescence;
@@ -13,7 +12,6 @@ import optimalarborescence.unittests.inference.HelperMethods;
 import java.util.List;
 import java.util.Comparator;
 import java.util.ArrayList;
-import java.util.Comparator;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -33,21 +31,19 @@ public class FullyDynamicArborescenceLoopedSquaredMotifsTest {
 
     private FullyDynamicArborescence algorithm;
     private DynamicTarjanArborescence dynamicTarjan;
-    private CameriniForest cameriniForest;
     private List<ATreeNode> roots;
 
-    private static final String ALLELIC_PROFILE = "ACGT";
 
     private List<Node> nodes = new ArrayList<>() {
         {
-            add(new Node(ALLELIC_PROFILE, 0));
-            add(new Node(ALLELIC_PROFILE, 1));
-            add(new Node(ALLELIC_PROFILE, 2));
-            add(new Node(ALLELIC_PROFILE, 3));
-            add(new Node(ALLELIC_PROFILE, 4));
-            add(new Node(ALLELIC_PROFILE, 5));
-            add(new Node(ALLELIC_PROFILE, 6));
-            add(new Node(ALLELIC_PROFILE, 7));
+            add(new Node(0));
+            add(new Node(1));
+            add(new Node(2));
+            add(new Node(3));
+            add(new Node(4));
+            add(new Node(5));
+            add(new Node(6));
+            add(new Node(7));
         }
     };
 
@@ -85,7 +81,6 @@ public class FullyDynamicArborescenceLoopedSquaredMotifsTest {
     @Test
     public void testFullyDynamicArborescenceLoopedSquaredMotifs() {
 
-        cameriniForest = new CameriniForest(originalGraph, EDGE_COMPARATOR);
         dynamicTarjan = new DynamicTarjanArborescence(roots,
             new ArrayList<>(), // No contracted edges initially
             new java.util.HashMap<>(), // No reduced costs initially

@@ -4,13 +4,13 @@ package optimalarborescence.graph;
 import java.io.*;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Map;
 
-public class Graph implements Serializable{
+public class Graph implements Serializable, PhylogeneticData {
     
     private List<Node> nodes;
-    private List<Edge> edges; // TODO - forma eficiente de representar para dar delete de arestas e nós facilmente?
+    private List<Edge> edges;
     private int numNodes;
     private int numEdges;
 
@@ -95,7 +95,8 @@ public class Graph implements Serializable{
     public List<Node> cloneNodeList() {
         List<Node> clonedList = new ArrayList<>();
         for (Node node : nodes) {
-            clonedList.add(new Node(node.getMLSTdata(), node.getId()));
+            // clonedList.add(new Node(node.getMLSTdata(), node.getId()));
+            clonedList.add(new Node(node.getId()));
         }
         return clonedList;
     }
@@ -106,135 +107,52 @@ public class Graph implements Serializable{
         }
     }
 
-    // /**
-    //  * Exports the edge list to a binary file (edges sorted by source)
-    //  * and the index file (node ID, MLST data, and file offset for outgoing edges).
-    //  * 
-    //  * Edge List File Format:
-    //  *   For each edge: [source_id (4 bytes), destination_id (4 bytes), weight (4 bytes)]
-    //  *   Edges are sorted by source_id so outgoing edges are contiguous.
-    //  * 
-    //  * Index File Format:
-    //  *   For each node (with padding for missing nodes):
-    //  *   [node_id (4 bytes), MLST_data_length (4 bytes), MLST_data (variable), offset (8 bytes)]
-    //  *   Offset points to the first outgoing edge in the edge list file.
-    //  */
-    // public void exportEdgeListAndIndex(String edgeListFile, String indexFile) throws IOException {
-    //     // Sort edges by source node ID (to keep outgoing edges together)
-    //     List<Edge> sortedEdges = new ArrayList<>(edges);
-    //     sortedEdges.sort(Comparator.comparingInt(edge -> edge.getSource().getId()));
+    /**
+     * Removes a node from the graph. Also removes any edge incident or outgoing from this node.
+     * 
+     * @param node The node to remove
+     */
+    public void removeNode(Node node) {
+        if (node == null) {
+            return;
+        }
         
-    //     // Group edges by source to find where each node's outgoing edges start
-    //     Map<Integer, Long> outgoingEdgeOffsets = new TreeMap<>();
-    //     long currentOffset = 0;
-    //     int maxNodeId = -1;
+        // Remove edges incident or outgoing from this node
+        edges.removeIf(edge -> edge.getSource().equals(node) || edge.getDestination().equals(node));
         
-    //     for (Edge edge : sortedEdges) {
-    //         int srcId = edge.getSource().getId();
-    //         if (!outgoingEdgeOffsets.containsKey(srcId)) {
-    //             outgoingEdgeOffsets.put(srcId, currentOffset);
-    //         }
-    //         maxNodeId = Math.max(maxNodeId, Math.max(edge.getSource().getId(), edge.getDestination().getId()));
-    //         currentOffset += 12; // 3 ints per edge (source, dest, weight), 4 bytes each
-    //     }
-        
-    //     // Create a map of all nodes for easy lookup
-    //     Map<Integer, Node> nodeMap = new HashMap<>();
-    //     for (Node node : nodes) {
-    //         nodeMap.put(node.getId(), node);
-    //         maxNodeId = Math.max(maxNodeId, node.getId());
-    //     }
-        
-    //     // Write edge list file (sorted by source)
-    //     try (DataOutputStream edgeOut = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(edgeListFile)))) {
-    //         for (Edge edge : sortedEdges) {
-    //             edgeOut.writeInt(edge.getSource().getId());
-    //             edgeOut.writeInt(edge.getDestination().getId());
-    //             edgeOut.writeInt(edge.getWeight());
-    //         }
-    //     }
-        
-    //     // Write index file (one entry per node ID, with padding for missing nodes)
-    //     try (DataOutputStream indexOut = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(indexFile)))) {
-    //         for (int nodeId = 0; nodeId <= maxNodeId; nodeId++) {
-    //             // Write node ID
-    //             indexOut.writeInt(nodeId);
-                
-    //             // Write MLST data
-    //             Node node = nodeMap.get(nodeId);
-    //             if (node != null && node.getMLSTdata() != null) {
-    //                 String mlstData = node.getMLSTdata();
-    //                 byte[] mlstBytes = mlstData.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-    //                 indexOut.writeInt(mlstBytes.length);
-    //                 indexOut.write(mlstBytes);
-    //             } else {
-    //                 indexOut.writeInt(0); // No MLST data
-    //             }
-                
-    //             // Write offset to outgoing edges
-    //             Long offset = outgoingEdgeOffsets.get(nodeId);
-    //             indexOut.writeLong(offset != null ? offset : -1L); // -1 indicates no outgoing edges
-    //         }
-    //     }
-    // }
+        // Remove the node and update count
+        if (nodes.remove(node)) {
+            numNodes--;
+        }
+    }
 
-    // /**
-    //  * Static method to load a graph from binary edge list and index files.
-    //  * 
-    //  * Reads the index file to reconstruct nodes with their IDs and MLST data,
-    //  * then reads the edge list to reconstruct edges.
-    //  * 
-    //  * @param edgeListFile Path to the binary edge list file
-    //  * @param indexFile Path to the binary index file
-    //  * @return A new Graph instance populated with nodes and edges
-    //  */
-    // public static Graph loadFromEdgeListAndIndex(String edgeListFile, String indexFile) throws IOException {
-    //     Map<Integer, Node> nodeMap = new HashMap<>();
-        
-    //     // Read index file to reconstruct all nodes
-    //     try (DataInputStream indexIn = new DataInputStream(new BufferedInputStream(new FileInputStream(indexFile)))) {
-    //         while (indexIn.available() > 0) {
-    //             // Read node ID
-    //             int nodeId = indexIn.readInt();
-                
-    //             // Read MLST data
-    //             int mlstLength = indexIn.readInt();
-    //             String mlstData;
-    //             if (mlstLength > 0) {
-    //                 byte[] mlstBytes = new byte[mlstLength];
-    //                 indexIn.readFully(mlstBytes);
-    //                 mlstData = new String(mlstBytes, java.nio.charset.StandardCharsets.UTF_8);
-    //             } else {
-    //                 mlstData = String.valueOf(nodeId); // Default to node ID as string
-    //             }
-                
-    //             // Read offset (we don't use it during loading, but need to consume it)
-    //             indexIn.readLong();
-                
-    //             // Create node
-    //             nodeMap.put(nodeId, new Node(mlstData, nodeId));
-    //         }
-    //     }
-        
-    //     // Read edge list file to reconstruct edges
-    //     List<Edge> edgeList = new ArrayList<>();
-    //     try (DataInputStream edgeIn = new DataInputStream(new BufferedInputStream(new FileInputStream(edgeListFile)))) {
-    //         while (edgeIn.available() >= 12) { // 3 ints = 12 bytes
-    //             int srcId = edgeIn.readInt();
-    //             int dstId = edgeIn.readInt();
-    //             int weight = edgeIn.readInt();
-                
-    //             Node src = nodeMap.get(srcId);
-    //             Node dst = nodeMap.get(dstId);
-                
-    //             if (src != null && dst != null) {
-    //                 edgeList.add(new Edge(src, dst, weight));
-    //             }
-    //         }
-    //     }
-        
-    //     return new Graph(edgeList);
-    // }
+    public void addNodes(List<Node> nodesToAdd) {
+        for (Node node : nodesToAdd) {
+            addNode(node);
+        }
+    }
+
+    public void removeNodes(List<Node> nodesToRemove) {
+        for (Node node : nodesToRemove) {
+            removeNode(node);
+        }
+    }
+    
+    public List<Edge> getNodeIncomingEdges(Node node) {
+        List<Edge> incomingEdges = new ArrayList<>();
+        for (Edge edge : edges) {
+            if (edge.getDestination().equals(node)) {
+                incomingEdges.add(edge);
+            }
+        }
+        return incomingEdges;
+    }
+
+    public List<Edge> getNodeOutgoingEdges(Node node) {
+        return node.getNeighbors().entrySet().stream()
+            .map(entry -> new Edge(node, entry.getKey(), entry.getValue()))
+            .toList();
+    }
 
     /* ******************************************
      *

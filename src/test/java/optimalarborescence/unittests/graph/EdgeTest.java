@@ -2,6 +2,7 @@ package optimalarborescence.unittests.graph;
 
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
+import optimalarborescence.sequences.AllelicProfile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,10 +14,19 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class EdgeTest {
 
-    List<String> testStrings = new ArrayList<>(){
+    // Helper method to create AllelicProfile from string
+    private AllelicProfile createProfile(String data) {
+        Character[] chars = new Character[data.length()];
+        for (int i = 0; i < data.length(); i++) {
+            chars[i] = data.charAt(i);
+        }
+        return new AllelicProfile(chars, data.length());
+    }
+
+    List<AllelicProfile> testProfiles = new ArrayList<>(){
         {
-            add("AACGT");
-            add("AAGCT");
+            add(createProfile("AACGT"));
+            add(createProfile("AAGCT"));
         }
     };
 
@@ -28,8 +38,8 @@ public class EdgeTest {
 
     @BeforeEach
     public void setUp() {
-        nodeA = new Node(testStrings.get(0), 1);
-        nodeB = new Node(testStrings.get(1), 2);
+        nodeA = new Node(testProfiles.get(0), 1);
+        nodeB = new Node(testProfiles.get(1), 2);
         edge = new Edge(nodeA, nodeB, weight1);
     }
 
@@ -49,7 +59,7 @@ public class EdgeTest {
 
     @Test
     public void testSetters() {
-        Node nodeC = new Node(testStrings.get(1), 3);
+        Node nodeC = new Node(testProfiles.get(1), 3);
         edge.setSource(nodeC);
         edge.setDestination(nodeA);
         edge.setWeight(weight2);

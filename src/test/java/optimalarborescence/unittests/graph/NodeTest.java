@@ -1,6 +1,7 @@
 package optimalarborescence.unittests.graph;
 
 import optimalarborescence.graph.Node;
+import optimalarborescence.sequences.AllelicProfile;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -10,10 +11,19 @@ import java.util.List;
 
 public class NodeTest {
 
-    List<String> mlstDataList = new ArrayList<String>() {{
-        add("AACGT");
-        add("AAGCT");
-        add("TTGCA");
+    // Helper method to create AllelicProfile from string
+    private AllelicProfile createProfile(String data) {
+        Character[] chars = new Character[data.length()];
+        for (int i = 0; i < data.length(); i++) {
+            chars[i] = data.charAt(i);
+        }
+        return new AllelicProfile(chars, data.length());
+    }
+
+    List<AllelicProfile> mlstDataList = new ArrayList<AllelicProfile>() {{
+        add(createProfile("AACGT"));
+        add(createProfile("AAGCT"));
+        add(createProfile("TTGCA"));
     }};
     List<Node> nodeList = new ArrayList<Node>() {{
         add(new Node(mlstDataList.get(0), 1));

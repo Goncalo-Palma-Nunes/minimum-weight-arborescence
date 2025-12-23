@@ -226,7 +226,7 @@ public class TarjanArborescence extends StaticAlgorithm {
     private void printRoots() {
         System.out.print("\nroots = {");
         for (Node r : roots) {
-            System.out.print(" " + r.getID() + ", ");
+            System.out.print(" " + r.getId() + ", ");
         }
         System.out.println("}");
     }

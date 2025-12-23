@@ -25,11 +25,11 @@ public class TarjanForestNodeTest {
     @Before
     public void setUp() {
         // Create test nodes with 20-character MLST data
-        node0 = new Node("ATCGATCGATCGATCGATCG", 0);
-        node1 = new Node("GCTAGCTAGCTAGCTAGCTA", 1);
-        node2 = new Node("TGACTGACTGACTGACTGAC", 2);
-        node3 = new Node("CGATCGATCGATCGATCGAT", 3);
-        node4 = new Node("AAAAAAAAAAAAAAAAAAAA", 4);
+        node0 = new Node(0);
+        node1 = new Node(1);
+        node2 = new Node(2);
+        node3 = new Node(3);
+        node4 = new Node(4);
         
         // Create test edges
         edge01 = new Edge(node0, node1, 10);

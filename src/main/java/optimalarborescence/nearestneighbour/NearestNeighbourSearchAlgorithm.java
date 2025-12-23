@@ -1,12 +1,11 @@
 package optimalarborescence.nearestneighbour;
 
-import optimalarborescence.exception.NotImplementedException;
 import optimalarborescence.distance.*;
 
 import java.io.Serializable;
 import java.util.List;
 
-public abstract class NearestNeighbourSearchAlgorithm implements Serializable {
+public abstract class NearestNeighbourSearchAlgorithm<T> implements Serializable {
 
     private DistanceFunction distanceFunction;
     private static final long serialVersionUID = 129348938L; // TODO - UID para serialização. Pesquisar mais sobre isto
@@ -22,9 +21,7 @@ public abstract class NearestNeighbourSearchAlgorithm implements Serializable {
      * @param numNeighbours the number of neighbours to search for
      * @return a list of the point's nearest neighbours
      */
-    public List<Point> neighbourSearch(Point point, int numNeighbours) {
-        throw new NotImplementedException();
-    }
+    public abstract List<Point<T>> neighbourSearch(Point<T> point, int numNeighbours);
 
     /**
      * Gets the distance function used by this algorithm.
@@ -39,7 +36,5 @@ public abstract class NearestNeighbourSearchAlgorithm implements Serializable {
      *
      * @param point the point to be stored
      */
-    public void storePoint(Point point) {
-        throw new NotImplementedException();
-    }
+    public abstract void storePoint(Point<T> point);
 }

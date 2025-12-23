@@ -5,6 +5,7 @@ import optimalarborescence.memorymapper.EdgeListMapper;
 import optimalarborescence.memorymapper.NodeIndexMapper;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
+import optimalarborescence.sequences.AllelicProfile;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -25,8 +26,16 @@ public class EdgeListMapperTest {
     private static final List<Node> TEST_NODES = new ArrayList<>();
     static {
         for (int i = 0; i < MLST_DATA.size(); i++) {
-            TEST_NODES.add(new Node(MLST_DATA.get(i), i));
+            TEST_NODES.add(new Node(createProfile(MLST_DATA.get(i)), i));
         }
+    }
+
+    private static AllelicProfile createProfile(String data) {
+        Character[] chars = new Character[data.length()];
+        for (int i = 0; i < data.length(); i++) {
+            chars[i] = data.charAt(i);
+        }
+        return new AllelicProfile(chars, data.length());
     }
 
     /**
@@ -508,8 +517,8 @@ public class EdgeListMapperTest {
         long offset = offsets.get(0);
         Edge edge = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, offset);
         Assert.assertNotNull("Edge should be readable at offset", edge);
-        Assert.assertEquals("Source should be node 0", 0, edge.getSource().getID());
-        Assert.assertEquals("Destination should be node 1", 1, edge.getDestination().getID());
+        Assert.assertEquals("Source should be node 0", 0, edge.getSource().getId());
+        Assert.assertEquals("Destination should be node 1", 1, edge.getDestination().getId());
         Assert.assertEquals("Weight should be 10", 10, edge.getWeight());
     }
 
@@ -537,14 +546,14 @@ public class EdgeListMapperTest {
         for (long offset : offsets) {
             Edge edge = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, offset);
             Assert.assertNotNull("Edge should be readable at offset", edge);
-            Assert.assertEquals("All edges should originate from node 0", 0, edge.getSource().getID());
+            Assert.assertEquals("All edges should originate from node 0", 0, edge.getSource().getId());
         }
 
         // Verify the destinations are correct
         List<Integer> destinations = new ArrayList<>();
         for (long offset : offsets) {
             Edge edge = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, offset);
-            destinations.add(edge.getDestination().getID());
+            destinations.add(edge.getDestination().getId());
         }
         Assert.assertTrue("Should have edge to node 1", destinations.contains(1));
         Assert.assertTrue("Should have edge to node 2", destinations.contains(2));
@@ -602,7 +611,7 @@ public class EdgeListMapperTest {
         boolean foundSelfLoop = false;
         for (long offset : offsets) {
             Edge edge = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, offset);
-            if (edge.getSource().getID() == 1 && edge.getDestination().getID() == 1) {
+            if (edge.getSource().getId() == 1 && edge.getDestination().getId() == 1) {
                 foundSelfLoop = true;
                 Assert.assertEquals("Self-loop weight should be 20", 20, edge.getWeight());
             }
@@ -754,9 +763,9 @@ public class EdgeListMapperTest {
         Edge edge1 = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, offsets1.get(0));
         Edge edge2 = EdgeListMapper.readEdgeAtOffset(EDGES_FILE_NAME, offsets2.get(0));
 
-        Assert.assertEquals("Edge from 0 should go to 1", 1, edge0.getDestination().getID());
-        Assert.assertEquals("Edge from 1 should go to 2", 2, edge1.getDestination().getID());
-        Assert.assertEquals("Edge from 2 should go to 0", 0, edge2.getDestination().getID());
+        Assert.assertEquals("Edge from 0 should go to 1", 1, edge0.getDestination().getId());
+        Assert.assertEquals("Edge from 1 should go to 2", 2, edge1.getDestination().getId());
+        Assert.assertEquals("Edge from 2 should go to 0", 0, edge2.getDestination().getId());
     }
 
     /**

@@ -1,36 +1,44 @@
 package optimalarborescence.graph;
 
 import optimalarborescence.nearestneighbour.Point;
+import optimalarborescence.sequences.*;
 
 import java.io.Serializable;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-public class Node extends Point implements Serializable, Comparable<Node> {
+public class Node implements Serializable, Comparable<Node> {
 
-    private String MLSTdata;
     private Map<Node, Integer> neighbors = new TreeMap<>();
     // private static final int serialVersionUID = 1;
     private int pointID; // Unique identifier for the node
+    private Point<?> point; // Underlying point
 
     @Override
     public int compareTo(Node other) {
         return Integer.compare(this.pointID, other.pointID);
     }
 
-    public Node(String MLSTdata, int pointID) {
-        super(pointID, MLSTdata);
-        this.MLSTdata = MLSTdata;
+    public Node(Sequence<?> MLSTdata, int pointID) {
+        this.point = new Point<>(pointID, MLSTdata);
+        this.point.setNode(this);
         this.pointID = pointID;
     }
 
-    // public long getID() {
-    //     return serialVersionUID;
-    // }
+    public Node(int pointID) { // For mock testing
+        this.point = null;
+        this.pointID = pointID;
+    }
 
-    public String getMLSTdata() {
-        return MLSTdata;
+    public Node(Point<?> point) {
+        this.point = point;
+        this.pointID = point.getId();
+        this.point.setNode(this);
+    }
+
+    public Sequence<?> getMLSTdata() {
+        return point.getSequence();
     }
 
     public Map<Node, Integer> getNeighbors() {
@@ -48,17 +56,29 @@ public class Node extends Point implements Serializable, Comparable<Node> {
         }
     }
 
-    public int getID() {
+    public int getId() {
         return pointID;
+    }
+
+    public Point<?> getPoint() {
+        return point;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        Node other = (Node) obj;
+        return this.pointID == other.pointID && ((this.point == null && other.point == null) || this.point.equals(other.point));
     }
 
     @Override
     public String toString() {
         String neighborStr = neighbors.keySet().stream()
-            .map(n -> n.getMLSTdata())
+            .map(n -> n.getMLSTdata().toString())
             .collect(Collectors.joining(", "));
         return "Node {" +
-                "Sequence='" + MLSTdata + '\'' +
+                "Sequence='" + point.getSequence().toString() + '\'' +
                 ", neighbors=[" + neighborStr + "]" +
                 ", pointID=" + pointID +
                 " }";

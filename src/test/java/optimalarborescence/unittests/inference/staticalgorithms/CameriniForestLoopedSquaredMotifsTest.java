@@ -7,11 +7,8 @@ import optimalarborescence.inference.CameriniForest;
 import java.util.List;
 import java.util.Comparator;
 import java.util.Map;
-import java.util.Comparator;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.Comparator;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -28,18 +25,17 @@ public class CameriniForestLoopedSquaredMotifsTest {
         (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
 
 
-    private static final String ALLELIC_PROFILE = "ACGT";
 
     private List<Node> nodes = new ArrayList<>() {
         {
-            add(new Node(ALLELIC_PROFILE, 0));
-            add(new Node(ALLELIC_PROFILE, 1));
-            add(new Node(ALLELIC_PROFILE, 2));
-            add(new Node(ALLELIC_PROFILE, 3));
-            add(new Node(ALLELIC_PROFILE, 4));
-            add(new Node(ALLELIC_PROFILE, 5));
-            add(new Node(ALLELIC_PROFILE, 6));
-            add(new Node(ALLELIC_PROFILE, 7));
+            add(new Node(0));
+            add(new Node(1));
+            add(new Node(2));
+            add(new Node(3));
+            add(new Node(4));
+            add(new Node(5));
+            add(new Node(6));
+            add(new Node(7));
         }
     };
 
