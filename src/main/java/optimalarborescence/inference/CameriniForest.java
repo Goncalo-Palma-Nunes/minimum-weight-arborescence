@@ -61,14 +61,21 @@ public class CameriniForest extends StaticAlgorithm {
      */
     public CameriniForest(Graph graph, Comparator<Edge> comparator) {
         super(graph);
+        
+        // Find the maximum node ID to determine array size
+        int maxNodeId = graph.getNodes().stream()
+            .mapToInt(Node::getId)
+            .max()
+            .orElse(0);
+        
         this.roots = graph.cloneNodeList();
         this.rset = new TreeSet<>();
-        this.inEdgeNode = new ArrayList<>(graph.getNumNodes());
-        this.leaves = new TarjanForestNode[graph.getNumNodes()];
+        this.inEdgeNode = new ArrayList<>();
+        this.leaves = new TarjanForestNode[maxNodeId + 1];
         this.max = new ArrayList<>();
         this.cycleEdgeNodes = new ArrayList<>();
-        this.ufSCC = new UnionFindStronglyConnected(graph.getNumNodes());
-        this.ufWCC = new UnionFind(graph.getNumNodes());
+        this.ufSCC = new UnionFindStronglyConnected(maxNodeId + 1);
+        this.ufWCC = new UnionFind(maxNodeId + 1);
         this.queues = new ArrayList<>();
 
         this.cmp = comparator;
@@ -87,20 +94,25 @@ public class CameriniForest extends StaticAlgorithm {
             }
         };
 
-
-        for (int i = 0; i < graph.getNumNodes(); i++) {
+        // Find the maximum node ID to determine array size
+         maxNodeId = graph.getNodes().stream()
+            .mapToInt(Node::getId)
+            .max()
+            .orElse(0);
+        
+        // Initialize arrays/lists to accommodate the maximum node ID
+        for (int i = 0; i <= maxNodeId; i++) {
             inEdgeNode.add(null);
-            // Find the node with ID = i instead of using positional index
-            // This ensures max[i] always points to node i, regardless of node list order
-            final int nodeId = i;
-            Node nodeWithId = graph.getNodes().stream()
-                .filter(n -> n.getId() == nodeId)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Node with ID " + nodeId + " not found in graph"));
-            max.add(nodeWithId);
+            max.add(null);
             cycleEdgeNodes.add(new ArrayList<>());
             queues.add(new PairingHeap(maxDisjointCmp));
         }
+        
+        // Populate entries only for nodes that exist
+        for (Node node : graph.getNodes()) {
+            max.set(node.getId(), node);
+        }
+        
         initializeDataStructures();
     }
 
@@ -283,10 +295,9 @@ public class CameriniForest extends StaticAlgorithm {
 
     private void printMaxEdges() {
         System.out.println("Printing max edges for each SCC:");
-        for (int i = 0; i < max.size(); i++) {
-            Node v = getNodes().get(i);
+        for (Node node : getNodes()) {
+            int i = node.getId();
             Node maxNode = max.get(i);
-            // System.out.println("SCC represented by node " + v.getId() + ": max edge target = " + (maxNode != null ? maxNode.getId() : "null"));
             System.out.println("\tmax[" + i + "]: " + (maxNode != null ? maxNode.getId() : "null"));
         }
     }

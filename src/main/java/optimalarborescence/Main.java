@@ -64,8 +64,8 @@ public class Main {
         String persistedGraphFile = null;
         int sequenceLength = -1;
         PhylogeneticData g = null;
-        if (args.length == 4) {
-            persistedGraphFile = args[3];
+        if (args.length == 5) {
+            persistedGraphFile = args[4];
             if (!fileExists(persistedGraphFile)) {
                 throw new FileNotFoundException("Persisted graph file does not exist: " + persistedGraphFile);
             }
@@ -106,9 +106,9 @@ public class Main {
                 throw new RuntimeErrorException(new Error("Something went wrong while selecting the algorithm type."));
         }
 
-        if (g instanceof DirectedGraph<?>) {
+        if (g instanceof DirectedGraph<?> && nnAlgorithm != null) {
             // Serialize the Nearest Neighbour Search Algorithm parameters if applicable
-            if (nnAlgorithm != null && nnAlgorithm instanceof optimalarborescence.nearestneighbour.LSH<?>) {
+            if (nnAlgorithm instanceof optimalarborescence.nearestneighbour.LSH<?>) {
                 serializeNNAlgorithm(nnAlgorithm, persistedGraphFile, outputFile);
             }
         }

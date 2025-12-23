@@ -20,9 +20,9 @@ Where NAME in `optimalarborescence.NAME` should be replaced by the name of the f
 
 `mvn exec:java -Dexec.mainClass="optimalarborescence.App"`
 
-To see an example of writing a simple graph to a memory mapped file and reading it run:
+To add arguments to the program invocation, use the -Dexec.args flag, such as in the following example:
 
-`mvn exec:java -Dexec.mainClass="optimalarborescence.Main"`
+`mvn exec:java -Dexec.mainClass="optimalarborescence.Main" -Dexec.args="mlst input.csv output.txt add"`
 
 ## Running Tests
 
@@ -46,3 +46,11 @@ You can also use wild cards to run a set of tests. For example, the following co
 
 - Fasta files for allelic sequences
 - CSV (with tab delimitors) for typing data
+
+## Infering or Updating a Phylogeny
+
+TODO - escrever esta secção
+
+flags para alterar a memória ram minima/máxima:
+
+MAVEN_OPTS="-Xms2g -Xmx6g" mvn exec:java -Dexec.mainClass="optimalarborescence.Main" -Dexec.args="mlst <path_to_input_file> <path_to_output_file> add"
