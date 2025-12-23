@@ -83,7 +83,13 @@ public class Parser {
                 Integer[] typingDataSequence = new Integer[nextRecord.length];
                 typingDataSequence[0] = sequenceType;
                 for (int i = 1; i < nextRecord.length; i++) {
-                    typingDataSequence[i] = Integer.parseInt(nextRecord[i]);
+                    // check if record can be parsed to integer
+                    try {
+                        typingDataSequence[i] = Integer.parseInt(nextRecord[i]);
+                    } catch (NumberFormatException e) {
+                        typingDataSequence[i] = -1; // or any other default value for missing data
+                    }
+                    // typingDataSequence[i] = Integer.parseInt(nextRecord[i]);
                 }
                 // typingDataList.add(new SequenceTypingData(typingDataSequence, typingDataSequence.length));
                 typingDataList.add(typingDataSequence);
