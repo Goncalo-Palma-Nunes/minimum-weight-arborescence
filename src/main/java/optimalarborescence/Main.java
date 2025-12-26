@@ -82,18 +82,20 @@ public class Main {
         if (numNeighbors > 0) {
             sequenceLength = newPoints.get(0).getSequence().getLength();
             nnAlgorithm = selectNNAlgorithm(sequenceType, sequenceLength, persistedGraphFile);
+            outputFile += "_approx_" + numNeighbors;
         }
         g = initializeGraph(sequenceType, inputSequenceFile, numNeighbors, persistedGraphFile, nnAlgorithm, newPoints, algorithmType, operationType);
         
         Graph graph;
+        List<Edge> phylogeny = null;
         switch (algorithmType) {
             case STATIC_ALGORITHM:
                 graph = (Graph) g;
-                runStaticCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, graph, operationType);
+                phylogeny = runStaticCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, graph, operationType);
                 break;
             case DYNAMIC_ALGORITHM:
                 graph = (Graph) g;
-                runDynamicCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, graph, operationType);
+                phylogeny = runDynamicCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, graph, operationType);
                 break;
             case NEIGHBOR_JOINING:
                 DistanceMatrix distanceMatrix = (DistanceMatrix) g;
@@ -112,6 +114,9 @@ public class Main {
                 serializeNNAlgorithm(nnAlgorithm, persistedGraphFile, outputFile);
             }
         }
+
+        // save arborescence
+        GraphMapper.saveArborescence(phylogeny, outputFile);
     }
 
     private static int approximatesGraph() {
@@ -381,6 +386,14 @@ public class Main {
         return new Graph(edges);
     }
 
+    private static void ensureDirectoryExists(String filePath) {
+        File file = new File(filePath);
+        File parentDir = file.getParentFile();
+        if (parentDir != null && !parentDir.exists()) {
+            parentDir.mkdirs();
+        }
+    }
+
     private static List<Edge> runStaticCameriniAlgorithm(String sequenceType, String inputFile, String outputFile, int numNeighbors, List<Point<?>> points, String persistedGraphFile, Graph g, String operationType) throws IOException {
 
         List<Node> nodesToProcess = null;
@@ -406,6 +419,7 @@ public class Main {
         CameriniForest camerini = new CameriniForest(g, EDGE_COMPARATOR);
         List<Edge> edges = camerini.inferPhylogeny(g).getEdges();
 
+        ensureDirectoryExists(outputFile);
         if (persistedGraphFile != null) {
             saveChanges(g, persistedGraphFile, outputFile, points, operationType);
         }
@@ -416,6 +430,7 @@ public class Main {
     }
 
     private static void saveChanges(Graph g, String persistedGraphFile, String outputFile, List<Point<?>> points, String operationType) throws IOException {
+        ensureDirectoryExists(outputFile);
         switch (operationType) {
             case ADD:
                 for (Point<?> point : points) {
