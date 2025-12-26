@@ -84,25 +84,30 @@ public class Main {
             nnAlgorithm = selectNNAlgorithm(sequenceType, sequenceLength, persistedGraphFile);
             outputFile += "_approx_" + numNeighbors;
         }
+        else { outputFile += "_exact"; }
         g = initializeGraph(sequenceType, inputSequenceFile, numNeighbors, persistedGraphFile, nnAlgorithm, newPoints, algorithmType, operationType);
         
         Graph graph;
         List<Edge> phylogeny = null;
         switch (algorithmType) {
             case STATIC_ALGORITHM:
+                outputFile += "_static_camerini";
                 graph = (Graph) g;
                 phylogeny = runStaticCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, graph, operationType);
                 break;
             case DYNAMIC_ALGORITHM:
+                outputFile += "_dynamic_camerini";
                 graph = (Graph) g;
                 phylogeny = runDynamicCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, graph, operationType);
                 break;
             case NEIGHBOR_JOINING:
+                outputFile += "_neighbor_joining";
                 DistanceMatrix distanceMatrix = (DistanceMatrix) g;
                 NeighbourJoining nj = new NeighbourJoining(distanceMatrix, distanceMatrix.getDistanceFunction());
-                graph = nj.inferPhylogeny(null);
+                phylogeny = nj.inferPhylogeny(null).getEdges();
 
                 // TODO - save the graph
+
                 break;
             default:
                 throw new RuntimeErrorException(new Error("Something went wrong while selecting the algorithm type."));
@@ -353,7 +358,7 @@ public class Main {
                 int numHashTables = Integer.parseInt(parts[1]);
                 int maxDistance = Integer.parseInt(parts[2]);
                 if (numComparedPositions > 0 && numHashTables > 0 && maxDistance > 0) {
-                    return new LSH<>(numComparedPositions, numHashTables, 0, sequenceLength, new HammingDistance(), maxDistance);
+                    return new LSH<>(numComparedPositions, numHashTables, 0, sequenceLength - 1, new HammingDistance(), maxDistance);
                 } else {
                     System.out.println("All values must be positive integers. Please try again. Enter "+ EXIT + " to quit.");
                 }
@@ -575,7 +580,9 @@ public class Main {
             }
         }
         else {
-            throw new IllegalArgumentException("Persisted graph file must be provided to serialize the NN algorithm.");
+            lshParamsFile = outputFile;
+            // append .lshparams extension
+            lshParamsFile += LSH_EXTENSION;
         }
         optimalarborescence.nearestneighbour.LSH.saveLSH(
             (optimalarborescence.nearestneighbour.LSH<?>) nnAlgorithm, 
