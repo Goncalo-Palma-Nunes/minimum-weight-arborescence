@@ -766,6 +766,7 @@ public class Main {
         System.out.println("Test mode completed. Final phylogeny saved to: " + outputFile);
     }
     
+    @SuppressWarnings("unchecked")
     private static void runStaticTestIteration(String sequenceType, List<Point<?>> points, String tempGraphFile, 
                                                String outputFile, int numNeighbors, 
                                                NearestNeighbourSearchAlgorithm<?> nnAlgorithm, 
@@ -778,8 +779,12 @@ public class Main {
             graph = (Graph) g;
         } else {
             // Load existing graph and add new points
-            graph = GraphMapper.loadGraph(tempGraphFile);
-            List<Node> existingNodes = new ArrayList<>(graph.getNodes());
+            if (numNeighbors > 0) {
+                graph = (Graph) GraphMapper.loadDirectedGraph(tempGraphFile, nnAlgorithm, numNeighbors);
+            } else {
+                graph = GraphMapper.loadGraph(tempGraphFile);
+            }
+            
             List<Node> nodesToAdd = points.stream()
                 .map(p -> new Node(p.getSequence(), p.getId()))
                 .toList();
@@ -787,35 +792,51 @@ public class Main {
             // Add nodes to graph
             graph.addNodes(nodesToAdd);
             
-            // Create edges between new nodes and existing nodes (and between new nodes)
-            DistanceFunction distanceFunction = new HammingDistance();
-            List<Edge> newEdges = new ArrayList<>();
-            
-            // Edges from new nodes to existing nodes
-            for (Node newNode : nodesToAdd) {
-                for (Node existingNode : existingNodes) {
-                    int distance = (int) distanceFunction.calculate(
-                        newNode.getPoint().getSequence(),
-                        existingNode.getPoint().getSequence()
-                    );
-                    newEdges.add(new Edge(newNode, existingNode, distance));
+            // Create edges based on graph type
+            if (numNeighbors > 0) {
+                // Approximate graph: add edges only to nearest neighbors using DirectedGraph methods
+                DirectedGraph<Object> directedGraph = (DirectedGraph<Object>) graph;
+                for (Point<?> point : points) {
+                    List<Point<Object>> neighbors = directedGraph.getNeighbors((Point<Object>) point);
+                    List<Edge> edges = directedGraph.getNNEdges(neighbors, new Node(point.getSequence(), point.getId()));
+                    for (Edge edge : edges) {
+                        graph.addEdge(edge);
+                    }
                 }
-            }
-            
-            // Edges between new nodes (if multiple new nodes)
-            for (int i = 0; i < nodesToAdd.size(); i++) {
-                for (int j = i + 1; j < nodesToAdd.size(); j++) {
-                    int distance = (int) distanceFunction.calculate(
-                        nodesToAdd.get(i).getPoint().getSequence(),
-                        nodesToAdd.get(j).getPoint().getSequence()
-                    );
-                    newEdges.add(new Edge(nodesToAdd.get(i), nodesToAdd.get(j), distance));
+            } else {
+                // Exact graph: add edges from new nodes to all existing nodes
+                List<Node> existingNodes = new ArrayList<>(graph.getNodes());
+                existingNodes.removeAll(nodesToAdd); // Remove newly added nodes to get only existing ones
+                
+                DistanceFunction distanceFunction = new HammingDistance();
+                List<Edge> newEdges = new ArrayList<>();
+                
+                // Edges from new nodes to existing nodes
+                for (Node newNode : nodesToAdd) {
+                    for (Node existingNode : existingNodes) {
+                        int distance = (int) distanceFunction.calculate(
+                            newNode.getPoint().getSequence(),
+                            existingNode.getPoint().getSequence()
+                        );
+                        newEdges.add(new Edge(newNode, existingNode, distance));
+                    }
                 }
-            }
-            
-            // Add edges to graph
-            for (Edge edge : newEdges) {
-                graph.addEdge(edge);
+                
+                // Edges between new nodes (if multiple new nodes)
+                for (int i = 0; i < nodesToAdd.size(); i++) {
+                    for (int j = i + 1; j < nodesToAdd.size(); j++) {
+                        int distance = (int) distanceFunction.calculate(
+                            nodesToAdd.get(i).getPoint().getSequence(),
+                            nodesToAdd.get(j).getPoint().getSequence()
+                        );
+                        newEdges.add(new Edge(nodesToAdd.get(i), nodesToAdd.get(j), distance));
+                    }
+                }
+                
+                // Add edges to graph
+                for (Edge edge : newEdges) {
+                    graph.addEdge(edge);
+                }
             }
         }
         
@@ -874,15 +895,31 @@ public class Main {
             dynamicAlgorithm = new SerializableFullyDynamicArborescence(graph, roots, dynamicCamerini);
             
             // Add new edges for the new point
-            if (graph instanceof DirectedGraph<?>) {
+            if (numNeighbors > 0) {
+                // Approximate graph: use DirectedGraph methods to add edges to nearest neighbors
                 DirectedGraph<Object> directedGraph = (DirectedGraph<Object>) graph;
                 addEdgesForPoints(directedGraph, (List<Point<Object>>) (List<?>) points, dynamicAlgorithm);
             } else {
-                // For exact graphs, add nodes and edges
+                // Exact graph: add nodes and edges to all existing nodes
+                List<Node> existingNodes = new ArrayList<>(graph.getNodes());
                 List<Node> nodesToAdd = points.stream()
                     .map(p -> new Node(p.getSequence(), p.getId()))
                     .toList();
                 graph.addNodes(nodesToAdd);
+                
+                // Create edges from new nodes to all existing nodes and add to dynamic algorithm
+                DistanceFunction distanceFunction = new HammingDistance();
+                for (Node newNode : nodesToAdd) {
+                    for (Node existingNode : existingNodes) {
+                        int distance = (int) distanceFunction.calculate(
+                            newNode.getPoint().getSequence(),
+                            existingNode.getPoint().getSequence()
+                        );
+                        Edge edge = new Edge(newNode, existingNode, distance);
+                        graph.addEdge(edge);
+                        dynamicAlgorithm.addEdge(edge);
+                    }
+                }
             }
         }
         
