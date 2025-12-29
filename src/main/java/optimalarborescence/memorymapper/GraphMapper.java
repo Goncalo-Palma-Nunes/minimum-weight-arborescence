@@ -237,4 +237,9 @@ public class GraphMapper {
             throw e;
         }
     }
+
+    public static void saveArborescence(List<Edge> phylogeny, String baseName) throws IOException {
+        String edgeFile = baseName + "_phylogeny_edges.dat";
+        EdgeListMapper.saveEdgesToMappedFile(phylogeny, edgeFile);
+    }
 }

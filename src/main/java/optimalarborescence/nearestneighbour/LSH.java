@@ -221,8 +221,8 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
 
     @Override
     public void storePoint(Point<T> p) { // Guarda-se o ponto em todas as tabelas?
-        if (p.getBitArray() == null) {
-            throw new IllegalArgumentException("Point does not have a bit array.");
+        if (p.getSequence() == null) {
+            throw new IllegalArgumentException("Point does not have a sequence.");
         }
 
         for (int i = 0; i < this.numTables; i++) {
@@ -236,8 +236,8 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
 
     @Override
     public List<Point<T>> neighbourSearch(Point<T> point, int numNeighbours) {
-        if (point.getBitArray() == null) {
-            throw new IllegalArgumentException("Point does not have a bit array.");
+        if (point.getSequence() == null) {
+            throw new IllegalArgumentException("Point does not have a sequence.");
         }
         if (numNeighbours <= 0) {
             throw new IllegalArgumentException("Number of neighbours must be greater than zero.");
@@ -281,6 +281,7 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
     private static Kryo createKryoInstance() {
         Kryo kryo = new Kryo();
         kryo.setRegistrationRequired(false); // Allow unregistered classes for flexibility
+        kryo.setReferences(true); // Enable circular reference handling
         
         // Register LSH-specific classes
         kryo.register(LSH.class);
@@ -296,10 +297,10 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
         kryo.register(Point.class);
         kryo.register(Node.class);
         
-        // Register Sequence types - use JavaSerializer for compatibility with arrays
-        kryo.register(Sequence.class, new JavaSerializer());
-        kryo.register(SequenceTypingData.class, new JavaSerializer());
-        kryo.register(AllelicProfile.class, new JavaSerializer());
+        // Register Sequence types
+        kryo.register(Sequence.class);
+        kryo.register(SequenceTypingData.class);
+        kryo.register(AllelicProfile.class);
         kryo.register(Integer[].class);
         kryo.register(Character[].class);
         kryo.register(byte[].class);
