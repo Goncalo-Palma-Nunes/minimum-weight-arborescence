@@ -60,7 +60,6 @@ public class Main {
         sequenceType = sequenceType.toLowerCase();
         String inputSequenceFile = args[1]; String outputFile = args[2];
         String operationType = args[3].toLowerCase();
-        validateParameters(sequenceType, inputSequenceFile, operationType);
         
         String persistedGraphFile = null;
         Integer batchSize = null;
@@ -109,6 +108,7 @@ public class Main {
                 }
             }
         }
+        validateParameters(sequenceType, inputSequenceFile, operationType, persistedGraphFile);
 
         // Test mode: iteratively add points in batches
         if (operationType.equals(TEST)) {
@@ -226,7 +226,7 @@ public class Main {
         }
     }
 
-    private static void validateParameters(String sequenceType, String inputFile, String operationType) throws FileNotFoundException {
+    private static void validateParameters(String sequenceType, String inputFile, String operationType, String persistedGraphFile) throws FileNotFoundException {
         if (!validSequenceType(sequenceType)) {
             throw new IllegalArgumentException("Invalid sequence type: " + sequenceType + ". Valid types are: " + SEQUENCE_TYPE);
         }
@@ -235,6 +235,9 @@ public class Main {
         }
         if (!OPERATION_TYPE.contains(operationType)) {
             throw new IllegalArgumentException("Invalid operation type: " + operationType + ". Valid types are: " + OPERATION_TYPE);
+        }
+        if ((operationType.equals(UPDATE) || operationType.equals(REMOVE)) && persistedGraphFile == null) {
+            throw new NotImplementedException("Update and Remove operations require a persisted graph file to continue from a previous run.");
         }
     }
 
