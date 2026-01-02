@@ -130,6 +130,8 @@ public class Main {
             outputFile += "_approx_" + numNeighbors;
         }
         else { outputFile += "_exact"; }
+
+        long startTime = System.currentTimeMillis();
         g = initializeGraph(sequenceType, inputSequenceFile, numNeighbors, persistedGraphFile, nnAlgorithm, newPoints, algorithmType, operationType);
         
         Graph graph;
@@ -167,6 +169,19 @@ public class Main {
 
         // save arborescence
         GraphMapper.saveArborescence(phylogeny, outputFile);
+        long endTime = System.currentTimeMillis();
+        System.out.println("Execution time: " + (endTime - startTime) + " ms");
+
+        // Save execution time and arborescence cost to a log file
+        long cost = phylogeny.stream().mapToLong(Edge::getWeight).sum();
+        System.out.println("Arborescence cost: " + cost);
+        File logFile = new File(outputFile + "_log.txt");
+        try (java.io.FileWriter writer = new java.io.FileWriter(logFile)) {
+            writer.write("Execution time (ms): " + (endTime - startTime) + "\n");
+            writer.write("Arborescence cost: " + cost + "\n");
+        } catch (IOException e) {
+            System.err.println("Error writing to log file: " + e.getMessage());
+        }
     }
 
     private static int approximatesGraph() {
@@ -723,18 +738,24 @@ public class Main {
         List<Point<?>> initialPoints = allPoints.subList(0, 2);
         
         // Run initial iteration based on algorithm type
+        long startTime = System.currentTimeMillis();
+        List<Edge> phylogeny = null;
         switch (algorithmType) {
             case STATIC_ALGORITHM:
-                runStaticTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, true);
+                phylogeny = runStaticTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, true);
                 break;
             case DYNAMIC_ALGORITHM:
-                runDynamicTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, true);
+                phylogeny = runDynamicTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, true);
                 break;
             case NEIGHBOR_JOINING:
-                runNJTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, sequenceLength, true);
+                phylogeny = runNJTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, sequenceLength, true);
                 break;
         }
-        
+        long endTime = System.currentTimeMillis();
+        long cost = phylogeny.stream().mapToLong(Edge::getWeight).sum();
+        logIterationDetails(startTime, endTime, "add", 2, 1, cost, outputFile);
+        System.out.println("Initial phylogeny cost: " + cost);
+        System.out.println("Initial iteration execution time: " + (endTime - startTime) + " ms");
         System.out.println("Initial graph created with 2 points. Phylogeny saved.");
         
         // Iteratively add remaining points in batches
@@ -747,20 +768,27 @@ public class Main {
             
             List<Point<?>> batchPoints = allPoints.subList(i, i + currentBatchSize);
             
+            startTime = System.currentTimeMillis();
             switch (algorithmType) {
                 case STATIC_ALGORITHM:
-                    runStaticTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, false);
+                    phylogeny = runStaticTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, false);
                     break;
                 case DYNAMIC_ALGORITHM:
                     // Dynamic algorithm processes points one by one
                     for (Point<?> point : batchPoints) {
-                        runDynamicTestIteration(sequenceType, List.of(point), tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, false);
+                        phylogeny = runDynamicTestIteration(sequenceType, List.of(point), tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, false);
                     }
                     break;
                 case NEIGHBOR_JOINING:
-                    runNJTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, sequenceLength, false);
+                    phylogeny = runNJTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, sequenceLength, false);
                     break;
             }
+            endTime = System.currentTimeMillis();
+            cost = phylogeny.stream().mapToLong(Edge::getWeight).sum();
+            logIterationDetails(startTime, endTime, "add", currentBatchSize, i + 1, cost, outputFile);
+            System.out.println("Updated phylogeny cost: " + cost);
+            System.out.println("Iteration execution time: " + (endTime - startTime) + " ms");
+            System.out.println("Batch added. Total points: " + (i + currentBatchSize));
             
             i += currentBatchSize;
             System.out.println("Batch added. Total points: " + i);
@@ -770,7 +798,7 @@ public class Main {
     }
     
     @SuppressWarnings("unchecked")
-    private static void runStaticTestIteration(String sequenceType, List<Point<?>> points, String tempGraphFile, 
+    private static List<Edge> runStaticTestIteration(String sequenceType, List<Point<?>> points, String tempGraphFile, 
                                                String outputFile, int numNeighbors, 
                                                NearestNeighbourSearchAlgorithm<?> nnAlgorithm, 
                                                int sequenceLength, boolean isInitial) throws IOException {
@@ -860,10 +888,12 @@ public class Main {
                 lshParamsFile
             );
         }
+
+        return phylogeny;
     }
     
     @SuppressWarnings("unchecked")
-    private static void runDynamicTestIteration(String sequenceType, List<Point<?>> points, String tempGraphFile,
+    private static List<Edge> runDynamicTestIteration(String sequenceType, List<Point<?>> points, String tempGraphFile,
                                                 String outputFile, int numNeighbors,
                                                 NearestNeighbourSearchAlgorithm<?> nnAlgorithm,
                                                 int sequenceLength, boolean isInitial) throws IOException {
@@ -942,9 +972,10 @@ public class Main {
                 lshParamsFile
             );
         }
+        return phylogeny;
     }
     
-    private static void runNJTestIteration(String sequenceType, List<Point<?>> points, String tempGraphFile,
+    private static List<Edge> runNJTestIteration(String sequenceType, List<Point<?>> points, String tempGraphFile,
                                            String outputFile, int sequenceLength, boolean isInitial) throws IOException {
         List<Point<?>> allPoints;
         
@@ -981,5 +1012,21 @@ public class Main {
             tempGraph.addNode(node);
         }
         GraphMapper.saveGraph(tempGraph, sequenceLength, tempGraphFile);
+        return phylogeny;
+    }
+
+    private static void logIterationDetails(long startTime, long endTime, String operationType, int batchSize, int iterationNumber, long cost, String outputFile) throws IOException {
+        long executionTime = endTime - startTime;
+        String logFile = outputFile + "_test_log.txt";
+        ensureDirectoryExists(logFile);
+        try (java.io.FileWriter fw = new java.io.FileWriter(logFile, true);
+             java.io.BufferedWriter bw = new java.io.BufferedWriter(fw);
+             java.io.PrintWriter out = new java.io.PrintWriter(bw)) {
+            out.print("Iteration " + iterationNumber);
+            out.print(" | Operation: " + operationType);
+            out.print(" | Points processed in this iteration: " + batchSize);
+            out.print(" | Phylogeny Cost: " + cost);
+            out.println(" | Execution time (ms): " + executionTime);
+        }
     }
 }

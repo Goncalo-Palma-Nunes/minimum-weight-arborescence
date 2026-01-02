@@ -49,4 +49,4 @@ tmp/
 **/.vscode/*
 
 # mischellaneous
-ATREE_MAPPER_REFACTORING.md
+database_organism_fetcher.py
