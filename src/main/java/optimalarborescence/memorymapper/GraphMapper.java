@@ -210,8 +210,8 @@ public class GraphMapper {
 
             return EdgeListMapper.edgeExists(edgeFile, sourceId, destId, incomingEdgeOffset);
         } catch (IOException e) {
-            // If node doesn't exist (out of range), edge can't exist
-            if (e.getMessage() != null && e.getMessage().contains("out of range")) {
+            // If node doesn't exist, edge can't exist
+            if (e.getMessage() != null && (e.getMessage().contains("out of range") || e.getMessage().contains("not found"))) {
                 return false;
             }
             throw e;
@@ -230,12 +230,17 @@ public class GraphMapper {
 
             EdgeListMapper.removeEdge(edgeFile, sourceId, destId, incomingEdgeOffset);
         } catch (IOException e) {
-            // If node doesn't exist (out of range), nothing to remove
-            if (e.getMessage() != null && e.getMessage().contains("out of range")) {
+            // If node doesn't exist, nothing to remove
+            if (e.getMessage() != null && (e.getMessage().contains("out of range") || e.getMessage().contains("not found"))) {
                 return;
             }
             throw e;
         }
+    }
+
+    public static void addEdge(Edge edge, String baseName) throws IOException {
+        String edgeFile = baseName + "_edges.dat";
+        EdgeListMapper.addEdge(edge, edgeFile);
     }
 
     public static void saveArborescence(List<Edge> phylogeny, String baseName) throws IOException {

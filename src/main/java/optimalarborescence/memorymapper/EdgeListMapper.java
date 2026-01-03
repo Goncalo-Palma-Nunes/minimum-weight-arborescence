@@ -440,9 +440,17 @@ public class EdgeListMapper {
         List<Edge> edges = new ArrayList<>();
         try (RandomAccessFile raf = new RandomAccessFile(filename, "r")) {
             FileChannel channel = raf.getChannel();
+            long fileSize = channel.size();
 
             long currentOffset = offset;
             while (currentOffset >= 0) {
+                // Bounds check: ensure we don't try to map beyond file size
+                if (currentOffset < 0 || currentOffset + BYTES_PER_EDGE > fileSize) {
+                    System.err.println("Warning: Invalid offset " + currentOffset + 
+                                     " in edge list (file size: " + fileSize + ")");
+                    break;
+                }
+                
                 MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, currentOffset, BYTES_PER_EDGE);
                 mbb.order(ByteOrder.nativeOrder());
 

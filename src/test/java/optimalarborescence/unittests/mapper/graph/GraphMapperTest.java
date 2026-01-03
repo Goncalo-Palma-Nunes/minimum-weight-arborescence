@@ -65,8 +65,8 @@ public class GraphMapperTest {
         // Edge file: 4 bytes (header = num edges) + 6 edges * 28 bytes = 172 bytes
         Assert.assertEquals("Edge file size should be 172 bytes", 172, edgeFile.length());
         
-        // Node file: header (9 bytes: 4+4+1 for num_nodes, mlst_length, sequence_type) + 4 nodes × (20 bytes MLST + 8 bytes offset) = 9 + 4×28 = 121 bytes
-        Assert.assertEquals("Node file size should be 121 bytes", 121, nodeFile.length());
+        // Node file: header (9 bytes: 4+4+1 for num_nodes, mlst_length, sequence_type) + 4 nodes × (4 bytes node_id + 20 bytes MLST + 8 bytes offset) = 9 + 4×32 = 137 bytes
+        Assert.assertEquals("Node file size should be 137 bytes", 137, nodeFile.length());
 
     }
     

@@ -457,13 +457,18 @@ public class NodeIndexMapperTest {
         Map<Integer, Node> loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
         Assert.assertEquals("Node count should decrease by 1", 3, loadedNodes.size());
 
-        // Verify node 2 position now contains what was node 3 (last node moved to fill gap)
-        long offset2After = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
-        Assert.assertEquals("Node 3 data moved to position 2", offset3Before, offset2After);
-
-        // Verify other nodes remain intact
+        // Verify node 2 is no longer in the file (node IDs are preserved, not position-based)
+        Assert.assertFalse("Node 2 should not exist after removal", loadedNodes.containsKey(2));
+        
+        // Verify other nodes remain intact with their original IDs
+        Assert.assertTrue("Node 0 should still exist", loadedNodes.containsKey(0));
+        Assert.assertTrue("Node 1 should still exist", loadedNodes.containsKey(1));
+        Assert.assertTrue("Node 3 should still exist", loadedNodes.containsKey(3));
+        
         long offset1After = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
+        long offset3After = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 3);
         Assert.assertEquals("Node 1 offset unchanged", offset1Before, offset1After);
+        Assert.assertEquals("Node 3 offset unchanged", offset3Before, offset3After);
     }
 
     @Test
@@ -522,9 +527,16 @@ public class NodeIndexMapperTest {
         Map<Integer, Node> loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
         Assert.assertEquals("Node count should decrease by 1", 3, loadedNodes.size());
 
-        // Verify node 0 position now contains what was node 3 (last node moved to fill gap)
-        long offset0After = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 0);
-        Assert.assertEquals("Node 3 data moved to position 0", offset3Before, offset0After);
+        // Verify node 0 is no longer in the file (node IDs are preserved, not position-based)
+        Assert.assertFalse("Node 0 should not exist after removal", loadedNodes.containsKey(0));
+        
+        // Verify other nodes remain intact with their original IDs
+        Assert.assertTrue("Node 1 should still exist", loadedNodes.containsKey(1));
+        Assert.assertTrue("Node 2 should still exist", loadedNodes.containsKey(2));
+        Assert.assertTrue("Node 3 should still exist", loadedNodes.containsKey(3));
+        
+        long offset3After = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 3);
+        Assert.assertEquals("Node 3 offset unchanged", offset3Before, offset3After);
     }
 
     @Test
@@ -648,13 +660,13 @@ public class NodeIndexMapperTest {
         AllelicProfile mlst1 = (AllelicProfile) nodesBefore.get(1).getMLSTdata();
         AllelicProfile mlst3 = (AllelicProfile) nodesBefore.get(3).getMLSTdata();
 
-        // Remove node 2 (middle node, so node 3 moves to position 2)
+        // Remove node 2 (with new format, node IDs are preserved, so node 3 stays as node 3)
         NodeIndexMapper.removeNode(TEST_NODES.get(2), NODES_FILE_NAME);
 
-        // Verify MLST data preserved
+        // Verify MLST data preserved with correct node IDs
         Map<Integer, Node> nodesAfter = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
         Assert.assertEquals("Node 0 MLST preserved", mlst0, nodesAfter.get(0).getMLSTdata());
         Assert.assertEquals("Node 1 MLST preserved", mlst1, nodesAfter.get(1).getMLSTdata());
-        Assert.assertEquals("Node 3 MLST moved to position 2", mlst3, nodesAfter.get(2).getMLSTdata());
+        Assert.assertEquals("Node 3 MLST preserved with its original ID", mlst3, nodesAfter.get(3).getMLSTdata());
     }
 }
