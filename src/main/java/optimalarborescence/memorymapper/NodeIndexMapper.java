@@ -401,6 +401,9 @@ public class NodeIndexMapper {
             long position = channel.size();
             long totalSize = (long) nodes.size() * entrySize;
             
+            // Pre-allocate file space to avoid filesystem reallocation overhead
+            raf.setLength(position + totalSize);
+            
             // Map the entire region for all nodes at once
             MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, position, totalSize);
             mbb.order(ByteOrder.nativeOrder());

@@ -489,7 +489,7 @@ public class Main {
         DistanceFunction distanceFunction = new HammingDistance();
         
         // Step 1: Initialize with first 2 nodes
-        System.out.println("Initializing graph with first 2 nodes...");
+        // System.out.println("Initializing graph with first 2 nodes...");
         List<Node> initialNodes = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             initialNodes.add(new Node(points.get(i).getSequence(), points.get(i).getId()));
@@ -510,7 +510,7 @@ public class Main {
         // Save initial graph to memory-mapped file
         ensureDirectoryExists(outputFile);
         GraphMapper.saveGraph(graph, sequenceLength, outputFile);
-        System.out.println("Initial graph saved. Adding remaining nodes in batches...");
+        // System.out.println("Initial graph saved. Adding remaining nodes in batches...");
         
         // Keep a lightweight cache of ALL nodes (just for distance computation)
         // This avoids expensive file reloads for every batch

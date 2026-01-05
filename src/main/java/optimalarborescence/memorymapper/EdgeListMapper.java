@@ -470,10 +470,13 @@ public class EdgeListMapper {
             
             // Calculate new file size and position to append
             long appendPosition = HEADER_SIZE + (long) currentEdgeCount * BYTES_PER_EDGE;
+            long totalEdgeSize = (long) totalNewEdges * BYTES_PER_EDGE;
+            
+            // Pre-allocate file space to avoid filesystem reallocation overhead
+            raf.setLength(appendPosition + totalEdgeSize);
             
             // Map the region for all new edges at once
-            MappedByteBuffer edgeMbb = channel.map(FileChannel.MapMode.READ_WRITE, appendPosition, 
-                                                    (long) totalNewEdges * BYTES_PER_EDGE);
+            MappedByteBuffer edgeMbb = channel.map(FileChannel.MapMode.READ_WRITE, appendPosition, totalEdgeSize);
             edgeMbb.order(ByteOrder.nativeOrder());
             
             // Track where each node's first edge is written (for updating node index)
