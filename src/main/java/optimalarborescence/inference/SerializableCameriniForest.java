@@ -9,6 +9,7 @@ import optimalarborescence.graph.Node;
 import optimalarborescence.memorymapper.GraphMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -91,6 +92,54 @@ public class SerializableCameriniForest extends CameriniForest {
         for (int i = 0; i < queues.size(); i++) {
             queueInitialized.put(i, false);
         }
+    }
+    
+    /**
+     * Constructor for memory-mapped file operation with full lazy loading.
+     * 
+     * This constructor enables true lazy loading by loading only the node structure
+     * from memory-mapped files. Edges are loaded on-demand when needed during
+     * algorithm execution. This is the most memory-efficient mode.
+     * 
+     * @param comparator Edge comparator for determining minimum weight edges
+     * @param baseName Base name for memory-mapped files containing the graph
+     * @throws IOException if file operations fail
+     */
+    public SerializableCameriniForest(Comparator<Edge> comparator, String baseName) throws IOException {
+        super(createMinimalGraph(baseName), comparator);
+        
+        this.baseName = baseName;
+        this.useMemoryMappedFiles = true;
+        this.queueInitialized = new HashMap<>();
+        
+        // Load node map for edge reconstruction during lazy loading
+        this.nodeMap = GraphMapper.loadNodeMap(baseName);
+        
+        // Mark all queues as uninitialized for lazy loading
+        // Note: queues were already created by parent constructor with empty graph
+        for (int i = 0; i < queues.size(); i++) {
+            queueInitialized.put(i, false);
+        }
+    }
+    
+    /**
+     * Create a minimal graph with only nodes (no edges) from memory-mapped files.
+     * This allows the parent constructor to set up data structures without loading edges.
+     * 
+     * @param baseName Base name for memory-mapped files
+     * @return Graph with nodes but no edges
+     * @throws IOException if file operations fail
+     */
+    private static Graph createMinimalGraph(String baseName) throws IOException {
+        Map<Integer, Node> nodeMap = GraphMapper.loadNodeMap(baseName);
+        Graph graph = new Graph(new ArrayList<>());  // Empty edges list
+        
+        // Add all nodes to the graph
+        for (Node node : nodeMap.values()) {
+            graph.addNode(node);
+        }
+        
+        return graph;
     }
     
     /**

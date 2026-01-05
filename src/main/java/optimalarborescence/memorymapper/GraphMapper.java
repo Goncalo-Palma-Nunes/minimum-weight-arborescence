@@ -151,11 +151,6 @@ public class GraphMapper {
         
         // Add outgoing edges (each needs to be added to its destination's linked list)
         for (Edge outgoingEdge : outgoingEdges) {
-            // Get the destination node's current incoming edge offset
-            long destOffset = NodeIndexMapper.getIncomingEdgeOffset(nodeFile, 
-                outgoingEdge.getDestination().getId());
-            
-            // Add this edge to the destination's incoming edge list
             EdgeListMapper.addEdge(outgoingEdge, edgeFile);
         }
     }
@@ -172,6 +167,28 @@ public class GraphMapper {
      */
     public static void addNode(Node node, List<Edge> incomingEdges, String baseName, int mlstLength) throws IOException {
         addNode(node, incomingEdges, List.of(), baseName, mlstLength);
+    }
+    
+    /**
+     * Add multiple nodes and their edges in a single batch operation.
+     * This is much more efficient than calling addNode() multiple times.
+     * 
+     * @param nodes List of nodes to add
+     * @param nodeEdges Map of node to its incoming edges
+     * @param baseName Base name for files
+     * @param mlstLength Fixed length for MLST data
+     * @throws IOException if file operations fail
+     */
+    public static void addNodesBatch(List<Node> nodes, Map<Node, List<Edge>> nodeEdges, 
+                                     String baseName, int mlstLength) throws IOException {
+        String nodeFile = baseName + "_nodes.dat";
+        String edgeFile = baseName + "_edges.dat";
+        
+        // Add all nodes at once
+        NodeIndexMapper.addNodesBatch(nodes, nodeFile, mlstLength);
+        
+        // Add all edges in one batch operation (much faster!)
+        EdgeListMapper.addEdgesBatch(nodeEdges, edgeFile);
     }
 
     public static void removeNode(Node node, String baseName, int mlstLength) throws IOException {

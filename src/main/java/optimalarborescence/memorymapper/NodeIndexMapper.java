@@ -306,6 +306,57 @@ public class NodeIndexMapper {
     }
 
     /**
+     * Add multiple nodes to the memory-mapped file in a single batch operation.
+     * This is more efficient than calling addNode() multiple times.
+     * 
+     * @param nodes List of nodes to add
+     * @param fileName Path to the node data file
+     * @param mlstLength Fixed length of MLST data
+     * @throws IOException if file operations fail
+     */
+    public static void addNodesBatch(List<Node> nodes, String fileName, int mlstLength) throws IOException {
+        if (nodes == null || nodes.isEmpty()) {
+            return;
+        }
+        
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
+             FileChannel channel = raf.getChannel()) {
+            
+            // Update num_nodes in header
+            MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, Integer.BYTES);
+            headerMbb.order(ByteOrder.nativeOrder());
+            int currentNumNodes = headerMbb.getInt();
+            headerMbb.position(0);
+            headerMbb.putInt(currentNumNodes + nodes.size());
+            headerMbb.force();
+            
+            // Read sequence type from header
+            MappedByteBuffer headerReadMbb = channel.map(FileChannel.MapMode.READ_ONLY, 2 * Integer.BYTES, 1);
+            byte sequenceType = headerReadMbb.get();
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+            
+            // Calculate entry size and total size needed
+            int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
+            long position = channel.size();
+            long totalSize = (long) nodes.size() * entrySize;
+            
+            // Map the entire region for all nodes at once
+            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, position, totalSize);
+            mbb.order(ByteOrder.nativeOrder());
+            
+            // Write all nodes
+            for (Node node : nodes) {
+                mbb.putInt(node.getId());
+                byte[] mlstBytes = sequenceToBytes(node, mlstLength, sequenceType);
+                mbb.put(mlstBytes);
+                mbb.putLong(-1L); // Initial incoming edge offset
+            }
+            
+            mbb.force();
+        }
+    }
+    
+    /**
      * Add a single node to the memory-mapped file.
      * 
      * @param node The node to add

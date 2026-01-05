@@ -20,6 +20,7 @@ import optimalarborescence.memorymapper.GraphMapper;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Comparator;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -49,7 +50,7 @@ public class Main {
     private static final List<String> OPERATION_TYPE = List.of(ADD, REMOVE, UPDATE, TEST);
     private static final Comparator<Edge> EDGE_COMPARATOR = 
         (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
-    private static final int BATCH_SIZE = 100;  // Number of nodes to process in each batch for incremental graph building
+    private static final int BATCH_SIZE = 1000;  // Number of nodes to process in each batch for incremental graph building
     
     
     public static void main(String[] args) throws FileNotFoundException, IOException {
@@ -470,9 +471,14 @@ public class Main {
      * Creates initial graph with 2 nodes, saves to memory-mapped file,
      * then adds remaining nodes in batches, computing and persisting edges incrementally.
      * 
+     * Only stores upper triangle of distance matrix (edges from existing nodes to new nodes)
+     * to avoid redundant storage since distance(A,B) = distance(B,A).
+     * 
+     * Does NOT maintain an in-memory Graph - writes directly to memory-mapped files.
+     * 
      * @param points All points to include in the graph
      * @param outputFile Path for the memory-mapped graph file
-     * @return Graph object backed by memory-mapped file
+     * @return Graph object loaded from memory-mapped file
      */
     private static Graph generateExactGraphIncrementally(List<Point<?>> points, String outputFile) throws IOException {
         if (points.size() < 2) {
@@ -489,12 +495,12 @@ public class Main {
             initialNodes.add(new Node(points.get(i).getSequence(), points.get(i).getId()));
         }
         
-        Graph graph = new Graph(new ArrayList<>());  // Empty edges initially
-        for (Node node : initialNodes) {
-            graph.addNode(node);
-        }
+        // Create minimal graph with just 2 nodes and 1 edge (upper triangle)
+        Graph graph = new Graph(new ArrayList<>());
+        graph.addNode(initialNodes.get(0));
+        graph.addNode(initialNodes.get(1));
         
-        // Create initial edge between first 2 nodes
+        // Only create edge from node 0 -> node 1 (upper triangle)
         int distance = (int) distanceFunction.calculate(
             initialNodes.get(0).getPoint().getSequence(),
             initialNodes.get(1).getPoint().getSequence()
@@ -506,13 +512,21 @@ public class Main {
         GraphMapper.saveGraph(graph, sequenceLength, outputFile);
         System.out.println("Initial graph saved. Adding remaining nodes in batches...");
         
+        // Keep a lightweight cache of ALL nodes (just for distance computation)
+        // This avoids expensive file reloads for every batch
+        List<Node> allNodes = new ArrayList<>(initialNodes);
+        
         // Step 2: Add remaining nodes in batches
         int totalPoints = points.size();
+        long startTime = System.currentTimeMillis();
+        
         for (int i = 2; i < totalPoints; i += BATCH_SIZE) {
             int endIdx = Math.min(i + BATCH_SIZE, totalPoints);
             List<Point<?>> batchPoints = points.subList(i, endIdx);
+            int batchSize = batchPoints.size();
             
-            System.out.println("Processing batch: nodes " + (i + 1) + " to " + endIdx + " of " + totalPoints);
+            long batchStart = System.currentTimeMillis();
+            System.out.println("\n=== Processing batch: nodes " + (i + 1) + " to " + endIdx + " of " + totalPoints + " ===");
             
             // Create nodes for this batch
             List<Node> batchNodes = new ArrayList<>();
@@ -520,121 +534,148 @@ public class Main {
                 batchNodes.add(new Node(point.getSequence(), point.getId()));
             }
             
-            // Get existing nodes before adding new ones
-            List<Node> existingNodes = new ArrayList<>(graph.getNodes());
+            // Prepare edges for all new nodes (UPPER TRIANGLE ONLY)
+            // Use cached allNodes instead of reloading from file
+            Map<Node, List<Edge>> nodeEdgesMap = new HashMap<>();
             
-            // Add new nodes to in-memory graph structure
-            for (Node node : batchNodes) {
-                graph.addNode(node);
-            }
+            System.out.println("Computing distances for " + batchSize + " new nodes against " + allNodes.size() + " existing nodes...");
+            long distStart = System.currentTimeMillis();
             
-            // Compute and save edges for each new node
             for (Node newNode : batchNodes) {
-                List<Edge> edgesForNode = new ArrayList<>();
+                List<Edge> incomingEdges = new ArrayList<>();
                 
-                // Create edges to all existing nodes
-                for (Node existingNode : existingNodes) {
+                // Create edges FROM existing nodes TO new node (upper triangle)
+                for (Node existingNode : allNodes) {
                     int dist = (int) distanceFunction.calculate(
-                        newNode.getPoint().getSequence(),
-                        existingNode.getPoint().getSequence()
+                        existingNode.getPoint().getSequence(),
+                        newNode.getPoint().getSequence()
                     );
-                    edgesForNode.add(new Edge(newNode, existingNode, dist));
+                    incomingEdges.add(new Edge(existingNode, newNode, dist));
                 }
                 
-                // Save this node's edges incrementally to memory-mapped file
-                GraphMapper.addNode(newNode, edgesForNode, outputFile, sequenceLength);
-                
-                // Clear edge list to free memory
-                edgesForNode.clear();
+                nodeEdgesMap.put(newNode, incomingEdges);
             }
             
-            // Update existingNodes to include batch nodes for next iteration
-            existingNodes.addAll(batchNodes);
+            long distEnd = System.currentTimeMillis();
+            System.out.println("Distance computation: " + (distEnd - distStart) + " ms");
             
-            // Edges between nodes in the same batch
+            // Add intra-batch edges (upper triangle within batch)
+            System.out.println("Computing intra-batch edges...");
             for (int j = 0; j < batchNodes.size(); j++) {
-                List<Edge> intraBatchEdges = new ArrayList<>();
-                for (int k = j + 1; k < batchNodes.size(); k++) {
+                Node nodeJ = batchNodes.get(j);
+                List<Edge> nodeJEdges = nodeEdgesMap.get(nodeJ);
+                
+                // Add edges from earlier nodes in batch to this node
+                for (int k = 0; k < j; k++) {
+                    Node nodeK = batchNodes.get(k);
                     int dist = (int) distanceFunction.calculate(
-                        batchNodes.get(j).getPoint().getSequence(),
-                        batchNodes.get(k).getPoint().getSequence()
+                        nodeK.getPoint().getSequence(),
+                        nodeJ.getPoint().getSequence()
                     );
-                    Edge edge = new Edge(batchNodes.get(j), batchNodes.get(k), dist);
-                    graph.addEdge(edge);
-                    intraBatchEdges.add(edge);
+                    // nodeK -> nodeJ (upper triangle: earlier node to later node)
+                    nodeJEdges.add(new Edge(nodeK, nodeJ, dist));
                 }
-                // Note: These edges are added to graph but for large batches might need special handling
-                intraBatchEdges.clear();
             }
             
-            // Suggest garbage collection after each batch
-            System.gc();
+            // Add all nodes and edges in one batch operation
+            System.out.println("Writing to memory-mapped file...");
+            long writeStart = System.currentTimeMillis();
+            GraphMapper.addNodesBatch(batchNodes, nodeEdgesMap, outputFile, sequenceLength);
+            long writeEnd = System.currentTimeMillis();
+            System.out.println("File write: " + (writeEnd - writeStart) + " ms");
+            
+            // Add new nodes to cache for next iteration
+            allNodes.addAll(batchNodes);
+            
+            // Clear map to free memory
+            nodeEdgesMap.clear();
+            
+            long batchEnd = System.currentTimeMillis();
+            long batchTime = batchEnd - batchStart;
+            long totalTime = batchEnd - startTime;
+            double avgTimePerNode = batchTime / (double) batchSize;
+            int nodesRemaining = totalPoints - endIdx;
+            long estimatedRemaining = (long) (nodesRemaining * avgTimePerNode / 1000.0);
+            
+            System.out.println("Batch completed in " + batchTime + " ms (" + String.format("%.2f", avgTimePerNode) + " ms/node)");
+            System.out.println("Total time: " + (totalTime / 1000) + " seconds");
+            System.out.println("Estimated time remaining: ~" + estimatedRemaining + " seconds");
+            System.out.println("Nodes in cache: " + allNodes.size());
         }
         
         System.out.println("Graph construction complete. All nodes and edges saved to memory-mapped file.");
         
-        // Reload graph from memory-mapped file to ensure consistency
+        // Load and return graph from memory-mapped file
         return GraphMapper.loadGraph(outputFile);
     }
 
     /**
      * Adds nodes incrementally to an existing graph, computing and persisting edges in batches
-     * to avoid memory overflow. This method is useful when adding nodes to an already existing graph.
+     * to avoid memory overflow. Only stores upper triangle edges (from existing to new nodes).
      * 
-     * @param graph The existing graph to add nodes to
+     * Uses a memory cache of nodes to avoid expensive file reloads.
+     * 
      * @param nodesToAdd List of nodes to add
      * @param outputFile Path to the memory-mapped graph file
      * @param sequenceLength Length of sequences (for serialization)
      */
-    private static void addNodesIncrementallyToExactGraph(Graph graph, List<Node> nodesToAdd, 
+    private static void addNodesIncrementallyToExactGraph(List<Node> nodesToAdd, 
                                                           String outputFile, int sequenceLength) throws IOException {
         if (nodesToAdd.isEmpty()) {
             return;
         }
         
         DistanceFunction distanceFunction = new HammingDistance();
-        List<Node> existingNodes = new ArrayList<>(graph.getNodes());
         
         System.out.println("Adding " + nodesToAdd.size() + " nodes incrementally...");
         
-        // Add nodes to in-memory graph structure
-        for (Node node : nodesToAdd) {
-            graph.addNode(node);
-        }
+        // Load existing nodes from file ONCE
+        Map<Integer, Node> existingNodeMap = GraphMapper.loadNodeMap(outputFile);
+        List<Node> existingNodes = new ArrayList<>(existingNodeMap.values());
         
-        // Process edges for each new node
+        System.out.println("Loaded " + existingNodes.size() + " existing nodes from file.");
+        
+        // Prepare edges for all new nodes (upper triangle only)
+        Map<Node, List<Edge>> nodeEdgesMap = new HashMap<>();
+        
+        long distStart = System.currentTimeMillis();
         for (int i = 0; i < nodesToAdd.size(); i++) {
             Node newNode = nodesToAdd.get(i);
-            List<Edge> edgesForNode = new ArrayList<>();
+            List<Edge> incomingEdges = new ArrayList<>();
             
-            // Create edges to all existing nodes
+            // Create edges FROM all existing nodes TO new node
             for (Node existingNode : existingNodes) {
                 int dist = (int) distanceFunction.calculate(
-                    newNode.getPoint().getSequence(),
-                    existingNode.getPoint().getSequence()
+                    existingNode.getPoint().getSequence(),
+                    newNode.getPoint().getSequence()
                 );
-                edgesForNode.add(new Edge(newNode, existingNode, dist));
+                incomingEdges.add(new Edge(existingNode, newNode, dist));
             }
             
-            // Create edges to previously added nodes in this batch
+            // Create edges FROM previously added nodes in this batch TO new node
             for (int j = 0; j < i; j++) {
+                Node previousNode = nodesToAdd.get(j);
                 int dist = (int) distanceFunction.calculate(
-                    newNode.getPoint().getSequence(),
-                    nodesToAdd.get(j).getPoint().getSequence()
+                    previousNode.getPoint().getSequence(),
+                    newNode.getPoint().getSequence()
                 );
-                edgesForNode.add(new Edge(newNode, nodesToAdd.get(j), dist));
+                incomingEdges.add(new Edge(previousNode, newNode, dist));
             }
             
-            // Save this node's edges incrementally to memory-mapped file
-            GraphMapper.addNode(newNode, edgesForNode, outputFile, sequenceLength);
+            nodeEdgesMap.put(newNode, incomingEdges);
             
-            // Clear edge list to free memory
-            edgesForNode.clear();
-            
-            if ((i + 1) % 10 == 0) {
-                System.out.println("Processed " + (i + 1) + "/" + nodesToAdd.size() + " nodes");
+            if ((i + 1) % 100 == 0) {
+                System.out.println("Prepared " + (i + 1) + "/" + nodesToAdd.size() + " nodes");
             }
         }
+        long distEnd = System.currentTimeMillis();
+        System.out.println("Distance computation: " + (distEnd - distStart) + " ms");
+        
+        // Add all nodes and edges in one batch operation
+        long writeStart = System.currentTimeMillis();
+        GraphMapper.addNodesBatch(nodesToAdd, nodeEdgesMap, outputFile, sequenceLength);
+        long writeEnd = System.currentTimeMillis();
+        System.out.println("File write: " + (writeEnd - writeStart) + " ms");
         
         System.out.println("All " + nodesToAdd.size() + " nodes added successfully.");
     }
@@ -674,9 +715,9 @@ public class Main {
         // to enable lazy loading of edges from memory-mapped files
         CameriniForest camerini;
         if (persistedGraphFile != null) {
-            // Use serializable version with lazy loading from the persisted file
-            int sequenceLength = points.get(0).getSequence().getLength();
-            camerini = new SerializableCameriniForest(g, EDGE_COMPARATOR, persistedGraphFile, sequenceLength);
+            // Use serializable version with true lazy loading from the persisted file
+            // This constructor doesn't require a pre-loaded Graph, avoiding memory overhead
+            camerini = new SerializableCameriniForest(EDGE_COMPARATOR, persistedGraphFile);
         } else {
             // Use regular in-memory version
             camerini = new CameriniForest(g, EDGE_COMPARATOR);
@@ -1007,7 +1048,7 @@ public class Main {
                 // Exact graph: use incremental approach to avoid memory overflow
                 
                 // Use helper method to add nodes incrementally
-                addNodesIncrementallyToExactGraph(graph, nodesToAdd, tempGraphFile, sequenceLength);
+                addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength);
             }
         }
         
@@ -1015,8 +1056,8 @@ public class Main {
         // when graph was loaded from or will be saved to memory-mapped files
         CameriniForest camerini;
         if (!isInitial) {
-            // Use serializable version with lazy loading from the temp graph file
-            camerini = new SerializableCameriniForest(graph, EDGE_COMPARATOR, tempGraphFile, sequenceLength);
+            // Use true lazy loading from memory-mapped file without pre-loading graph
+            camerini = new SerializableCameriniForest(EDGE_COMPARATOR, tempGraphFile);
         } else {
             // For initial iteration, use regular version and save to file afterward
             camerini = new CameriniForest(graph, EDGE_COMPARATOR);
