@@ -10,8 +10,10 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * EdgeListMapper provides memory-mapped file operations for storing and loading edge lists.
@@ -476,7 +478,16 @@ public class EdgeListMapper {
             
             // Track where each node's first edge is written (for updating node index)
             Map<Integer, Long> firstEdgeOffsets = new HashMap<>();
+            
+            // OPTIMIZATION: Batch-load existing offsets for all nodes at once
+            Set<Integer> nodeIdsToCheck = new HashSet<>();
+            for (Node destNode : nodeEdgesMap.keySet()) {
+                nodeIdsToCheck.add(destNode.getId());
+            }
+            Map<Integer, Long> existingOffsets = NodeIndexMapper.getIncomingEdgeOffsetsBatch(nodeFileName, nodeIdsToCheck);
+            
             long currentOffset = appendPosition;
+            Map<Long, Long> edgeUpdates = new HashMap<>(); // offset -> new prev value
             
             // Write all edges
             for (Map.Entry<Node, List<Edge>> entry : nodeEdgesMap.entrySet()) {
@@ -487,8 +498,8 @@ public class EdgeListMapper {
                     continue;
                 }
                 
-                // Get the existing first edge offset for this destination
-                long existingFirstOffset = NodeIndexMapper.getIncomingEdgeOffset(nodeFileName, destNode.getId());
+                // Get the existing first edge offset (already loaded)
+                long existingFirstOffset = existingOffsets.getOrDefault(destNode.getId(), NO_OFFSET);
                 
                 // Record where this node's first edge will be
                 if (!firstEdgeOffsets.containsKey(destNode.getId())) {
@@ -497,6 +508,7 @@ public class EdgeListMapper {
                 
                 // Write all edges for this node as a linked list
                 long prevOffset = NO_OFFSET;
+                long lastNewEdgeOffset = NO_OFFSET;
                 
                 for (int i = 0; i < edges.size(); i++) {
                     Edge edge = edges.get(i);
@@ -511,18 +523,29 @@ public class EdgeListMapper {
                     edgeMbb.putLong(prevOffset);
                     
                     prevOffset = thisOffset;
+                    lastNewEdgeOffset = thisOffset;
                     currentOffset += BYTES_PER_EDGE;
                 }
                 
-                // If there was an existing first edge, update its prev pointer
+                // Track edge updates to apply in batch later
                 if (existingFirstOffset >= 0) {
-                    // Update the prev pointer of the old first edge to point to the last new edge
+                    edgeUpdates.put(existingFirstOffset, lastNewEdgeOffset);
+                }
+            }
+            
+            edgeMbb.force();
+            
+            // Batch update prev pointers for existing edges
+            if (!edgeUpdates.isEmpty()) {
+                for (Map.Entry<Long, Long> update : edgeUpdates.entrySet()) {
+                    long edgeOffset = update.getKey();
+                    long newPrevValue = update.getValue();
+                    
                     MappedByteBuffer updateMbb = channel.map(FileChannel.MapMode.READ_WRITE, 
-                                                             existingFirstOffset, BYTES_PER_EDGE);
+                                                             edgeOffset, BYTES_PER_EDGE);
                     updateMbb.order(ByteOrder.nativeOrder());
-                    updateMbb.position(12); // Skip source, dest, weight
-                    updateMbb.getLong(); // Skip next
-                    updateMbb.putLong(prevOffset); // Update prev
+                    updateMbb.position(20); // Skip source(4), dest(4), weight(4), next(8) = 20 bytes
+                    updateMbb.putLong(newPrevValue);
                     updateMbb.force();
                 }
             }

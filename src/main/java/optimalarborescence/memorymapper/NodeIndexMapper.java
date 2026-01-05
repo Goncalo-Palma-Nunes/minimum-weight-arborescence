@@ -304,6 +304,67 @@ public class NodeIndexMapper {
             throw new IOException("Node ID " + nodeId + " not found in file");
         }
     }
+    
+    /**
+     * Get incoming edge offsets for multiple nodes in a single batch operation.
+     * Much more efficient than calling getIncomingEdgeOffset() multiple times.
+     * 
+     * @param fileName Path to the node data file
+     * @param nodeIds Set of node IDs to query
+     * @return Map of node ID to incoming edge offset (-1 if node has no incoming edges)
+     * @throws IOException if file operations fail
+     */
+    public static Map<Integer, Long> getIncomingEdgeOffsetsBatch(String fileName, Set<Integer> nodeIds) throws IOException {
+        Map<Integer, Long> result = new HashMap<>();
+        
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            return result;
+        }
+        
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
+             FileChannel channel = raf.getChannel()) {
+            
+            if (channel.size() < HEADER_SIZE) {
+                throw new IOException("Invalid file format: file too small for header");
+            }
+            
+            // Read header
+            MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
+            headerMbb.order(ByteOrder.nativeOrder());
+            int numNodes = headerMbb.getInt();
+            int mlstLength = headerMbb.getInt();
+            byte sequenceType = headerMbb.get();
+            
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+            int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
+            
+            // Map the entire file at once
+            long dataSize = channel.size() - HEADER_SIZE;
+            MappedByteBuffer dataMbb = channel.map(FileChannel.MapMode.READ_ONLY, HEADER_SIZE, dataSize);
+            dataMbb.order(ByteOrder.nativeOrder());
+            
+            // Scan through and collect offsets for requested nodes
+            int offsetInBuffer = 0;
+            for (int i = 0; i < numNodes && offsetInBuffer + entrySize <= dataSize; i++) {
+                int currentNodeId = dataMbb.getInt(offsetInBuffer);
+                
+                if (nodeIds.contains(currentNodeId)) {
+                    int offsetFieldPos = offsetInBuffer + NODE_ID_BYTES + mlstLength * bytesPerElement;
+                    long edgeOffset = dataMbb.getLong(offsetFieldPos);
+                    result.put(currentNodeId, edgeOffset);
+                    
+                    // Early exit if we found all requested nodes
+                    if (result.size() == nodeIds.size()) {
+                        break;
+                    }
+                }
+                
+                offsetInBuffer += entrySize;
+            }
+        }
+        
+        return result;
+    }
 
     /**
      * Add multiple nodes to the memory-mapped file in a single batch operation.
@@ -467,6 +528,10 @@ public class NodeIndexMapper {
      * @throws IOException if file operations fail or if any node ID is not found
      */
     public static void updateIncomingEdgeOffsets(String fileName, Map<Integer, Long> updatedOffsets) throws IOException {
+        if (updatedOffsets == null || updatedOffsets.isEmpty()) {
+            return;
+        }
+        
         try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
              FileChannel channel = raf.getChannel()) {
 
@@ -484,31 +549,50 @@ public class NodeIndexMapper {
             int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
             int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
 
-            // Build a map of positions for each node ID that needs updating
+            // OPTIMIZATION: The nodes we're updating were just added at the END of the file
+            // So we only need to scan the last N entries where N = updatedOffsets.size()
+            int numToCheck = Math.min(updatedOffsets.size() + 100, numNodes); // +100 buffer for safety
+            int startIndex = Math.max(0, numNodes - numToCheck);
+            
+            // Map the entire region we need to check at ONCE (not one node at a time!)
+            long startPosition = HEADER_SIZE + (long) startIndex * entrySize;
+            long regionSize = (long) numToCheck * entrySize;
+            
+            if (startPosition + regionSize > channel.size()) {
+                regionSize = channel.size() - startPosition;
+            }
+            
+            MappedByteBuffer regionMbb = channel.map(FileChannel.MapMode.READ_WRITE, startPosition, regionSize);
+            regionMbb.order(ByteOrder.nativeOrder());
+            
+            // Scan through the region and update matching nodes
             Set<Integer> foundNodes = new HashSet<>();
-            long position = HEADER_SIZE;
-            for (int i = 0; i < numNodes; i++) {
-                if (position + entrySize > channel.size()) {
-                    break;
-                }
-                
-                // Map the node ID field
-                MappedByteBuffer entryMbb = channel.map(FileChannel.MapMode.READ_ONLY, position, Integer.BYTES);
-                entryMbb.order(ByteOrder.nativeOrder());
-                int currentNodeId = entryMbb.getInt();
+            int offsetInRegion = 0;
+            
+            for (int i = 0; i < numToCheck && offsetInRegion + entrySize <= regionSize; i++) {
+                // Read node ID
+                int currentNodeId = regionMbb.getInt(offsetInRegion);
                 
                 // Check if this node needs its offset updated
                 if (updatedOffsets.containsKey(currentNodeId)) {
-                    long offsetPosition = position + NODE_ID_BYTES + mlstLength * bytesPerElement;
-                    MappedByteBuffer offsetMbb = channel.map(FileChannel.MapMode.READ_WRITE, offsetPosition, Long.BYTES);
-                    offsetMbb.order(ByteOrder.nativeOrder());
-                    offsetMbb.putLong(updatedOffsets.get(currentNodeId));
-                    offsetMbb.force();
+                    long newOffset = updatedOffsets.get(currentNodeId);
+                    
+                    // Update the offset field (skip node_id and mlst_data)
+                    int offsetFieldPosition = offsetInRegion + NODE_ID_BYTES + mlstLength * bytesPerElement;
+                    regionMbb.putLong(offsetFieldPosition, newOffset);
+                    
                     foundNodes.add(currentNodeId);
+                    
+                    // Early exit if we found all nodes
+                    if (foundNodes.size() == updatedOffsets.size()) {
+                        break;
+                    }
                 }
                 
-                position += entrySize;
+                offsetInRegion += entrySize;
             }
+            
+            regionMbb.force();
             
             // Check if any requested nodes were not found
             for (Integer nodeId : updatedOffsets.keySet()) {
