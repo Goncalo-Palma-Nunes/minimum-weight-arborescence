@@ -12,6 +12,8 @@ import optimalarborescence.sequences.AllelicProfile;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -668,5 +670,300 @@ public class NodeIndexMapperTest {
         Assert.assertEquals("Node 0 MLST preserved", mlst0, nodesAfter.get(0).getMLSTdata());
         Assert.assertEquals("Node 1 MLST preserved", mlst1, nodesAfter.get(1).getMLSTdata());
         Assert.assertEquals("Node 3 MLST preserved with its original ID", mlst3, nodesAfter.get(3).getMLSTdata());
+    }
+
+    // ===== Tests for addNodesBatch method =====
+
+    @Test
+    public void testAddNodesBatchToExistingFile() throws IOException {
+        // Initialize with a small graph
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        // Save initial graph with nodes 0, 1
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Add multiple nodes in batch (IDs 2, 3, 4)
+        List<Node> newNodes = new ArrayList<>();
+        newNodes.add(new Node(createProfile("TTTT"), 2));
+        newNodes.add(new Node(createProfile("CCCC"), 3));
+        newNodes.add(new Node(createProfile("AAAA"), 4));
+        
+        NodeIndexMapper.addNodesBatch(newNodes, NODES_FILE_NAME, mlstLength);
+
+        // Verify all nodes were added
+        Map<Integer, Node> loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertEquals(5, loadedNodes.size()); // 0, 1, 2, 3, 4
+
+        // Verify MLST data for new nodes
+        AllelicProfile expectedMlst2 = createProfile("TTTT");
+        AllelicProfile expectedMlst3 = createProfile("CCCC");
+        AllelicProfile expectedMlst4 = createProfile("AAAA");
+        Assert.assertEquals(expectedMlst2, loadedNodes.get(2).getMLSTdata());
+        Assert.assertEquals(expectedMlst3, loadedNodes.get(3).getMLSTdata());
+        Assert.assertEquals(expectedMlst4, loadedNodes.get(4).getMLSTdata());
+
+        // Verify all new nodes have initial offset of -1
+        Assert.assertEquals(-1L, NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2));
+        Assert.assertEquals(-1L, NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 3));
+        Assert.assertEquals(-1L, NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 4));
+    }
+
+    @Test
+    public void testAddNodesBatchLargeNumber() throws IOException {
+        // Initialize with empty graph
+        Graph emptyGraph = new Graph(new ArrayList<>());
+        int mlstLength = 4;
+        NodeIndexMapper.saveGraph(emptyGraph, mlstLength, Map.of(), NODES_FILE_NAME);
+
+        // Add 100 nodes in one batch
+        List<Node> newNodes = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            String mlstData = String.format("A%03d", i); // "A000", "A001", ..., "A099"
+            newNodes.add(new Node(createProfile(mlstData), i));
+        }
+        
+        NodeIndexMapper.addNodesBatch(newNodes, NODES_FILE_NAME, mlstLength);
+
+        // Verify all nodes were added
+        Map<Integer, Node> loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertEquals(100, loadedNodes.size());
+
+        // Spot check a few nodes
+        AllelicProfile mlst0 = (AllelicProfile) loadedNodes.get(0).getMLSTdata();
+        AllelicProfile mlst50 = (AllelicProfile) loadedNodes.get(50).getMLSTdata();
+        AllelicProfile mlst99 = (AllelicProfile) loadedNodes.get(99).getMLSTdata();
+        Assert.assertTrue("MLST should start with A", mlst0.toString().startsWith("A"));
+        Assert.assertTrue("MLST should start with A", mlst50.toString().startsWith("A"));
+        Assert.assertTrue("MLST should start with A", mlst99.toString().startsWith("A"));
+    }
+
+    @Test
+    public void testAddNodesBatchEmptyList() throws IOException {
+        // Initialize with small graph
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Get initial node count
+        Map<Integer, Node> nodesBefore = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        int countBefore = nodesBefore.size();
+
+        // Add empty list (should do nothing)
+        NodeIndexMapper.addNodesBatch(new ArrayList<>(), NODES_FILE_NAME, mlstLength);
+
+        // Verify no change
+        Map<Integer, Node> nodesAfter = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertEquals(countBefore, nodesAfter.size());
+    }
+
+    @Test
+    public void testAddNodesBatchPreservesExistingNodes() throws IOException {
+        // Initialize with nodes 0, 1, 2
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        originalEdges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Get original MLST data
+        Map<Integer, Node> nodesBefore = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        AllelicProfile mlst0 = (AllelicProfile) nodesBefore.get(0).getMLSTdata();
+        AllelicProfile mlst1 = (AllelicProfile) nodesBefore.get(1).getMLSTdata();
+        AllelicProfile mlst2 = (AllelicProfile) nodesBefore.get(2).getMLSTdata();
+
+        // Add new nodes in batch (IDs 3, 4)
+        List<Node> newNodes = new ArrayList<>();
+        newNodes.add(new Node(createProfile("GGGG"), 3));
+        newNodes.add(new Node(createProfile("TTTT"), 4));
+        NodeIndexMapper.addNodesBatch(newNodes, NODES_FILE_NAME, mlstLength);
+
+        // Verify original nodes preserved
+        Map<Integer, Node> nodesAfter = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertEquals(5, nodesAfter.size());
+        Assert.assertEquals(mlst0, nodesAfter.get(0).getMLSTdata());
+        Assert.assertEquals(mlst1, nodesAfter.get(1).getMLSTdata());
+        Assert.assertEquals(mlst2, nodesAfter.get(2).getMLSTdata());
+        AllelicProfile expectedMlst3 = createProfile("GGGG");
+        AllelicProfile expectedMlst4 = createProfile("TTTT");
+        Assert.assertEquals(expectedMlst3, nodesAfter.get(3).getMLSTdata());
+        Assert.assertEquals(expectedMlst4, nodesAfter.get(4).getMLSTdata());
+    }
+
+    // ===== Tests for getIncomingEdgeOffsetsBatch method =====
+
+    @Test
+    public void testGetIncomingEdgeOffsetsBatchMultipleNodes() throws IOException {
+        // Create graph with multiple nodes with different offsets
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        originalEdges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        originalEdges.add(new Edge(TEST_NODES.get(3), TEST_NODES.get(2), 30));
+        originalEdges.add(new Edge(TEST_NODES.get(4), TEST_NODES.get(3), 40));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Request offsets for nodes 1, 2, 3 in batch
+        Set<Integer> nodeIds = Set.of(1, 2, 3);
+        Map<Integer, Long> batchOffsets = NodeIndexMapper.getIncomingEdgeOffsetsBatch(NODES_FILE_NAME, nodeIds);
+
+        // Verify batch results match individual lookups
+        Assert.assertEquals(3, batchOffsets.size());
+        Assert.assertEquals(offsetMap.get(1), batchOffsets.get(1));
+        Assert.assertEquals(offsetMap.get(2), batchOffsets.get(2));
+        Assert.assertEquals(offsetMap.get(3), batchOffsets.get(3));
+
+        // Double-check against individual getIncomingEdgeOffset calls
+        for (int nodeId : nodeIds) {
+            long expectedOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, nodeId);
+            Assert.assertEquals("Batch offset should match individual lookup for node " + nodeId, 
+                              expectedOffset, (long) batchOffsets.get(nodeId));
+        }
+    }
+
+    @Test
+    public void testGetIncomingEdgeOffsetsBatchSingleNode() throws IOException {
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Request offset for single node
+        Set<Integer> nodeIds = Set.of(1);
+        Map<Integer, Long> batchOffsets = NodeIndexMapper.getIncomingEdgeOffsetsBatch(NODES_FILE_NAME, nodeIds);
+
+        Assert.assertEquals(1, batchOffsets.size());
+        Assert.assertEquals(offsetMap.get(1), batchOffsets.get(1));
+    }
+
+    @Test
+    public void testGetIncomingEdgeOffsetsBatchEmptySet() throws IOException {
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Request offsets for empty set
+        Map<Integer, Long> batchOffsets = NodeIndexMapper.getIncomingEdgeOffsetsBatch(NODES_FILE_NAME, Set.of());
+
+        Assert.assertTrue("Empty set should return empty map", batchOffsets.isEmpty());
+    }
+
+    @Test
+    public void testGetIncomingEdgeOffsetsBatchNullSet() throws IOException {
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Request offsets for null set
+        Map<Integer, Long> batchOffsets = NodeIndexMapper.getIncomingEdgeOffsetsBatch(NODES_FILE_NAME, null);
+
+        Assert.assertTrue("Null set should return empty map", batchOffsets.isEmpty());
+    }
+
+    @Test
+    public void testGetIncomingEdgeOffsetsBatchWithNoIncomingEdges() throws IOException {
+        // Create nodes with no incoming edges (offset = -1)
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Request offset for node 0 which has no incoming edges
+        Set<Integer> nodeIds = Set.of(0);
+        Map<Integer, Long> batchOffsets = NodeIndexMapper.getIncomingEdgeOffsetsBatch(NODES_FILE_NAME, nodeIds);
+
+        Assert.assertEquals(1, batchOffsets.size());
+        Assert.assertEquals(-1L, (long) batchOffsets.get(0));
+    }
+
+    @Test
+    public void testGetIncomingEdgeOffsetsBatchLargeSet() throws IOException {
+        // Create a large graph
+        List<Edge> originalEdges = new ArrayList<>();
+        List<Node> allNodes = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            String mlstData = String.format("A%03d", i);
+            allNodes.add(new Node(createProfile(mlstData), i));
+        }
+        
+        // Create edges from i to i+1
+        for (int i = 0; i < 49; i++) {
+            originalEdges.add(new Edge(allNodes.get(i), allNodes.get(i + 1), i * 10));
+        }
+        
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Request offsets for many nodes at once
+        Set<Integer> nodeIds = new HashSet<>();
+        for (int i = 1; i < 50; i++) { // Skip node 0 (has no incoming edges)
+            nodeIds.add(i);
+        }
+        
+        Map<Integer, Long> batchOffsets = NodeIndexMapper.getIncomingEdgeOffsetsBatch(NODES_FILE_NAME, nodeIds);
+
+        // Verify batch results
+        Assert.assertEquals(49, batchOffsets.size());
+        
+        // Spot check a few to ensure correctness
+        for (int nodeId : List.of(1, 10, 25, 40, 49)) {
+            long expectedOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, nodeId);
+            Assert.assertEquals("Offset mismatch for node " + nodeId, 
+                              expectedOffset, (long) batchOffsets.get(nodeId));
+        }
+    }
+
+    @Test
+    public void testGetIncomingEdgeOffsetsBatchMixedNodes() throws IOException {
+        // Create nodes with some having incoming edges and some not
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(2), 10)); // 2 has incoming
+        originalEdges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(3), 20)); // 3 has incoming
+        // Nodes 0, 1 have no incoming edges
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Request all nodes (0, 1, 2, 3 only - node 4 doesn't exist in graph)
+        Set<Integer> nodeIds = Set.of(0, 1, 2, 3);
+        Map<Integer, Long> batchOffsets = NodeIndexMapper.getIncomingEdgeOffsetsBatch(NODES_FILE_NAME, nodeIds);
+
+        Assert.assertEquals(4, batchOffsets.size());
+        Assert.assertEquals(-1L, (long) batchOffsets.get(0)); // No incoming
+        Assert.assertEquals(-1L, (long) batchOffsets.get(1)); // No incoming
+        Assert.assertTrue(batchOffsets.get(2) >= 0); // Has incoming
+        Assert.assertTrue(batchOffsets.get(3) >= 0); // Has incoming
     }
 }

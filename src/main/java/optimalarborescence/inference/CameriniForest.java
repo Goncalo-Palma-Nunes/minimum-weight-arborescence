@@ -214,9 +214,9 @@ public class CameriniForest extends StaticAlgorithm {
     }
 
     private TarjanForestNode getMaxWeightEdgeInCycle(List<TarjanForestNode> cycle) {
-        System.out.println("\t\u001B[32mcycle edges: \u001B[0m");
+        // System.out.println("\t\u001B[32mcycle edges: \u001B[0m");
         for (TarjanForestNode n : cycle) {
-            System.out.println("\t\t(" + n.getEdge().getSource().getId() + "," + n.getEdge().getDestination().getId() + ", adjusted weight=" + getAdjustedWeight(n.getEdge()) + ")");
+            // System.out.println("\t\t(" + n.getEdge().getSource().getId() + "," + n.getEdge().getDestination().getId() + ", adjusted weight=" + getAdjustedWeight(n.getEdge()) + ")");
         }
         Comparator <TarjanForestNode> cmp = new Comparator<TarjanForestNode>() {
             @Override
@@ -227,7 +227,7 @@ public class CameriniForest extends StaticAlgorithm {
                 return Integer.compare(e1.getWeight(), e2.getWeight());
             }
         };
-        System.out.println("\t\u001B[32mMax edge in cycle: " + cycle.stream().max(cmp).orElseThrow() + "\u001B[0m");
+        // System.out.println("\t\u001B[32mMax edge in cycle: " + cycle.stream().max(cmp).orElseThrow() + "\u001B[0m");
 
         return cycle.stream().max(cmp).orElseThrow();
     }
@@ -242,11 +242,11 @@ public class CameriniForest extends StaticAlgorithm {
 
     private void updateMax(Node index, Node newVal) {
 
-        System.out.println("\u001B[31mUpdating max for SCC represented by node " + index.getId() + "\u001B[0m");
-        System.out.println("\tNew candidate max: " + (newVal != null ? newVal.getId() : "null"));
-        System.out.println("\tCurrent max target: " + (max.get(index.getId()) != null ? max.get(index.getId()).getId() : "null"));
+        // System.out.println("\u001B[31mUpdating max for SCC represented by node " + index.getId() + "\u001B[0m");
+        // System.out.println("\tNew candidate max: " + (newVal != null ? newVal.getId() : "null"));
+        // System.out.println("\tCurrent max target: " + (max.get(index.getId()) != null ? max.get(index.getId()).getId() : "null"));
         if (getCycleEdges(index) != null && !getCycleEdges(index).isEmpty()) {
-            System.out.println("\tSCC has a cycle, finding max edge in cycle.");
+            // System.out.println("\tSCC has a cycle, finding max edge in cycle.");
             Comparator<TarjanForestNode> cmp = new Comparator<TarjanForestNode>() {
                 @Override
                 public int compare(TarjanForestNode n1, TarjanForestNode n2) {
@@ -522,11 +522,11 @@ public class CameriniForest extends StaticAlgorithm {
         // Process set N
         while (!N.isEmpty()) {
             TarjanForestNode edgeNode = N.remove(0);
-            System.out.println("Processing node with edge (" + edgeNode.getEdge().getSource().getId() + "," + edgeNode.getEdge().getDestination().getId() + "), remove=" + edgeNode.isRemove());
+            // System.out.println("Processing node with edge (" + edgeNode.getEdge().getSource().getId() + "," + edgeNode.getEdge().getDestination().getId() + "), remove=" + edgeNode.isRemove());
             
             // Skip nodes marked for removal
             if (edgeNode.isRemove()) {
-                System.out.println("\tSkipping node marked for removal during tracePath operation.");
+                // System.out.println("\tSkipping node marked for removal during tracePath operation.");
                 continue;
             }
             

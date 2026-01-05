@@ -1188,6 +1188,230 @@ public class GraphMapperTest {
     //     return new Graph(edges);
     // }
 
+    // ===== Tests for addNodesBatch method =====
+
+    @Test
+    public void testAddNodesBatchToExistingGraph() throws IOException {
+        // Save initial graph
+        GraphMapper.saveGraph(testGraph, MLST_LENGTH, TEST_BASE_NAME);
+
+        // Prepare batch of nodes with edges
+        List<Node> newNodes = new ArrayList<>();
+        Node node4 = new Node(createProfile("GGGGGGGGGGGGGGGGGGGG"), 4);
+        Node node5 = new Node(createProfile("CCCCCCCCCCCCCCCCCCCC"), 5);
+        newNodes.add(node4);
+        newNodes.add(node5);
+
+        // Prepare edges for new nodes (incoming edges)
+        Map<Node, List<Edge>> nodeEdges = new java.util.HashMap<>();
+        List<Edge> edgesForNode4 = new ArrayList<>();
+        edgesForNode4.add(new Edge(testGraph.getNodes().get(0), node4, 100));
+        edgesForNode4.add(new Edge(testGraph.getNodes().get(1), node4, 110));
+        nodeEdges.put(node4, edgesForNode4);
+        
+        List<Edge> edgesForNode5 = new ArrayList<>();
+        edgesForNode5.add(new Edge(testGraph.getNodes().get(2), node5, 200));
+        nodeEdges.put(node5, edgesForNode5);
+
+        // Add batch
+        GraphMapper.addNodesBatch(newNodes, nodeEdges, TEST_BASE_NAME, MLST_LENGTH);
+
+        // Load and verify
+        Graph loadedGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
+        Assert.assertEquals("Should have 6 nodes (4 original + 2 new)", 6, loadedGraph.getNumNodes());
+        Assert.assertEquals("Should have 9 edges (6 original + 3 new)", 9, loadedGraph.getNumEdges());
+
+        // Verify new nodes exist
+        boolean hasNode4 = false;
+        boolean hasNode5 = false;
+        for (Node node : loadedGraph.getNodes()) {
+            if (node.getId() == 4) {
+                hasNode4 = true;
+                Assert.assertEquals("Node 4 MLST should match", createProfile("GGGGGGGGGGGGGGGGGGGG"), 
+                                  node.getMLSTdata());
+            }
+            if (node.getId() == 5) {
+                hasNode5 = true;
+                Assert.assertEquals("Node 5 MLST should match", createProfile("CCCCCCCCCCCCCCCCCCCC"), 
+                                  node.getMLSTdata());
+            }
+        }
+        Assert.assertTrue("Should contain node 4", hasNode4);
+        Assert.assertTrue("Should contain node 5", hasNode5);
+    }
+
+    @Test
+    public void testAddNodesBatchLargeNumber() throws IOException {
+        // Save initial graph
+        GraphMapper.saveGraph(testGraph, MLST_LENGTH, TEST_BASE_NAME);
+
+        // Prepare 50 new nodes
+        List<Node> newNodes = new ArrayList<>();
+        for (int i = 4; i < 54; i++) {
+            String mlstData = "A".repeat(MLST_LENGTH);
+            newNodes.add(new Node(createProfile(mlstData), i));
+        }
+
+        // Prepare edges (each new node gets one incoming edge from node 0)
+        Map<Node, List<Edge>> nodeEdges = new java.util.HashMap<>();
+        Node sourceNode = testGraph.getNodes().get(0);
+        for (Node newNode : newNodes) {
+            List<Edge> edges = new ArrayList<>();
+            edges.add(new Edge(sourceNode, newNode, newNode.getId() * 10));
+            nodeEdges.put(newNode, edges);
+        }
+
+        // Add batch
+        GraphMapper.addNodesBatch(newNodes, nodeEdges, TEST_BASE_NAME, MLST_LENGTH);
+
+        // Load and verify
+        Graph loadedGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
+        Assert.assertEquals("Should have 54 nodes (4 original + 50 new)", 54, loadedGraph.getNumNodes());
+        Assert.assertEquals("Should have 56 edges (6 original + 50 new)", 56, loadedGraph.getNumEdges());
+    }
+
+    @Test
+    public void testAddNodesBatchEmptyBatch() throws IOException {
+        // Save initial graph
+        GraphMapper.saveGraph(testGraph, MLST_LENGTH, TEST_BASE_NAME);
+
+        // Get initial counts
+        Graph graphBefore = GraphMapper.loadGraph(TEST_BASE_NAME);
+        int nodeCountBefore = graphBefore.getNumNodes();
+        int edgeCountBefore = graphBefore.getNumEdges();
+
+        // Add empty batch
+        GraphMapper.addNodesBatch(new ArrayList<>(), new java.util.HashMap<>(), TEST_BASE_NAME, MLST_LENGTH);
+
+        // Verify no change
+        Graph graphAfter = GraphMapper.loadGraph(TEST_BASE_NAME);
+        Assert.assertEquals("Node count should not change", nodeCountBefore, graphAfter.getNumNodes());
+        Assert.assertEquals("Edge count should not change", edgeCountBefore, graphAfter.getNumEdges());
+    }
+
+    @Test
+    public void testAddNodesBatchNodesWithoutEdges() throws IOException {
+        // Save initial graph
+        GraphMapper.saveGraph(testGraph, MLST_LENGTH, TEST_BASE_NAME);
+
+        // Prepare nodes without any incoming edges
+        List<Node> newNodes = new ArrayList<>();
+        Node node4 = new Node(createProfile("TTTTTTTTTTTTTTTTTTTT"), 4);
+        Node node5 = new Node(createProfile("AAAAAAAAAAAAAAAAAAA"), 5);
+        newNodes.add(node4);
+        newNodes.add(node5);
+
+        // Empty edge map (no incoming edges for new nodes)
+        Map<Node, List<Edge>> nodeEdges = new java.util.HashMap<>();
+
+        // Add batch
+        GraphMapper.addNodesBatch(newNodes, nodeEdges, TEST_BASE_NAME, MLST_LENGTH);
+
+        // Load and verify
+        Graph loadedGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
+        Assert.assertEquals("Should have 6 nodes (4 original + 2 new)", 6, loadedGraph.getNumNodes());
+        Assert.assertEquals("Should have 6 edges (same as before)", 6, loadedGraph.getNumEdges());
+
+        // Verify nodes exist with correct MLST data
+        boolean hasNode4 = false;
+        boolean hasNode5 = false;
+        for (Node node : loadedGraph.getNodes()) {
+            if (node.getId() == 4) hasNode4 = true;
+            if (node.getId() == 5) hasNode5 = true;
+        }
+        Assert.assertTrue("Should contain node 4", hasNode4);
+        Assert.assertTrue("Should contain node 5", hasNode5);
+    }
+
+    @Test
+    public void testAddNodesBatchPreservesOriginalGraph() throws IOException {
+        // Save initial graph
+        GraphMapper.saveGraph(testGraph, MLST_LENGTH, TEST_BASE_NAME);
+        Graph originalGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
+
+        // Prepare new nodes and edges
+        List<Node> newNodes = new ArrayList<>();
+        Node node4 = new Node(createProfile("GGGGGGGGGGGGGGGGGGGG"), 4);
+        newNodes.add(node4);
+
+        Map<Node, List<Edge>> nodeEdges = new java.util.HashMap<>();
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(testGraph.getNodes().get(0), node4, 100));
+        nodeEdges.put(node4, edges);
+
+        // Add batch
+        GraphMapper.addNodesBatch(newNodes, nodeEdges, TEST_BASE_NAME, MLST_LENGTH);
+
+        // Load and verify original nodes/edges are preserved
+        Graph loadedGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
+        
+        // Check all original nodes are present with correct MLST data
+        for (Node originalNode : originalGraph.getNodes()) {
+            Node loadedNode = null;
+            for (Node node : loadedGraph.getNodes()) {
+                if (node.getId() == originalNode.getId()) {
+                    loadedNode = node;
+                    break;
+                }
+            }
+            Assert.assertNotNull("Original node " + originalNode.getId() + " should be preserved", loadedNode);
+            Assert.assertEquals("MLST data should match for node " + originalNode.getId(),
+                              originalNode.getMLSTdata(), loadedNode.getMLSTdata());
+        }
+
+        // Check all original edges are present
+        for (Edge originalEdge : originalGraph.getEdges()) {
+            boolean found = false;
+            for (Edge loadedEdge : loadedGraph.getEdges()) {
+                if (originalEdge.getSource().getId() == loadedEdge.getSource().getId() &&
+                    originalEdge.getDestination().getId() == loadedEdge.getDestination().getId() &&
+                    originalEdge.getWeight() == loadedEdge.getWeight()) {
+                    found = true;
+                    break;
+                }
+            }
+            Assert.assertTrue("Original edge should be preserved: " + 
+                            originalEdge.getSource().getId() + " -> " + originalEdge.getDestination().getId(), 
+                            found);
+        }
+    }
+
+    @Test
+    public void testAddNodesBatchMultipleEdgesPerNode() throws IOException {
+        // Save initial graph
+        GraphMapper.saveGraph(testGraph, MLST_LENGTH, TEST_BASE_NAME);
+
+        // Prepare one new node with multiple incoming edges
+        List<Node> newNodes = new ArrayList<>();
+        Node node4 = new Node(createProfile("GGGGGGGGGGGGGGGGGGGG"), 4);
+        newNodes.add(node4);
+
+        // Add 3 incoming edges to node4
+        Map<Node, List<Edge>> nodeEdges = new java.util.HashMap<>();
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(testGraph.getNodes().get(0), node4, 100));
+        edges.add(new Edge(testGraph.getNodes().get(1), node4, 110));
+        edges.add(new Edge(testGraph.getNodes().get(2), node4, 120));
+        nodeEdges.put(node4, edges);
+
+        // Add batch
+        GraphMapper.addNodesBatch(newNodes, nodeEdges, TEST_BASE_NAME, MLST_LENGTH);
+
+        // Load and verify
+        Graph loadedGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
+        Assert.assertEquals("Should have 5 nodes (4 original + 1 new)", 5, loadedGraph.getNumNodes());
+        Assert.assertEquals("Should have 9 edges (6 original + 3 new)", 9, loadedGraph.getNumEdges());
+
+        // Count edges to node 4
+        int countEdgesToNode4 = 0;
+        for (Edge edge : loadedGraph.getEdges()) {
+            if (edge.getDestination().getId() == 4) {
+                countEdgesToNode4++;
+            }
+        }
+        Assert.assertEquals("Should have 3 edges to node 4", 3, countEdgesToNode4);
+    }
+
     /**
      * Delete test files created during testing.
      */

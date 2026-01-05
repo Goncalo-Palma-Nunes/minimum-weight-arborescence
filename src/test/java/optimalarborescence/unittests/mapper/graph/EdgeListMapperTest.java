@@ -10,6 +10,7 @@ import optimalarborescence.sequences.AllelicProfile;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.HashMap;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -795,4 +796,228 @@ public class EdgeListMapperTest {
         Assert.assertEquals("Second offset should be 60", 60L, offsets.get(1).longValue());
         Assert.assertEquals("Third offset should be 116", 116L, offsets.get(2).longValue());
     }
-}
+
+    // ===== Tests for addEdgesBatch method =====
+
+    @Test
+    public void testAddEdgesBatchSingleNodeMultipleEdges() throws IOException {
+        // Initialize with initial edges
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        initializeNodeIndexMapper(initialEdges);
+
+        // Add batch of edges for node 2
+        Map<Node, List<Edge>> nodeEdgesMap = new HashMap<>();
+        List<Edge> edgesForNode2 = new ArrayList<>();
+        edgesForNode2.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(2), 20));
+        edgesForNode2.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 30));
+        edgesForNode2.add(new Edge(TEST_NODES.get(3), TEST_NODES.get(2), 40));
+        nodeEdgesMap.put(TEST_NODES.get(2), edgesForNode2);
+
+        EdgeListMapper.addEdgesBatch(nodeEdgesMap, EDGES_FILE_NAME);
+
+        // Verify all edges were added
+        List<Edge> allEdges = EdgeListMapper.loadEdgesFromMappedFile(EDGES_FILE_NAME);
+        Assert.assertEquals(4, allEdges.size()); // 1 initial + 3 new
+
+        // Verify new edges are in the list
+        int countEdgesToNode2 = 0;
+        for (Edge edge : allEdges) {
+            if (edge.getDestination().getId() == 2) {
+                countEdgesToNode2++;
+            }
+        }
+        Assert.assertEquals("Should have 3 edges to node 2", 3, countEdgesToNode2);
+    }
+
+    @Test
+    public void testAddEdgesBatchMultipleNodesMultipleEdges() throws IOException {
+        // Initialize with initial edges
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        initializeNodeIndexMapper(initialEdges);
+
+        // Add batch of edges for multiple nodes
+        Map<Node, List<Edge>> nodeEdgesMap = new HashMap<>();
+        
+        List<Edge> edgesForNode2 = new ArrayList<>();
+        edgesForNode2.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(2), 20));
+        edgesForNode2.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 30));
+        nodeEdgesMap.put(TEST_NODES.get(2), edgesForNode2);
+        
+        List<Edge> edgesForNode3 = new ArrayList<>();
+        edgesForNode3.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(3), 40));
+        edgesForNode3.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(3), 50));
+        edgesForNode3.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(3), 60));
+        nodeEdgesMap.put(TEST_NODES.get(3), edgesForNode3);
+
+        EdgeListMapper.addEdgesBatch(nodeEdgesMap, EDGES_FILE_NAME);
+
+        // Verify all edges were added
+        List<Edge> allEdges = EdgeListMapper.loadEdgesFromMappedFile(EDGES_FILE_NAME);
+        Assert.assertEquals(6, allEdges.size()); // 1 initial + 5 new
+
+        // Verify edge counts
+        int countEdgesToNode2 = 0;
+        int countEdgesToNode3 = 0;
+        for (Edge edge : allEdges) {
+            if (edge.getDestination().getId() == 2) countEdgesToNode2++;
+            if (edge.getDestination().getId() == 3) countEdgesToNode3++;
+        }
+        Assert.assertEquals("Should have 2 edges to node 2", 2, countEdgesToNode2);
+        Assert.assertEquals("Should have 3 edges to node 3", 3, countEdgesToNode3);
+    }
+
+    @Test
+    public void testAddEdgesBatchEmptyMap() throws IOException {
+        // Initialize with initial edges
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        initializeNodeIndexMapper(initialEdges);
+
+        int edgeCountBefore = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+
+        // Add empty batch (should do nothing)
+        EdgeListMapper.addEdgesBatch(new HashMap<>(), EDGES_FILE_NAME);
+
+        int edgeCountAfter = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals("Edge count should not change", edgeCountBefore, edgeCountAfter);
+    }
+
+    @Test
+    public void testAddEdgesBatchNullMap() throws IOException {
+        // Initialize with initial edges
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        initializeNodeIndexMapper(initialEdges);
+
+        int edgeCountBefore = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+
+        // Add null batch (should do nothing)
+        EdgeListMapper.addEdgesBatch(null, EDGES_FILE_NAME);
+
+        int edgeCountAfter = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals("Edge count should not change", edgeCountBefore, edgeCountAfter);
+    }
+
+    @Test
+    public void testAddEdgesBatchUpdatesIncomingOffsets() throws IOException {
+        // Initialize with initial edges
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        initializeNodeIndexMapper(initialEdges);
+
+        // Add batch of edges for node 2 (which has no incoming edges initially)
+        Map<Node, List<Edge>> nodeEdgesMap = new HashMap<>();
+        List<Edge> edgesForNode2 = new ArrayList<>();
+        edgesForNode2.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(2), 20));
+        nodeEdgesMap.put(TEST_NODES.get(2), edgesForNode2);
+
+        // Check offset before (should be -1)
+        long offsetBefore = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
+        Assert.assertEquals(-1L, offsetBefore);
+
+        EdgeListMapper.addEdgesBatch(nodeEdgesMap, EDGES_FILE_NAME);
+
+        // Check offset after (should be updated)
+        long offsetAfter = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
+        Assert.assertTrue("Offset should be updated to valid value", offsetAfter >= 0);
+    }
+
+    @Test
+    public void testAddEdgesBatchLargeNumberOfEdges() throws IOException {
+        // Initialize with initial edges
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        initializeNodeIndexMapper(initialEdges);
+
+        // Create a large graph with many nodes
+        List<Node> manyNodes = new ArrayList<>();
+        for (int i = 5; i < 105; i++) { // 100 new nodes
+            String mlstData = String.format("A%03d", i);
+            manyNodes.add(new Node(createProfile(mlstData), i));
+        }
+
+        // Add batch with many edges to a single node
+        Map<Node, List<Edge>> nodeEdgesMap = new HashMap<>();
+        List<Edge> manyEdges = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            manyEdges.add(new Edge(manyNodes.get(i), TEST_NODES.get(4), i * 10));
+        }
+        nodeEdgesMap.put(TEST_NODES.get(4), manyEdges);
+
+        EdgeListMapper.addEdgesBatch(nodeEdgesMap, EDGES_FILE_NAME);
+
+        // Verify edge count
+        int totalEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(101, totalEdges); // 1 initial + 100 new
+    }
+
+    @Test
+    public void testAddEdgesBatchPreservesExistingEdges() throws IOException {
+        // Initialize with initial edges
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        initialEdges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        initializeNodeIndexMapper(initialEdges);
+
+        // Add new batch
+        Map<Node, List<Edge>> nodeEdgesMap = new HashMap<>();
+        List<Edge> edgesForNode3 = new ArrayList<>();
+        edgesForNode3.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(3), 30));
+        nodeEdgesMap.put(TEST_NODES.get(3), edgesForNode3);
+
+        EdgeListMapper.addEdgesBatch(nodeEdgesMap, EDGES_FILE_NAME);
+
+        // Load edges after
+        List<Edge> edgesAfter = EdgeListMapper.loadEdgesFromMappedFile(EDGES_FILE_NAME);
+
+        // Verify original edges are still present
+        Assert.assertEquals(3, edgesAfter.size());
+        boolean found0to1 = false;
+        boolean found1to2 = false;
+        for (Edge edge : edgesAfter) {
+            if (edge.getSource().getId() == 0 && edge.getDestination().getId() == 1 && edge.getWeight() == 10) {
+                found0to1 = true;
+            }
+            if (edge.getSource().getId() == 1 && edge.getDestination().getId() == 2 && edge.getWeight() == 20) {
+                found1to2 = true;
+            }
+        }
+        Assert.assertTrue("Original edge 0->1 should be preserved", found0to1);
+        Assert.assertTrue("Original edge 1->2 should be preserved", found1to2);
+    }
+
+    @Test
+    public void testAddEdgesBatchWithExistingIncomingEdges() throws IOException {
+        // Initialize with node 1 already having incoming edges
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        initializeNodeIndexMapper(initialEdges);
+
+        // Get initial offset for node 1
+        long initialOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
+        Assert.assertTrue("Node 1 should have incoming edges", initialOffset >= 0);
+
+        // Add more edges to node 1
+        Map<Node, List<Edge>> nodeEdgesMap = new HashMap<>();
+        List<Edge> moreEdgesForNode1 = new ArrayList<>();
+        moreEdgesForNode1.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(1), 20));
+        moreEdgesForNode1.add(new Edge(TEST_NODES.get(3), TEST_NODES.get(1), 30));
+        nodeEdgesMap.put(TEST_NODES.get(1), moreEdgesForNode1);
+
+        EdgeListMapper.addEdgesBatch(nodeEdgesMap, EDGES_FILE_NAME);
+
+        // Verify total edges
+        List<Edge> allEdges = EdgeListMapper.loadEdgesFromMappedFile(EDGES_FILE_NAME);
+        Assert.assertEquals(3, allEdges.size()); // 1 initial + 2 new
+
+        // Count edges to node 1
+        int countEdgesToNode1 = 0;
+        for (Edge edge : allEdges) {
+            if (edge.getDestination().getId() == 1) {
+                countEdgesToNode1++;
+            }
+        }
+        Assert.assertEquals("Should have 3 edges to node 1", 3, countEdgesToNode1);
+    }}
