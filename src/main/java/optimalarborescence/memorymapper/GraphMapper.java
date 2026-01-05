@@ -129,6 +129,31 @@ public class GraphMapper {
     }
 
     /**
+     * Get all edges entering a specific node using an existing EdgeLoader.
+     * This is more efficient when loading edges for multiple nodes as it avoids
+     * repeatedly opening/closing the edge file.
+     * 
+     * @param baseName Base name for files
+     * @param nodeId ID of the node whose incoming edges to retrieve
+     * @param nodeMap Map of node IDs to Node objects for edge reconstruction
+     * @param edgeLoader Pre-opened EdgeLoader for efficient file access
+     * @return List of incoming edges for the node
+     * @throws IOException if file operations fail
+     */
+    public static List<Edge> getIncomingEdges(String baseName, int nodeId, 
+                                               Map<Integer, Node> nodeMap,
+                                               EdgeListMapper.EdgeLoader edgeLoader) throws IOException {
+        String nodeFile = baseName + "_nodes.dat";
+        
+        long offset = NodeIndexMapper.getIncomingEdgeOffset(nodeFile, nodeId);
+        if (offset < 0) {
+            return List.of(); // No incoming edges
+        }
+        
+        return edgeLoader.loadLinkedList(offset, nodeMap);
+    }
+
+    /**
      * Add a single node and its incident edges to the graph files.
      * This method handles both incoming edges (edges to the new node) and outgoing edges
      * (edges from the new node to existing nodes).
