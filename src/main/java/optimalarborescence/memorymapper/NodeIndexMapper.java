@@ -684,4 +684,101 @@ public class NodeIndexMapper {
             headerMbb.force();
         }
     }
+
+    /**
+     * Remove multiple nodes from the memory-mapped file in a single batch operation.
+     * This is much more efficient than calling removeNode() multiple times.
+     * 
+     * The operation works by:
+     * 1. Finding all positions of nodes to remove
+     * 2. Compacting the file by moving non-removed entries forward
+     * 3. Truncating the file to the new size
+     * 4. Updating the header
+     * 
+     * @param nodes List of nodes to remove
+     * @param fileName Path to the node data file
+     * @throws IOException if file operations fail
+     */
+    public static void removeNodesBatch(List<Node> nodes, String fileName) throws IOException {
+        if (nodes == null || nodes.isEmpty()) {
+            return;
+        }
+        
+        // Create a set of node IDs for faster lookup
+        Set<Integer> nodeIdsToRemove = new HashSet<>();
+        for (Node node : nodes) {
+            nodeIdsToRemove.add(node.getId());
+        }
+        
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
+             FileChannel channel = raf.getChannel()) {
+            
+            if (channel.size() < HEADER_SIZE) {
+                throw new IOException("Invalid file format: file too small for header");
+            }
+            
+            // Read header
+            MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
+            headerMbb.order(ByteOrder.nativeOrder());
+            int numNodes = headerMbb.getInt();
+            int mlstLength = headerMbb.getInt();
+            byte sequenceType = headerMbb.get();
+            
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+            int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
+            
+            // Calculate total data size
+            long dataSize = channel.size() - HEADER_SIZE;
+            
+            // Map the entire data region
+            MappedByteBuffer dataMbb = channel.map(FileChannel.MapMode.READ_WRITE, HEADER_SIZE, dataSize);
+            dataMbb.order(ByteOrder.nativeOrder());
+            
+            // Compact the file by moving entries that should be kept
+            int writeIndex = 0;  // Index in the buffer where we write the next kept entry
+            int removedCount = 0;
+            
+            byte[] entryBuffer = new byte[entrySize];
+            
+            for (int i = 0; i < numNodes; i++) {
+                int readOffset = i * entrySize;
+                
+                // Read the node ID
+                dataMbb.position(readOffset);
+                int nodeId = dataMbb.getInt();
+                
+                // Check if this node should be removed
+                if (nodeIdsToRemove.contains(nodeId)) {
+                    removedCount++;
+                    continue;  // Skip this entry
+                }
+                
+                // If write position differs from read position, we need to move the entry
+                if (writeIndex != i) {
+                    // Read the entire entry
+                    dataMbb.position(readOffset);
+                    dataMbb.get(entryBuffer);
+                    
+                    // Write it to the correct position
+                    dataMbb.position(writeIndex * entrySize);
+                    dataMbb.put(entryBuffer);
+                }
+                
+                writeIndex++;
+            }
+            
+            dataMbb.force();
+            
+            // Truncate the file to remove unused space
+            long newSize = HEADER_SIZE + (long) (numNodes - removedCount) * entrySize;
+            channel.truncate(newSize);
+            
+            // Update num_nodes in header
+            headerMbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, Integer.BYTES);
+            headerMbb.order(ByteOrder.nativeOrder());
+            headerMbb.position(0);
+            headerMbb.putInt(numNodes - removedCount);
+            headerMbb.force();
+        }
+    }
 }

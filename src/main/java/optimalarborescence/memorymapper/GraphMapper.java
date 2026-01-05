@@ -9,6 +9,8 @@ import optimalarborescence.nearestneighbour.NearestNeighbourSearchAlgorithm;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 
 /**
  * GraphMapper provides high-level methods to save and load entire graphs
@@ -213,6 +215,40 @@ public class GraphMapper {
         }
 
         NodeIndexMapper.removeNode(node, nodeFile);
+    }
+
+    /**
+     * Remove multiple nodes and their incident edges in a single batch operation.
+     * This is MUCH more efficient than calling removeNode() multiple times.
+     * 
+     * The operation removes:
+     * 1. All edges where source OR destination is in the nodes list
+     * 2. All node entries from the node index
+     * 
+     * @param nodes List of nodes to remove
+     * @param baseName Base name for files
+     * @param mlstLength Fixed length for MLST data
+     * @throws IOException if file operations fail
+     */
+    public static void removeNodesBatch(List<Node> nodes, String baseName, int mlstLength) throws IOException {
+        if (nodes == null || nodes.isEmpty()) {
+            return;
+        }
+        
+        String edgeFile = baseName + "_edges.dat";
+        String nodeFile = baseName + "_nodes.dat";
+        
+        // Create set of node IDs for edge removal
+        Set<Integer> nodeIds = new HashSet<>();
+        for (Node node : nodes) {
+            nodeIds.add(node.getId());
+        }
+        
+        // Remove all edges incident to these nodes in one batch
+        EdgeListMapper.removeEdgesBatch(nodeIds, edgeFile);
+        
+        // Remove all nodes in one batch
+        NodeIndexMapper.removeNodesBatch(nodes, nodeFile);
     }
 
     public static boolean edgeExists(int sourceId, int destId, String baseName) throws IOException {

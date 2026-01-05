@@ -1020,4 +1020,163 @@ public class EdgeListMapperTest {
             }
         }
         Assert.assertEquals("Should have 3 edges to node 1", 3, countEdgesToNode1);
-    }}
+    }
+
+    /**
+     * Test batch removal of edges incident to specified nodes.
+     */
+    @Test
+    public void testRemoveEdgesBatch() throws IOException {
+        // Create edges: 0->1, 1->2, 2->3, 3->4, 0->2
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        edges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(3), 30));
+        edges.add(new Edge(TEST_NODES.get(3), TEST_NODES.get(4), 40));
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(2), 15));
+
+        initializeNodeIndexMapper(edges);
+
+        // Verify initial state
+        int initialCount = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(5, initialCount);
+
+        // Remove all edges incident to nodes 1 and 3
+        java.util.Set<Integer> nodesToRemove = java.util.Set.of(1, 3);
+        EdgeListMapper.removeEdgesBatch(nodesToRemove, EDGES_FILE_NAME);
+
+        // Load remaining edges
+        List<Edge> remainingEdges = EdgeListMapper.loadEdgesFromMappedFile(EDGES_FILE_NAME);
+
+        // Should only have edge 0->2 remaining
+        // Removed: 0->1 (dest=1), 1->2 (src=1), 2->3 (dest=3), 3->4 (src=3)
+        Assert.assertEquals(1, remainingEdges.size());
+        
+        Edge remaining = remainingEdges.get(0);
+        Assert.assertEquals(0, remaining.getSource().getId());
+        Assert.assertEquals(2, remaining.getDestination().getId());
+        Assert.assertEquals(15, remaining.getWeight());
+    }
+
+    /**
+     * Test batch removal with empty set - should be a no-op.
+     */
+    @Test
+    public void testRemoveEdgesBatchEmptySet() throws IOException {
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+
+        initializeNodeIndexMapper(edges);
+
+        int initialCount = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+
+        // Remove empty set
+        EdgeListMapper.removeEdgesBatch(java.util.Set.of(), EDGES_FILE_NAME);
+
+        int finalCount = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(initialCount, finalCount);
+    }
+
+    /**
+     * Test batch removal of all edges.
+     */
+    @Test
+    public void testRemoveEdgesBatchAllEdges() throws IOException {
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        edges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(0), 30));
+
+        initializeNodeIndexMapper(edges);
+
+        // Remove all edges by removing all nodes
+        java.util.Set<Integer> allNodes = java.util.Set.of(0, 1, 2);
+        EdgeListMapper.removeEdgesBatch(allNodes, EDGES_FILE_NAME);
+
+        // Verify no edges remain
+        int finalCount = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        Assert.assertEquals(0, finalCount);
+
+        List<Edge> remainingEdges = EdgeListMapper.loadEdgesFromMappedFile(EDGES_FILE_NAME);
+        Assert.assertTrue(remainingEdges.isEmpty());
+    }
+
+    /**
+     * Test batch removal preserves linked list structure for remaining edges.
+     */
+    @Test
+    public void testRemoveEdgesBatchPreservesLinkedLists() throws IOException {
+        // Create multiple edges to same destination
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(4), 10));
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(4), 20));
+        edges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(4), 30));
+        edges.add(new Edge(TEST_NODES.get(3), TEST_NODES.get(4), 40));
+
+        initializeNodeIndexMapper(edges);
+
+        // Remove edges from nodes 1 and 3
+        java.util.Set<Integer> nodesToRemove = java.util.Set.of(1, 3);
+        EdgeListMapper.removeEdgesBatch(nodesToRemove, EDGES_FILE_NAME);
+
+        // Load remaining edges
+        List<Edge> remainingEdges = EdgeListMapper.loadEdgesFromMappedFile(EDGES_FILE_NAME);
+        Assert.assertEquals(2, remainingEdges.size());
+
+        // Verify remaining edges are correct
+        boolean found0to4 = false;
+        boolean found2to4 = false;
+
+        for (Edge edge : remainingEdges) {
+            if (edge.getSource().getId() == 0 && edge.getDestination().getId() == 4) {
+                found0to4 = true;
+                Assert.assertEquals(10, edge.getWeight());
+            }
+            if (edge.getSource().getId() == 2 && edge.getDestination().getId() == 4) {
+                found2to4 = true;
+                Assert.assertEquals(30, edge.getWeight());
+            }
+        }
+
+        Assert.assertTrue("Should find edge 0->4", found0to4);
+        Assert.assertTrue("Should find edge 2->4", found2to4);
+    }
+
+    /**
+     * Test batch removal with complex graph structure.
+     */
+    @Test
+    public void testRemoveEdgesBatchComplexGraph() throws IOException {
+        // Create a more complex graph
+        List<Edge> edges = new ArrayList<>();
+        // Chain: 0->1->2->3->4
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        edges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(3), 30));
+        edges.add(new Edge(TEST_NODES.get(3), TEST_NODES.get(4), 40));
+        // Additional edges
+        edges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(3), 15));
+        edges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(4), 25));
+        edges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(4), 35));
+
+        initializeNodeIndexMapper(edges);
+
+        Assert.assertEquals(7, EdgeListMapper.getNumEdges(EDGES_FILE_NAME));
+
+        // Remove node 2 (middle node with multiple incident edges)
+        java.util.Set<Integer> nodesToRemove = java.util.Set.of(2);
+        EdgeListMapper.removeEdgesBatch(nodesToRemove, EDGES_FILE_NAME);
+
+        // Remaining edges: 0->1, 0->3, 1->4, 3->4
+        // Removed: 1->2, 2->3, 2->4
+        List<Edge> remainingEdges = EdgeListMapper.loadEdgesFromMappedFile(EDGES_FILE_NAME);
+        Assert.assertEquals(4, remainingEdges.size());
+
+        // Verify no edges involve node 2
+        for (Edge edge : remainingEdges) {
+            Assert.assertNotEquals(2, edge.getSource().getId());
+            Assert.assertNotEquals(2, edge.getDestination().getId());
+        }
+    }
+}

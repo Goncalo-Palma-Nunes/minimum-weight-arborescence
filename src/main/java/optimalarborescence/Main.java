@@ -16,6 +16,7 @@ import optimalarborescence.inference.SerializableCameriniForest;
 import optimalarborescence.inference.dynamic.*;
 import optimalarborescence.inference.NeighbourJoining;
 import optimalarborescence.memorymapper.GraphMapper;
+import optimalarborescence.memorymapper.EdgeListMapper;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -135,20 +136,18 @@ public class Main {
         else { outputFile += "_exact"; }
 
         long startTime = System.currentTimeMillis();
-        g = initializeGraph(sequenceType, inputSequenceFile, numNeighbors, persistedGraphFile, nnAlgorithm, newPoints, algorithmType, operationType, outputFile);
+        persistedGraphFile = initializeGraph(sequenceType, inputSequenceFile, numNeighbors, persistedGraphFile, nnAlgorithm, newPoints, algorithmType, operationType, outputFile);
+
         
-        Graph graph;
         List<Edge> phylogeny = null;
         switch (algorithmType) {
             case STATIC_ALGORITHM:
                 outputFile += "_static_camerini";
-                graph = (Graph) g;
-                phylogeny = runStaticCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, graph, operationType);
+                phylogeny = runStaticCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, operationType);
                 break;
             case DYNAMIC_ALGORITHM:
                 outputFile += "_dynamic_camerini";
-                graph = (Graph) g;
-                phylogeny = runDynamicCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, graph, operationType);
+                phylogeny = runDynamicCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, operationType);
                 break;
             case NEIGHBOR_JOINING:
                 outputFile += "_neighbor_joining";
@@ -321,74 +320,48 @@ public class Main {
         return points;
     }
 
-    private static PhylogeneticData initializeGraph(String sequenceType, String inputFile, 
+    private static String initializeGraph(String sequenceType, String inputFile, 
                                         int numNeighbors, String persistedGraphFile,
                                         NearestNeighbourSearchAlgorithm<?> nnAlgorithm, List<Point<?>> points,
                                         String algorithmType, String operationType, String outputFile) throws IOException {
 
         if (persistedGraphFile != null) {
-            if (numNeighbors > 0) {
-                return GraphMapper.loadDirectedGraph(persistedGraphFile, nnAlgorithm, numNeighbors);
-            } 
-            else {
-                Graph g = GraphMapper.loadGraph(persistedGraphFile);
-                if (algorithmType.equals(NEIGHBOR_JOINING)) {
-                    // Convert to DistanceMatrix
-                    List<Point<?>> graphPoints = new ArrayList<>(g.getNodes().stream()
-                        .map(n -> n.getPoint())
-                        .toList());
-                    switch (operationType) { // TODO - pensar em como optimizar/re-aproveitar as distâncias já calculadas
-                        case ADD:
-                            graphPoints.addAll(points);
-                            break;
-                        case REMOVE:
-                            graphPoints.removeAll(points);
-                            break;
-                        case UPDATE:
-                            graphPoints.removeAll(points);
-                            graphPoints.addAll(points);
-                            break;
-                        default:
-                            throw new IllegalArgumentException("Unsupported operation type: " + operationType);
-                    }
-
-                    return new DistanceMatrix(new HammingDistance(), graphPoints);
+            // Graph already exists. Add the new edges/points to it if needed.
+            if (operationType.equals(ADD)) {
+                // Load existing graph
+                if (numNeighbors > 0) {
+                    // Approximate graph
+                    List<Node> newNodes = points.stream()
+                                                .map(p -> new Node(p.getSequence(), p.getId()))
+                                                .toList();
+                    addNodesIncrementallyToApproximateGraph(newNodes, outputFile, numNeighbors, nnAlgorithm, numNeighbors);
                 }
-                return g;
+                else {
+                    List<Node> newNodes = points.stream()
+                                                .map(p -> new Node(p.getSequence(), p.getId()))
+                                                .toList();
+                    addNodesIncrementallyToExactGraph(newNodes, outputFile, points.get(0).getSequence().getLength());
+                }
             }
+            return persistedGraphFile;
         }
 
         if (algorithmType.equals(NEIGHBOR_JOINING)) {
             // Create full DistanceMatrix from points
-            return new DistanceMatrix(new HammingDistance(), points);
-        }
-        else if (numNeighbors > 0) { // approximate graph
-            switch (sequenceType) {
-                case MLST:
-                    return createMLSTDirectedGraph(nnAlgorithm, numNeighbors, points);
-                case ALLELIC:
-                    throw new NotImplementedException("Handling of allelic sequences has not been implemented yet.");
-                default:
-                    throw new IllegalArgumentException("Unsupported sequence type: " + sequenceType);
-            }
+            // return new DistanceMatrix(new HammingDistance(), points);
+            throw new NotImplementedException("Building DistanceMatrix from scratch is not implemented yet.");
         }
         else { // exact graph
             // Use incremental construction to avoid memory overflow
             String tempFile = outputFile + "_building";
-            return generateExactGraphIncrementally(points, tempFile);
+            if (numNeighbors > 0) {
+                generateApproximateGraphIncrementally(points, tempFile, nnAlgorithm, numNeighbors);
+            }
+            else {
+                generateExactGraphIncrementally(points, tempFile);
+            }
+            return tempFile;
         }
-    }
-
-    private static DirectedGraph<SequenceTypingData> createMLSTDirectedGraph(
-            NearestNeighbourSearchAlgorithm<?> nnAlgorithm, int numNeighbors, List<Point<?>> points) {
-        @SuppressWarnings("unchecked")
-        NearestNeighbourSearchAlgorithm<SequenceTypingData> typedAlgorithm = 
-            (NearestNeighbourSearchAlgorithm<SequenceTypingData>) nnAlgorithm;
-        
-        @SuppressWarnings("unchecked")
-        List<Point<SequenceTypingData>> typedPoints = (List<Point<SequenceTypingData>>) (List<?>) points;
-        
-        return new DirectedGraph<SequenceTypingData>(typedAlgorithm, numNeighbors, typedPoints);
     }
 
     private static boolean validNNAlgorithm(String response) {
@@ -478,9 +451,8 @@ public class Main {
      * 
      * @param points All points to include in the graph
      * @param outputFile Path for the memory-mapped graph file
-     * @return Graph object loaded from memory-mapped file
      */
-    private static Graph generateExactGraphIncrementally(List<Point<?>> points, String outputFile) throws IOException {
+    private static void generateExactGraphIncrementally(List<Point<?>> points, String outputFile) throws IOException {
         if (points.size() < 2) {
             throw new IllegalArgumentException("At least 2 points are required to build a graph.");
         }
@@ -604,9 +576,13 @@ public class Main {
         }
         
         System.out.println("Graph construction complete. All nodes and edges saved to memory-mapped file.");
-        
-        // Load and return graph from memory-mapped file
-        return GraphMapper.loadGraph(outputFile);
+    }
+
+
+    private static void generateApproximateGraphIncrementally(List<Point<?>> points, String outputFile, 
+                                                  NearestNeighbourSearchAlgorithm<?> nnAlgorithm,
+                                                  int numNeighbors) throws IOException {
+        throw new NotImplementedException("Incremental construction of approximate graphs is not implemented yet.");
     }
 
     /**
@@ -680,6 +656,63 @@ public class Main {
         System.out.println("All " + nodesToAdd.size() + " nodes added successfully.");
     }
 
+    private static void addNodesIncrementallyToApproximateGraph(List<Node> nodesToAdd, 
+                                                          String outputFile, int sequenceLength,
+                                                          NearestNeighbourSearchAlgorithm<?> nnAlgorithm,
+                                                          int numNeighbors) throws IOException {
+        if (nodesToAdd.isEmpty()) return;
+        if (nnAlgorithm == null || numNeighbors <= 0) {
+            throw new IllegalArgumentException("Nearest Neighbour Search Algorithm and number of neighbors must be provided for approximate graph.");
+        }
+
+
+        DistanceFunction distanceFunction = new HammingDistance();
+        System.out.println("Adding " + nodesToAdd.size() + " nodes incrementally to approximate graph...");
+
+        // Load existing nodes from file
+        Map<Integer, Node> existingNodeMap = GraphMapper.loadNodeMap(outputFile);
+        List<Node> existingNodes = new ArrayList<>(existingNodeMap.values());
+        System.out.println("Loaded " + existingNodes.size() + " existing nodes from file.");
+
+        // Prepare edges for all new nodes
+        Map<Node, List<Edge>> nodeEdgesMap = new HashMap<>();
+        long distStart = System.currentTimeMillis();
+        for (int i = 0; i < nodesToAdd.size(); i++) {
+            Node newNode = nodesToAdd.get(i);
+            List<Edge> incomingEdges = new ArrayList<>();
+            // Find nearest neighbors using the NN algorithm
+            @SuppressWarnings("unchecked")
+            List<Point<Object>> neighbors = ((NearestNeighbourSearchAlgorithm<Object>) nnAlgorithm).neighbourSearch((Point<Object>) newNode.getPoint(), numNeighbors);
+            // Create edges FROM neighbors TO new node
+            for (Point<?> neighborPoint : neighbors) {
+                Node neighborNode = existingNodeMap.get(neighborPoint.getId());
+                if (neighborNode != null) {
+                    int dist = (int) distanceFunction.calculate(
+                        neighborNode.getPoint().getSequence(),
+                        newNode.getPoint().getSequence()
+                    );
+                    incomingEdges.add(new Edge(neighborNode, newNode, dist));
+                }
+            }
+            nodeEdgesMap.put(newNode, incomingEdges);
+            existingNodes.add(newNode);
+            existingNodeMap.put(newNode.getId(), newNode);
+            if ((i + 1) % 100 == 0) {
+                System.out.println("Prepared " + (i + 1) + "/" + nodesToAdd.size() + " nodes");
+            }
+        }
+        long distEnd = System.currentTimeMillis();
+        System.out.println("Distance computation: " + (distEnd - distStart) + " ms");
+        
+        // Add all nodes and edges in one batch operation
+        long writeStart = System.currentTimeMillis();
+        GraphMapper.addNodesBatch(nodesToAdd, nodeEdgesMap, outputFile, sequenceLength);
+        long writeEnd = System.currentTimeMillis();
+        System.out.println("File write: " + (writeEnd - writeStart) + " ms");
+        
+        System.out.println("All " + nodesToAdd.size() + " nodes added successfully.");
+    }
+
     private static void ensureDirectoryExists(String filePath) {
         File file = new File(filePath);
         File parentDir = file.getParentFile();
@@ -688,184 +721,142 @@ public class Main {
         }
     }
 
-    private static List<Edge> runStaticCameriniAlgorithm(String sequenceType, String inputFile, String outputFile, int numNeighbors, List<Point<?>> points, String persistedGraphFile, Graph g, String operationType) throws IOException {
+    private static List<Edge> runStaticCameriniAlgorithm(String sequenceType, String inputFile, String outputFile, int numNeighbors, List<Point<?>> points, String persistedGraphFile, String operationType) throws IOException {
 
         List<Node> nodesToProcess = null;
-        if (persistedGraphFile != null) {
-            // Just add/remove/update nodes from the persisted graph
-            nodesToProcess = points.stream().map(p -> new Node(p.getSequence(), p.getId())).toList();
-            switch (operationType) {
-                case ADD:
-                    g.addNodes(nodesToProcess);
-                    break;
-                case REMOVE:
-                    g.removeNodes(nodesToProcess);
-                    break;
-                case UPDATE:
-                    g.removeNodes(nodesToProcess);
-                    g.addNodes(nodesToProcess);
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unsupported operation type: " + operationType);
-                
-            }
-        }
-        
-        // Use SerializableCameriniForest when working with persisted graph files
-        // to enable lazy loading of edges from memory-mapped files
-        CameriniForest camerini;
-        if (persistedGraphFile != null) {
-            // Use serializable version with true lazy loading from the persisted file
-            // This constructor doesn't require a pre-loaded Graph, avoiding memory overhead
-            camerini = new SerializableCameriniForest(EDGE_COMPARATOR, persistedGraphFile);
-        } else {
-            // Use regular in-memory version
-            camerini = new CameriniForest(g, EDGE_COMPARATOR);
-        }
-        
-        List<Edge> edges = camerini.inferPhylogeny(g).getEdges();
-
-        ensureDirectoryExists(outputFile);
-        if (persistedGraphFile != null) {
-            saveChanges(g, persistedGraphFile, outputFile, points, operationType);
-        }
-        else {
-            GraphMapper.saveGraph(g, points.get(0).getSequence().getLength(), outputFile);
-        }
-        return edges;
-    }
-
-    private static void saveChanges(Graph g, String persistedGraphFile, String outputFile, List<Point<?>> points, String operationType) throws IOException {
-        ensureDirectoryExists(outputFile);
+        nodesToProcess = points.stream().map(p -> new Node(p.getSequence(), p.getId())).toList();
         switch (operationType) {
             case ADD:
-                for (Point<?> point : points) {
-                    Node node = new Node(point);
-                    List<Edge> incomingEdges = g.getNodeIncomingEdges(node);
-                    GraphMapper.addNode(node, incomingEdges, outputFile, points.get(0).getSequence().getLength());
-                }
+                GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), persistedGraphFile, points.get(0).getSequence().getLength());
                 break;
             case REMOVE:
-                for (Point<?> point : points) {
-                    Node node = new Node(point);
-                    GraphMapper.removeNode(node, outputFile, points.get(0).getSequence().getLength());
-                }
+                GraphMapper.removeNodesBatch(nodesToProcess, persistedGraphFile, points.get(0).getSequence().getLength());
                 break;
             case UPDATE:
-                for (Point<?> point : points) {
-                    Node node = new Node(point);
-                    GraphMapper.removeNode(node, outputFile, points.get(0).getSequence().getLength());
-                }
-                for (Point<?> point : points) {
-                    Node node = new Node(point);
-                    List<Edge> incomingEdges = g.getNodeIncomingEdges(node);
-                    GraphMapper.addNode(node, incomingEdges, outputFile, points.get(0).getSequence().getLength());
-                }
+                GraphMapper.removeNodesBatch(nodesToProcess, persistedGraphFile, points.get(0).getSequence().getLength());
+                GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), persistedGraphFile, points.get(0).getSequence().getLength());
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported operation type: " + operationType);
         }
+        
+        CameriniForest camerini = new SerializableCameriniForest(EDGE_COMPARATOR, persistedGraphFile);
+        
+        System.out.println("Inferring phylogeny using Static Camerini Algorithm...");
+        return camerini.inferPhylogeny(null).getEdges();
     }
 
-    @SuppressWarnings("unchecked")
-    private static List<Edge> runDynamicCameriniAlgorithm(String sequenceType, String inputFile, String outputFile, int numNeighbors, List<Point<?>> points, String persistedGraphFile, Graph g, String operationType) throws IOException {
-        // if (!(g instanceof DirectedGraph<?>)) {
-        //     throw new IllegalArgumentException("Graph must be a DirectedGraph for the Dynamic Camerini Algorithm.");
-        // }
-        SerializableDynamicTarjanArborescence dynamicCamerini;
-        FullyDynamicArborescence dynamicAlgorithm;
-        List<Edge> edges;
-        if (persistedGraphFile != null ) {
-            DirectedGraph<Object> directedGraph = (DirectedGraph<Object>) g;
-            int sequenceLength = points.get(0).getSequence().getLength();
-            dynamicCamerini = new SerializableDynamicTarjanArborescence(inputFile, sequenceLength, g);
+    private static List<Edge> runDynamicCameriniAlgorithm(String sequenceType, String inputFile, String outputFile, int numNeighbors, List<Point<?>> points, String persistedGraphFile, String operationType) throws IOException {
+        // Get sequence length from any point
+        int sequenceLength = points.get(0).getSequence().getLength();
 
-            // stream and cast dynamicCamerini.getRoots() to List<ATreeNode>
-            List<ATreeNode> roots = dynamicCamerini.getRoots().stream()
-                .map(root -> (ATreeNode) root)
-                .toList();
-            dynamicAlgorithm = new SerializableFullyDynamicArborescence(g, roots, dynamicCamerini);
-
-            switch (operationType) {
-                case ADD:
-                    addEdgesForPoints(directedGraph, (List<Point<Object>>) (List<?>) points, dynamicAlgorithm);
-                    break;
-                case REMOVE:
-                    removeEdgesForPoints(directedGraph, (List<Point<Object>>) (List<?>) points, dynamicAlgorithm, g);
-                    break;
-                case UPDATE:
-                    updateEdgesForPoints(directedGraph, (List<Point<Object>>) (List<?>) points, dynamicAlgorithm, g);
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unsupported operation type: " + operationType);
-            }
-            edges = dynamicAlgorithm.getCurrentArborescence();
+        // TODO - estamos a adicionar/remover nós desnecessários
+        // TODO - em vez de carregar a linked list inteira
+        // TODO - devia escolher apenas as arestas necessárias
+        
+        // Convert points to nodes
+        List<Node> nodesToProcess = points.stream()
+            .map(p -> new Node(p.getSequence(), p.getId()))
+            .toList();
+                
+        // stream and cast dynamicCamerini.getRoots() to List<ATreeNode>
+        SerializableFullyDynamicArborescence dynamicAlgorithm = new SerializableFullyDynamicArborescence(persistedGraphFile);
+        
+        // Load node map for edge reconstruction
+        Map<Integer, Node> nodeMap = GraphMapper.loadNodeMap(persistedGraphFile);
+        
+        switch (operationType) {
+            case ADD:
+                // Step 1: Add nodes to persisted file using batch operation (without edges, they're already computed)
+                GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), persistedGraphFile, sequenceLength);
+                
+                // Step 2: Reload node map to include newly added nodes
+                nodeMap = GraphMapper.loadNodeMap(persistedGraphFile);
+                
+                // Step 3: For each new node, get its incoming edges and add them to the dynamic algorithm
+                for (Node newNode : nodesToProcess) {
+                    List<Edge> incomingEdges = GraphMapper.getIncomingEdges(persistedGraphFile, newNode.getId(), nodeMap);
+                    
+                    // Add each edge to the dynamic algorithm
+                    for (Edge edge : incomingEdges) {
+                        dynamicAlgorithm.addEdge(edge);
+                    }
+                }
+                break;
+                
+            case REMOVE:
+                // Step 1: Get edges that will be removed (edges incident to nodes being removed)
+                String edgeFile = persistedGraphFile + "_edges.dat";
+                
+                for (Node nodeToRemove : nodesToProcess) {
+                    // Get incoming edges
+                    List<Edge> incomingEdges = GraphMapper.getIncomingEdges(persistedGraphFile, nodeToRemove.getId(), nodeMap);
+                    for (Edge edge : incomingEdges) {
+                        dynamicAlgorithm.removeEdge(edge);
+                    }
+                    
+                    // Get outgoing edges using EdgeListMapper
+                    List<Long> outgoingOffsets = EdgeListMapper.getOutgoingEdgeOffsets(edgeFile, nodeToRemove.getId());
+                    for (Long offset : outgoingOffsets) {
+                        List<Edge> edgesAtOffset = EdgeListMapper.loadLinkedList(edgeFile, offset);
+                        // Filter to get only edges from this source
+                        for (Edge edge : edgesAtOffset) {
+                            if (edge.getSource().getId() == nodeToRemove.getId()) {
+                                dynamicAlgorithm.removeEdge(edge);
+                            }
+                        }
+                    }
+                }
+                
+                // Step 2: Remove nodes from persisted file
+                GraphMapper.removeNodesBatch(nodesToProcess, persistedGraphFile, sequenceLength);
+                break;
+                
+            case UPDATE:
+                // Step 1: Remove old edges from dynamic algorithm
+                edgeFile = persistedGraphFile + "_edges.dat";
+                
+                for (Node nodeToUpdate : nodesToProcess) {
+                    // Get incoming edges
+                    List<Edge> incomingEdges = GraphMapper.getIncomingEdges(persistedGraphFile, nodeToUpdate.getId(), nodeMap);
+                    for (Edge edge : incomingEdges) {
+                        dynamicAlgorithm.removeEdge(edge);
+                    }
+                    
+                    // Get outgoing edges using EdgeListMapper
+                    List<Long> outgoingOffsets = EdgeListMapper.getOutgoingEdgeOffsets(edgeFile, nodeToUpdate.getId());
+                    for (Long offset : outgoingOffsets) {
+                        List<Edge> edgesAtOffset = EdgeListMapper.loadLinkedList(edgeFile, offset);
+                        // Filter to get only edges from this source
+                        for (Edge edge : edgesAtOffset) {
+                            if (edge.getSource().getId() == nodeToUpdate.getId()) {
+                                dynamicAlgorithm.removeEdge(edge);
+                            }
+                        }
+                    }
+                }
+                
+                // Step 2: Remove and re-add nodes to persisted file
+                GraphMapper.removeNodesBatch(nodesToProcess, persistedGraphFile, sequenceLength);
+                GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), persistedGraphFile, sequenceLength);
+                
+                // Step 3: Reload node map and add new edges to dynamic algorithm
+                nodeMap = GraphMapper.loadNodeMap(persistedGraphFile);
+                for (Node updatedNode : nodesToProcess) {
+                    List<Edge> incomingEdges = GraphMapper.getIncomingEdges(persistedGraphFile, updatedNode.getId(), nodeMap);
+                    
+                    // Add each edge to the dynamic algorithm
+                    for (Edge edge : incomingEdges) {
+                        dynamicAlgorithm.addEdge(edge);
+                    }
+                }
+                break;
+                
+            default:
+                throw new IllegalArgumentException("Unsupported operation type: " + operationType);
         }
-        else { // first time running the algorithm
-            dynamicCamerini = new SerializableDynamicTarjanArborescence(
-                new ArrayList<>(), new ArrayList<>(), new HashMap<>(), g);
-            dynamicAlgorithm = new SerializableFullyDynamicArborescence(g, new ArrayList<>(), dynamicCamerini);
-            edges = dynamicAlgorithm.inferPhylogeny(g).getEdges();
-        }
 
-        return edges;
-    }
-
-    private static <T> void addEdgesForPoints(DirectedGraph<T> graph, List<Point<T>> points, FullyDynamicArborescence algorithm) {
-        for (Point<T> point : points) {
-            List<Point<T>> neighbors = graph.getNeighbors(point);
-            List<Edge> edges = graph.getNNEdges(neighbors, new Node(point.getSequence(), point.getId()));
-            for (Edge edge : edges) {
-                algorithm.addEdge(edge);
-            }
-        }
-    }
-
-    private static <T> void removeEdgesForPoints(DirectedGraph<T> graph, List<Point<T>> points, FullyDynamicArborescence algorithm, Graph g) {
-        for (Point<T> point : points) {
-            Node nodeToRemove = new Node(point.getSequence(), point.getId());
-            
-            // Get all edges connected to this node (both incoming and outgoing)
-            List<Edge> incomingEdges = g.getNodeIncomingEdges(nodeToRemove);
-            List<Edge> outgoingEdges = g.getNodeOutgoingEdges(nodeToRemove);
-            
-            // Remove incoming edges from the dynamic algorithm
-            for (Edge edge : incomingEdges) {
-                algorithm.removeEdge(edge);
-            }
-            
-            // Remove outgoing edges from the dynamic algorithm
-            for (Edge edge : outgoingEdges) {
-                algorithm.removeEdge(edge);
-            }
-        }
-    }
-
-    private static <T> void updateEdgesForPoints(DirectedGraph<T> graph, List<Point<T>> points, FullyDynamicArborescence algorithm, Graph g) {
-        for (Point<T> point : points) {
-            Node nodeToUpdate = new Node(point.getSequence(), point.getId());
-            
-            // Get all edges connected to this node (both incoming and outgoing)
-            List<Edge> incomingEdges = g.getNodeIncomingEdges(nodeToUpdate);
-            List<Edge> outgoingEdges = g.getNodeOutgoingEdges(nodeToUpdate);
-            
-            // Remove incoming edges from the dynamic algorithm
-            for (Edge edge : incomingEdges) {
-                algorithm.removeEdge(edge);
-            }
-            
-            // Remove outgoing edges from the dynamic algorithm
-            for (Edge edge : outgoingEdges) {
-                algorithm.removeEdge(edge);
-            }
-
-            // Re-add updated edges
-            List<Point<T>> neighbors = graph.getNeighbors(point);
-            List<Edge> newEdges = graph.getNNEdges(neighbors, nodeToUpdate);
-            for (Edge edge : newEdges) {
-                algorithm.addEdge(edge);
-            }
-        }
+        return dynamicAlgorithm.getCurrentArborescence();
     }
 
     private static void serializeNNAlgorithm(NearestNeighbourSearchAlgorithm<?> nnAlgorithm, String persistedGraphFile, String outputFile) throws IOException {
@@ -1007,70 +998,45 @@ public class Main {
         System.out.println("Test mode completed. Final phylogeny saved to: " + outputFile);
     }
     
-    @SuppressWarnings("unchecked")
     private static List<Edge> runStaticTestIteration(String sequenceType, List<Point<?>> points, String tempGraphFile, 
                                                String outputFile, int numNeighbors, 
                                                NearestNeighbourSearchAlgorithm<?> nnAlgorithm, 
                                                int sequenceLength, boolean isInitial) throws IOException {
-        Graph graph;
         
         if (isInitial) {
-            // Create new graph with initial points
-            PhylogeneticData g = initializeGraph(sequenceType, null, numNeighbors, null, nnAlgorithm, points, STATIC_ALGORITHM, ADD, tempGraphFile);
-            graph = (Graph) g;
-        } else {
-            // Load existing graph and add new points
+            // Create new graph with initial points using memory-mapped files
             if (numNeighbors > 0) {
-                graph = (Graph) GraphMapper.loadDirectedGraph(tempGraphFile, nnAlgorithm, numNeighbors);
+                // Approximate graph
+                generateApproximateGraphIncrementally(points, tempGraphFile, nnAlgorithm, numNeighbors);
             } else {
-                graph = GraphMapper.loadGraph(tempGraphFile);
+                // Exact graph
+                generateExactGraphIncrementally(points, tempGraphFile);
             }
-            
+        } else {
+            // Add new nodes to existing memory-mapped graph
             List<Node> nodesToAdd = points.stream()
                 .map(p -> new Node(p.getSequence(), p.getId()))
                 .toList();
             
-            // Add nodes to graph
-            graph.addNodes(nodesToAdd);
-            
-            // Create edges based on graph type
             if (numNeighbors > 0) {
-                // Approximate graph: add edges only to nearest neighbors using DirectedGraph methods
-                DirectedGraph<Object> directedGraph = (DirectedGraph<Object>) graph;
-                for (Point<?> point : points) {
-                    List<Point<Object>> neighbors = directedGraph.getNeighbors((Point<Object>) point);
-                    List<Edge> edges = directedGraph.getNNEdges(neighbors, new Node(point.getSequence(), point.getId()));
-                    for (Edge edge : edges) {
-                        graph.addEdge(edge);
-                    }
-                }
+                // Approximate graph
+                addNodesIncrementallyToApproximateGraph(nodesToAdd, tempGraphFile, sequenceLength, nnAlgorithm, numNeighbors);
             } else {
-                // Exact graph: use incremental approach to avoid memory overflow
-                
-                // Use helper method to add nodes incrementally
+                // Exact graph
                 addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength);
             }
         }
         
-        // Infer phylogeny using SerializableCameriniForest for lazy loading
-        // when graph was loaded from or will be saved to memory-mapped files
-        CameriniForest camerini;
-        if (!isInitial) {
-            // Use true lazy loading from memory-mapped file without pre-loading graph
-            camerini = new SerializableCameriniForest(EDGE_COMPARATOR, tempGraphFile);
-        } else {
-            // For initial iteration, use regular version and save to file afterward
-            camerini = new CameriniForest(graph, EDGE_COMPARATOR);
-        }
+        // Infer phylogeny using SerializableCameriniForest for lazy loading from memory-mapped files
+        CameriniForest camerini = new SerializableCameriniForest(EDGE_COMPARATOR, tempGraphFile);
+        System.out.println("Inferring phylogeny using Static Camerini Algorithm...");
+        List<Edge> phylogeny = camerini.inferPhylogeny(null).getEdges();
         
-        List<Edge> phylogeny = camerini.inferPhylogeny(graph).getEdges();
-        
-        // Save phylogeny and graph
+        // Save phylogeny
         ensureDirectoryExists(outputFile);
         GraphMapper.saveArborescence(phylogeny, outputFile);
-        GraphMapper.saveGraph(graph, sequenceLength, tempGraphFile);
         
-        // Save LSH if applicable
+        // Save LSH parameters if applicable
         if (nnAlgorithm instanceof optimalarborescence.nearestneighbour.LSH<?>) {
             String lshParamsFile = tempGraphFile + LSH_EXTENSION;
             optimalarborescence.nearestneighbour.LSH.saveLSH(
@@ -1082,77 +1048,53 @@ public class Main {
         return phylogeny;
     }
     
-    @SuppressWarnings("unchecked")
     private static List<Edge> runDynamicTestIteration(String sequenceType, List<Point<?>> points, String tempGraphFile,
                                                 String outputFile, int numNeighbors,
                                                 NearestNeighbourSearchAlgorithm<?> nnAlgorithm,
                                                 int sequenceLength, boolean isInitial) throws IOException {
-        Graph graph;
-        FullyDynamicArborescence dynamicAlgorithm;
+        SerializableFullyDynamicArborescence dynamicAlgorithm;
         
         if (isInitial) {
-            // Create new graph with initial points
-            PhylogeneticData g = initializeGraph(sequenceType, null, numNeighbors, null, nnAlgorithm, points, DYNAMIC_ALGORITHM, ADD, tempGraphFile);
-            graph = (Graph) g;
-            
-            // Initialize dynamic algorithm
-            SerializableDynamicTarjanArborescence dynamicCamerini = new SerializableDynamicTarjanArborescence(
-                new ArrayList<>(), new ArrayList<>(), new HashMap<>(), graph);
-            dynamicAlgorithm = new SerializableFullyDynamicArborescence(graph, new ArrayList<>(), dynamicCamerini);
-            dynamicAlgorithm.inferPhylogeny(graph);
-        } else {
-            // Load existing graph
+            // Create new graph with initial points using memory-mapped files
             if (numNeighbors > 0) {
-                graph = (Graph) GraphMapper.loadDirectedGraph(tempGraphFile, nnAlgorithm, numNeighbors);
+                // Approximate graph
+                generateApproximateGraphIncrementally(points, tempGraphFile, nnAlgorithm, numNeighbors);
             } else {
-                graph = GraphMapper.loadGraph(tempGraphFile);
+                // Exact graph
+                generateExactGraphIncrementally(points, tempGraphFile);
             }
             
-            // Reconstruct dynamic algorithm from persisted graph
-            SerializableDynamicTarjanArborescence dynamicCamerini = 
-                new SerializableDynamicTarjanArborescence(tempGraphFile, sequenceLength, graph);
+            // Initialize dynamic algorithm from persisted graph
+            dynamicAlgorithm = new SerializableFullyDynamicArborescence(tempGraphFile);
+            System.out.println("Inferring phylogeny using Dynamic Camerini Algorithm...");
+            dynamicAlgorithm.inferPhylogeny(null);
+        } else {
+            // Load dynamic algorithm from persisted graph
+            dynamicAlgorithm = new SerializableFullyDynamicArborescence(tempGraphFile);
             
-            List<ATreeNode> roots = dynamicCamerini.getRoots().stream()
-                .map(root -> (ATreeNode) root)
+            // Add new nodes to memory-mapped file
+            List<Node> nodesToAdd = points.stream()
+                .map(p -> new Node(p.getSequence(), p.getId()))
                 .toList();
-            dynamicAlgorithm = new SerializableFullyDynamicArborescence(graph, roots, dynamicCamerini);
             
-            // Add new edges for the new point
             if (numNeighbors > 0) {
-                // Approximate graph: use DirectedGraph methods to add edges to nearest neighbors
-                DirectedGraph<Object> directedGraph = (DirectedGraph<Object>) graph;
-                addEdgesForPoints(directedGraph, (List<Point<Object>>) (List<?>) points, dynamicAlgorithm);
+                // Approximate graph
+                addNodesIncrementallyToApproximateGraph(nodesToAdd, tempGraphFile, sequenceLength, nnAlgorithm, numNeighbors);
             } else {
-                // Exact graph: use incremental approach to avoid memory overflow
-                List<Node> existingNodes = new ArrayList<>(graph.getNodes());
-                List<Node> nodesToAdd = points.stream()
-                    .map(p -> new Node(p.getSequence(), p.getId()))
-                    .toList();
+                // Exact graph
+                addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength);
+            }
+            
+            // Load node map for edge reconstruction
+            Map<Integer, Node> nodeMap = GraphMapper.loadNodeMap(tempGraphFile);
+            
+            // Load edges for new nodes and add to dynamic algorithm
+            for (Node newNode : nodesToAdd) {
+                List<Edge> incomingEdges = GraphMapper.getIncomingEdges(tempGraphFile, newNode.getId(), nodeMap);
                 
-                // Add nodes to graph structure first
-                graph.addNodes(nodesToAdd);
-                
-                // Create and add edges incrementally to dynamic algorithm
-                DistanceFunction distanceFunction = new HammingDistance();
-                for (Node newNode : nodesToAdd) {
-                    List<Edge> edgesForNode = new ArrayList<>();
-                    
-                    for (Node existingNode : existingNodes) {
-                        int distance = (int) distanceFunction.calculate(
-                            newNode.getPoint().getSequence(),
-                            existingNode.getPoint().getSequence()
-                        );
-                        Edge edge = new Edge(newNode, existingNode, distance);
-                        graph.addEdge(edge);
-                        dynamicAlgorithm.addEdge(edge);
-                        edgesForNode.add(edge);
-                    }
-                    
-                    // Save edges to memory-mapped file incrementally
-                    GraphMapper.addNode(newNode, edgesForNode, tempGraphFile, sequenceLength);
-                    
-                    // Clear to free memory
-                    edgesForNode.clear();
+                // Add each edge to the dynamic algorithm
+                for (Edge edge : incomingEdges) {
+                    dynamicAlgorithm.addEdge(edge);
                 }
             }
         }
@@ -1160,12 +1102,11 @@ public class Main {
         // Get current phylogeny
         List<Edge> phylogeny = dynamicAlgorithm.getCurrentArborescence();
         
-        // Save phylogeny and graph
+        // Save phylogeny
         ensureDirectoryExists(outputFile);
         GraphMapper.saveArborescence(phylogeny, outputFile);
-        GraphMapper.saveGraph(graph, sequenceLength, tempGraphFile);
         
-        // Save LSH if applicable
+        // Save LSH parameters if applicable
         if (nnAlgorithm instanceof optimalarborescence.nearestneighbour.LSH<?>) {
             String lshParamsFile = tempGraphFile + LSH_EXTENSION;
             optimalarborescence.nearestneighbour.LSH.saveLSH(
@@ -1197,6 +1138,7 @@ public class Main {
         
         // Infer phylogeny
         NeighbourJoining nj = new NeighbourJoining(distanceMatrix, distanceMatrix.getDistanceFunction());
+        System.out.println("Inferring phylogeny using Neighbor Joining...");
         List<Edge> phylogeny = nj.inferPhylogeny(null).getEdges();
         
         // Save phylogeny

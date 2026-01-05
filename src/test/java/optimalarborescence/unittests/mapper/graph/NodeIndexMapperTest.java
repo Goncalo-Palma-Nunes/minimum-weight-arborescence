@@ -966,4 +966,141 @@ public class NodeIndexMapperTest {
         Assert.assertTrue(batchOffsets.get(2) >= 0); // Has incoming
         Assert.assertTrue(batchOffsets.get(3) >= 0); // Has incoming
     }
+
+    /**
+     * Test removing multiple nodes in a single batch operation.
+     * Verifies that all specified nodes are removed efficiently.
+     */
+    @Test
+    public void testRemoveNodesBatch() throws IOException {
+        // Create and save initial graph with 8 nodes
+        List<Edge> originalEdges = new ArrayList<>();
+        for (int i = 0; i < 7; i++) {
+            originalEdges.add(new Edge(TEST_NODES.get(i), TEST_NODES.get(i + 1), (i + 1) * 10));
+        }
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Verify all 8 nodes exist
+        int initialNodeCount = NodeIndexMapper.getNumNodes(NODES_FILE_NAME);
+        Assert.assertEquals(8, initialNodeCount);
+
+        // Remove nodes 1, 3, and 5 in batch
+        List<Node> nodesToRemove = List.of(TEST_NODES.get(1), TEST_NODES.get(3), TEST_NODES.get(5));
+        NodeIndexMapper.removeNodesBatch(nodesToRemove, NODES_FILE_NAME);
+
+        // Verify only 5 nodes remain
+        int finalNodeCount = NodeIndexMapper.getNumNodes(NODES_FILE_NAME);
+        Assert.assertEquals(5, finalNodeCount);
+
+        // Load nodes and verify correct ones remain
+        Map<Integer, Node> loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertEquals(5, loadedNodes.size());
+        
+        // Check that removed nodes are not present
+        Assert.assertFalse(loadedNodes.containsKey(1));
+        Assert.assertFalse(loadedNodes.containsKey(3));
+        Assert.assertFalse(loadedNodes.containsKey(5));
+        
+        // Check that remaining nodes are present
+        Assert.assertTrue(loadedNodes.containsKey(0));
+        Assert.assertTrue(loadedNodes.containsKey(2));
+        Assert.assertTrue(loadedNodes.containsKey(4));
+        Assert.assertTrue(loadedNodes.containsKey(6));
+        Assert.assertTrue(loadedNodes.containsKey(7));
+
+        // Verify MLST data is intact for remaining nodes
+        for (int i : List.of(0, 2, 4, 6, 7)) {
+            Node original = TEST_NODES.get(i);
+            Node loaded = loadedNodes.get(i);
+            AllelicProfile originalProfile = (AllelicProfile) original.getMLSTdata();
+            AllelicProfile loadedProfile = (AllelicProfile) loaded.getMLSTdata();
+            
+            for (int j = 0; j < mlstLength; j++) {
+                Assert.assertEquals(originalProfile.getElementAt(j), loadedProfile.getElementAt(j));
+            }
+        }
+    }
+
+    /**
+     * Test batch removal with empty list - should be a no-op.
+     */
+    @Test
+    public void testRemoveNodesBatchEmptyList() throws IOException {
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        int initialCount = NodeIndexMapper.getNumNodes(NODES_FILE_NAME);
+
+        // Remove empty list
+        NodeIndexMapper.removeNodesBatch(List.of(), NODES_FILE_NAME);
+
+        int finalCount = NodeIndexMapper.getNumNodes(NODES_FILE_NAME);
+        Assert.assertEquals(initialCount, finalCount);
+    }
+
+    /**
+     * Test batch removal of all nodes.
+     */
+    @Test
+    public void testRemoveNodesBatchAllNodes() throws IOException {
+        List<Edge> originalEdges = new ArrayList<>();
+        originalEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        originalEdges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Remove all nodes
+        List<Node> allNodes = List.of(TEST_NODES.get(0), TEST_NODES.get(1), TEST_NODES.get(2));
+        NodeIndexMapper.removeNodesBatch(allNodes, NODES_FILE_NAME);
+
+        // Verify no nodes remain
+        int finalCount = NodeIndexMapper.getNumNodes(NODES_FILE_NAME);
+        Assert.assertEquals(0, finalCount);
+
+        Map<Integer, Node> loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertTrue(loadedNodes.isEmpty());
+    }
+
+    /**
+     * Test batch removal with interleaved removals - remove every other node.
+     */
+    @Test
+    public void testRemoveNodesBatchInterleaved() throws IOException {
+        List<Edge> originalEdges = new ArrayList<>();
+        for (int i = 0; i < 7; i++) {
+            originalEdges.add(new Edge(TEST_NODES.get(i), TEST_NODES.get(i + 1), (i + 1) * 10));
+        }
+        Graph graph = new Graph(originalEdges);
+        int mlstLength = 4;
+
+        Map<Integer, Long> offsetMap = EdgeListMapper.saveEdgesToMappedFile(originalEdges, EDGES_FILE_NAME);
+        NodeIndexMapper.saveGraph(graph, mlstLength, offsetMap, NODES_FILE_NAME);
+
+        // Remove every other node (0, 2, 4, 6)
+        List<Node> nodesToRemove = List.of(
+            TEST_NODES.get(0), TEST_NODES.get(2), TEST_NODES.get(4), TEST_NODES.get(6)
+        );
+        NodeIndexMapper.removeNodesBatch(nodesToRemove, NODES_FILE_NAME);
+
+        // Verify correct nodes remain
+        Map<Integer, Node> loadedNodes = NodeIndexMapper.loadNodes(NODES_FILE_NAME);
+        Assert.assertEquals(4, loadedNodes.size());
+        
+        Assert.assertTrue(loadedNodes.containsKey(1));
+        Assert.assertTrue(loadedNodes.containsKey(3));
+        Assert.assertTrue(loadedNodes.containsKey(5));
+        Assert.assertTrue(loadedNodes.containsKey(7));
+    }
 }

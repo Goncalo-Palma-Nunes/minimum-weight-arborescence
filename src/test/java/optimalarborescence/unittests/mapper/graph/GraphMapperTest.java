@@ -1413,6 +1413,211 @@ public class GraphMapperTest {
     }
 
     /**
+     * Test batch removal of multiple nodes and their edges.
+     */
+    @Test
+    public void testRemoveNodesBatch() throws IOException {
+        // Create test graph with interconnected nodes
+        Graph graph = createTestGraphWithMLST();
+        GraphMapper.saveGraph(graph, MLST_LENGTH, TEST_BASE_NAME);
+
+        // Verify initial state
+        Graph initialGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
+        int initialNodeCount = initialGraph.getNumNodes();
+        int initialEdgeCount = initialGraph.getNumEdges();
+        
+        Assert.assertTrue("Should have multiple nodes", initialNodeCount > 3);
+        Assert.assertTrue("Should have multiple edges", initialEdgeCount > 0);
+
+        // Remove 2 nodes in batch
+        List<Node> nodesToRemove = new ArrayList<>();
+        nodesToRemove.add(initialGraph.getNodes().get(1));
+        nodesToRemove.add(initialGraph.getNodes().get(2));
+        
+        GraphMapper.removeNodesBatch(nodesToRemove, TEST_BASE_NAME, MLST_LENGTH);
+
+        // Load and verify
+        Graph finalGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
+        Assert.assertEquals("Should have 2 fewer nodes", 
+            initialNodeCount - 2, finalGraph.getNumNodes());
+
+        // Verify removed nodes are not present
+        for (Node removedNode : nodesToRemove) {
+            boolean found = false;
+            for (Node node : finalGraph.getNodes()) {
+                if (node.getId() == removedNode.getId()) {
+                    found = true;
+                    break;
+                }
+            }
+            Assert.assertFalse("Removed node should not be present", found);
+        }
+
+        // Verify no edges involve removed nodes
+        for (Edge edge : finalGraph.getEdges()) {
+            for (Node removedNode : nodesToRemove) {
+                Assert.assertNotEquals(removedNode.getId(), edge.getSource().getId());
+                Assert.assertNotEquals(removedNode.getId(), edge.getDestination().getId());
+            }
+        }
+    }
+
+    /**
+     * Test batch removal with empty list - should be a no-op.
+     */
+    @Test
+    public void testRemoveNodesBatchEmptyList() throws IOException {
+        Graph graph = createTestGraph();
+        GraphMapper.saveGraph(graph, MLST_LENGTH, TEST_BASE_NAME);
+
+        Graph initialGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
+        int initialNodeCount = initialGraph.getNumNodes();
+        int initialEdgeCount = initialGraph.getNumEdges();
+
+        // Remove empty list
+        GraphMapper.removeNodesBatch(List.of(), TEST_BASE_NAME, MLST_LENGTH);
+
+        Graph finalGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
+        Assert.assertEquals(initialNodeCount, finalGraph.getNumNodes());
+        Assert.assertEquals(initialEdgeCount, finalGraph.getNumEdges());
+    }
+
+    /**
+     * Test batch removal of all nodes.
+     */
+    @Test
+    public void testRemoveNodesBatchAllNodes() throws IOException {
+        Graph graph = createTestGraph();
+        GraphMapper.saveGraph(graph, MLST_LENGTH, TEST_BASE_NAME);
+
+        Graph initialGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
+        List<Node> allNodes = new ArrayList<>(initialGraph.getNodes());
+
+        // Remove all nodes
+        GraphMapper.removeNodesBatch(allNodes, TEST_BASE_NAME, MLST_LENGTH);
+
+        Graph finalGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
+        Assert.assertEquals("Should have no nodes", 0, finalGraph.getNumNodes());
+        Assert.assertEquals("Should have no edges", 0, finalGraph.getNumEdges());
+    }
+
+    /**
+     * Test batch removal with complex interconnected graph.
+     */
+    @Test
+    public void testRemoveNodesBatchComplexGraph() throws IOException {
+        // Create a complex graph with many interconnections
+        List<Node> nodes = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            nodes.add(new Node(createProfile(generateMLSTData(i)), i));
+        }
+
+        List<Edge> edges = new ArrayList<>();
+        // Create a web of connections
+        for (int i = 0; i < 9; i++) {
+            edges.add(new Edge(nodes.get(i), nodes.get(i + 1), i * 10));
+        }
+        for (int i = 0; i < 8; i += 2) {
+            edges.add(new Edge(nodes.get(i), nodes.get(i + 2), i * 5));
+        }
+
+        Graph graph = new Graph(edges);
+        GraphMapper.saveGraph(graph, MLST_LENGTH, TEST_BASE_NAME);
+
+        // Remove nodes 2, 4, 6 in batch
+        List<Node> nodesToRemove = List.of(nodes.get(2), nodes.get(4), nodes.get(6));
+        GraphMapper.removeNodesBatch(nodesToRemove, TEST_BASE_NAME, MLST_LENGTH);
+
+        Graph finalGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
+        Assert.assertEquals("Should have 7 nodes remaining", 7, finalGraph.getNumNodes());
+
+        // Verify removed nodes are absent
+        for (Node node : finalGraph.getNodes()) {
+            Assert.assertNotEquals(2, node.getId());
+            Assert.assertNotEquals(4, node.getId());
+            Assert.assertNotEquals(6, node.getId());
+        }
+
+        // Verify no edges involve removed nodes
+        for (Edge edge : finalGraph.getEdges()) {
+            Assert.assertNotEquals(2, edge.getSource().getId());
+            Assert.assertNotEquals(2, edge.getDestination().getId());
+            Assert.assertNotEquals(4, edge.getSource().getId());
+            Assert.assertNotEquals(4, edge.getDestination().getId());
+            Assert.assertNotEquals(6, edge.getSource().getId());
+            Assert.assertNotEquals(6, edge.getDestination().getId());
+        }
+    }
+
+    /**
+     * Test batch removal efficiency - removing many nodes at once.
+     */
+    @Test
+    public void testRemoveNodesBatchLargeScale() throws IOException {
+        // Create a large graph
+        List<Node> nodes = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            nodes.add(new Node(createProfile(generateMLSTData(i)), i));
+        }
+
+        List<Edge> edges = new ArrayList<>();
+        for (int i = 0; i < 49; i++) {
+            edges.add(new Edge(nodes.get(i), nodes.get(i + 1), i));
+        }
+
+        Graph graph = new Graph(edges);
+        GraphMapper.saveGraph(graph, MLST_LENGTH, TEST_BASE_NAME);
+
+        // Remove 20 nodes in batch
+        List<Node> nodesToRemove = new ArrayList<>();
+        for (int i = 10; i < 30; i++) {
+            nodesToRemove.add(nodes.get(i));
+        }
+
+        GraphMapper.removeNodesBatch(nodesToRemove, TEST_BASE_NAME, MLST_LENGTH);
+
+        Graph finalGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
+        Assert.assertEquals("Should have 30 nodes remaining", 30, finalGraph.getNumNodes());
+
+        // Verify removed nodes are absent
+        for (Node node : finalGraph.getNodes()) {
+            Assert.assertTrue("Node ID should be outside removed range", 
+                node.getId() < 10 || node.getId() >= 30);
+        }
+    }
+
+    /**
+     * Helper method to generate MLST data for testing.
+     */
+    private String generateMLSTData(int seed) {
+        char[] bases = {'A', 'T', 'G', 'C'};
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < MLST_LENGTH; i++) {
+            sb.append(bases[(seed + i) % 4]);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Helper method to create a test graph with proper MLST data.
+     */
+    private Graph createTestGraphWithMLST() {
+        List<Node> nodes = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            nodes.add(new Node(createProfile(generateMLSTData(i)), i));
+        }
+
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(nodes.get(0), nodes.get(1), 10));
+        edges.add(new Edge(nodes.get(1), nodes.get(2), 20));
+        edges.add(new Edge(nodes.get(2), nodes.get(3), 30));
+        edges.add(new Edge(nodes.get(3), nodes.get(4), 40));
+        edges.add(new Edge(nodes.get(0), nodes.get(3), 15));
+
+        return new Graph(edges);
+    }
+
+    /**
      * Delete test files created during testing.
      */
     private void deleteTestFiles(String baseName) {
