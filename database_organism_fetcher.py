@@ -7,8 +7,8 @@ import base64
 import urllib.parse
 import requests
 
-CLIENT_ID = "<INSERT_YOUR_CLIENT_ID_HERE>"
-CLIENT_SECRET = "<INSERT_YOUR_CLIENT_SECRET_HERE>"
+CLIENT_ID = "UToYjOisZCKGv8K0HxV0QB2R"
+CLIENT_SECRET = "wxEIAO8GfqvMtKoe6LuMrWYNa6KhNTbd8s4b7Cx3OF"
 BASE_URL = "https://rest.pubmlst.org"  # Replace with actual API base URL
 AUTHORIZATION_URL = "http://pubmlst.org/cgi-bin/bigsdb/bigsdb.pl"  # BIGSdb authorization page
 
@@ -33,7 +33,8 @@ TRIPLES = [
     ("pubmlst_spneumoniae_seqdef",
     "Streptococcus pneumoniae/in/cgMLST.csv",
     "https://rest.pubmlst.org/db/pubmlst_spneumoniae_seqdef/schemes/2/profiles_csv"
-    )
+    ),
+
 ]
 
 
@@ -278,11 +279,14 @@ def write_response_to_file(response, output_path):
 
 if __name__ == "__main__":
     # Example usage
-    database = "pubmlst_spneumoniae_seqdef"  # Replace with your database
-    output_response_path = "Neisseria_sp/in/baaaaah.csv"  # Example output path
-    output_response_path = "Streptococcus pneumoniae/in/cgMLST.csv"  # Corrected output path
-    scheme = "https://rest.pubmlst.org/db/pubmlst_spneumoniae_seqdef/schemes/2/profiles_csv"
-    
+    # database = "pubmlst_spneumoniae_seqdef"  # Replace with your database
+    # output_response_path = "Neisseria_sp/in/baaaaah.csv"  # Example output path
+    # output_response_path = "Streptococcus pneumoniae/in/cgMLST.csv"  # Corrected output path
+    # scheme = "https://rest.pubmlst.org/db/pubmlst_spneumoniae_seqdef/schemes/2/profiles_csv"
+    triple = TRIPLES[1]  # Select the desired triple
+    database, output_response_path, scheme = triple
+
+
     try:
         # Step 1: Get request token
         print("Step 1: Obtaining request token...")
