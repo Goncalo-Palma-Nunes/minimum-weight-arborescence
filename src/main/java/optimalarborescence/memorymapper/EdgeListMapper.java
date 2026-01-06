@@ -601,6 +601,7 @@ public class EdgeListMapper {
             
             long currentOffset = appendPosition;
             Map<Long, Long> edgeUpdates = new HashMap<>(); // offset -> new prev value
+            int edgesWritten = 0; // Track how many edges we've actually written
             
             // Write all edges
             for (Map.Entry<Node, List<Edge>> entry : nodeEdgesMap.entrySet()) {
@@ -628,6 +629,23 @@ public class EdgeListMapper {
                     long thisOffset = currentOffset;
                     long nextOffset = (i < edges.size() - 1) ? (currentOffset + BYTES_PER_EDGE) : existingFirstOffset;
                     
+                    // Verify we're not writing more edges than we calculated
+                    if (edgesWritten >= totalNewEdges) {
+                        throw new IOException(String.format(
+                            "Edge count mismatch: trying to write edge #%d but only allocated space for %d edges. " +
+                            "Node=%d, edgeIndex=%d/%d",
+                            edgesWritten + 1, totalNewEdges, destNode.getId(), i, edges.size()));
+                    }
+                    
+                    // Check buffer bounds before writing
+                    if (edgeMbb.remaining() < BYTES_PER_EDGE) {
+                        throw new IOException(String.format(
+                            "Buffer overflow: remaining=%d, needed=%d, position=%d, limit=%d, " +
+                            "totalNewEdges=%d, edgesWritten=%d, currentEdgeCount=%d, appendPosition=%d, totalEdgeSize=%d",
+                            edgeMbb.remaining(), BYTES_PER_EDGE, edgeMbb.position(), edgeMbb.limit(),
+                            totalNewEdges, edgesWritten, currentEdgeCount, appendPosition, totalEdgeSize));
+                    }
+                    
                     // Write edge data
                     edgeMbb.putInt(edge.getSource().getId());
                     edgeMbb.putInt(edge.getDestination().getId());
@@ -638,6 +656,7 @@ public class EdgeListMapper {
                     prevOffset = thisOffset;
                     lastNewEdgeOffset = thisOffset;
                     currentOffset += BYTES_PER_EDGE;
+                    edgesWritten++;
                 }
                 
                 // Track edge updates to apply in batch later
