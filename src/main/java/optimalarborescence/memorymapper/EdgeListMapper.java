@@ -582,8 +582,30 @@ public class EdgeListMapper {
             long appendPosition = HEADER_SIZE + (long) currentEdgeCount * BYTES_PER_EDGE;
             long totalEdgeSize = (long) totalNewEdges * BYTES_PER_EDGE;
             
+            // Check for potential issues
+            if (totalEdgeSize > Integer.MAX_VALUE) {
+                // MappedByteBuffer has a limit of Integer.MAX_VALUE bytes
+                // Need to process in smaller chunks
+                throw new IOException(String.format(
+                    "Batch too large: totalNewEdges=%d, totalEdgeSize=%d bytes exceeds 2GB limit for MappedByteBuffer. " +
+                    "Please process in smaller batches (max ~76 million edges per batch).",
+                    totalNewEdges, totalEdgeSize));
+            }
+            
+            long newFileSize = appendPosition + totalEdgeSize;
+            if (newFileSize < 0) {
+                throw new IOException(String.format(
+                    "File size overflow: appendPosition=%d + totalEdgeSize=%d would cause negative size",
+                    appendPosition, totalEdgeSize));
+            }
+            
+            System.out.println(String.format(
+                "EdgeListMapper.addEdgesBatch: totalNewEdges=%d, currentEdgeCount=%d, " +
+                "appendPosition=%d, totalEdgeSize=%d, newFileSize=%d",
+                totalNewEdges, currentEdgeCount, appendPosition, totalEdgeSize, newFileSize));
+            
             // Pre-allocate file space to avoid filesystem reallocation overhead
-            raf.setLength(appendPosition + totalEdgeSize);
+            raf.setLength(newFileSize);
             
             // Map the region for all new edges at once
             MappedByteBuffer edgeMbb = channel.map(FileChannel.MapMode.READ_WRITE, appendPosition, totalEdgeSize);
