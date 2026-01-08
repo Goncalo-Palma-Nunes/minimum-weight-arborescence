@@ -545,11 +545,88 @@ public class EdgeListMapper {
      * This is MUCH more efficient than calling addEdges() multiple times.
      * Opens the file once, writes all edges, then closes.
      * 
+     * If the batch is too large (>2GB), it will be automatically split into smaller chunks.
+     * 
      * @param nodeEdgesMap Map of node to its list of incoming edges
      * @param fileName The name of the edge list file
      * @throws IOException if file operations fail
      */
     public static void addEdgesBatch(Map<Node, List<Edge>> nodeEdgesMap, String fileName) throws IOException {
+        if (nodeEdgesMap == null || nodeEdgesMap.isEmpty()) {
+            return;
+        }
+        
+        // Calculate total number of edges to add
+        long totalNewEdges = 0;
+        for (List<Edge> edges : nodeEdgesMap.values()) {
+            totalNewEdges += edges.size();
+        }
+        
+        if (totalNewEdges == 0) {
+            return;
+        }
+        
+        long totalEdgeSize = totalNewEdges * BYTES_PER_EDGE;
+        
+        // If batch is too large for a single MappedByteBuffer (>2GB), split it into chunks
+        // Max ~76 million edges per chunk to stay under 2GB
+        final long MAX_EDGES_PER_CHUNK = 76_000_000L;
+        
+        if (totalNewEdges > MAX_EDGES_PER_CHUNK) {
+            System.out.println(String.format(
+                "EdgeListMapper.addEdgesBatch: Large batch detected (%d edges, %.2f GB). " +
+                "Splitting into chunks of %d edges...",
+                totalNewEdges, totalEdgeSize / (1024.0 * 1024.0 * 1024.0), MAX_EDGES_PER_CHUNK));
+            
+            // Split into smaller batches
+            Map<Node, List<Edge>> currentChunk = new HashMap<>();
+            long currentChunkSize = 0;
+            int chunkNumber = 1;
+            
+            for (Map.Entry<Node, List<Edge>> entry : nodeEdgesMap.entrySet()) {
+                Node node = entry.getKey();
+                List<Edge> edges = entry.getValue();
+                
+                // If adding this node's edges would exceed the chunk limit, process current chunk
+                if (currentChunkSize > 0 && currentChunkSize + edges.size() > MAX_EDGES_PER_CHUNK) {
+                    System.out.println(String.format(
+                        "  Processing chunk %d: %d edges (%.2f GB)...",
+                        chunkNumber, currentChunkSize, 
+                        (currentChunkSize * BYTES_PER_EDGE) / (1024.0 * 1024.0 * 1024.0)));
+                    addEdgesBatchInternal(currentChunk, fileName);
+                    currentChunk.clear();
+                    currentChunkSize = 0;
+                    chunkNumber++;
+                }
+                
+                currentChunk.put(node, edges);
+                currentChunkSize += edges.size();
+            }
+            
+            // Process remaining chunk
+            if (!currentChunk.isEmpty()) {
+                System.out.println(String.format(
+                    "  Processing chunk %d: %d edges (%.2f GB)...",
+                    chunkNumber, currentChunkSize,
+                    (currentChunkSize * BYTES_PER_EDGE) / (1024.0 * 1024.0 * 1024.0)));
+                addEdgesBatchInternal(currentChunk, fileName);
+            }
+            
+            System.out.println(String.format(
+                "EdgeListMapper.addEdgesBatch: Completed processing %d chunks with total %d edges",
+                chunkNumber, totalNewEdges));
+            return;
+        }
+        
+        // Batch is small enough, process directly
+        addEdgesBatchInternal(nodeEdgesMap, fileName);
+    }
+    
+    /**
+     * Internal method that actually performs the batch addition.
+     * This assumes the batch size is within the 2GB MappedByteBuffer limit.
+     */
+    private static void addEdgesBatchInternal(Map<Node, List<Edge>> nodeEdgesMap, String fileName) throws IOException {
         if (nodeEdgesMap == null || nodeEdgesMap.isEmpty()) {
             return;
         }
@@ -582,13 +659,10 @@ public class EdgeListMapper {
             long appendPosition = HEADER_SIZE + (long) currentEdgeCount * BYTES_PER_EDGE;
             long totalEdgeSize = (long) totalNewEdges * BYTES_PER_EDGE;
             
-            // Check for potential issues
+            // Sanity check - this should not happen if chunking logic is correct
             if (totalEdgeSize > Integer.MAX_VALUE) {
-                // MappedByteBuffer has a limit of Integer.MAX_VALUE bytes
-                // Need to process in smaller chunks
                 throw new IOException(String.format(
-                    "Batch too large: totalNewEdges=%d, totalEdgeSize=%d bytes exceeds 2GB limit for MappedByteBuffer. " +
-                    "Please process in smaller batches (max ~76 million edges per batch).",
+                    "Internal error: Batch still too large after chunking: totalNewEdges=%d, totalEdgeSize=%d bytes",
                     totalNewEdges, totalEdgeSize));
             }
             
