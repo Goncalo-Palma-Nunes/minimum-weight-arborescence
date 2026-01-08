@@ -21,7 +21,7 @@ import java.util.Set;
  * 
  * File Format:
  * Header:
- *   [num_edges (4 bytes)]
+ *   [num_edges (8 bytes)]
  * 
  * Each edge entry (28 bytes total):
  *   [source_id (4 bytes), destination_id (4 bytes), weight (4 bytes),
@@ -32,7 +32,7 @@ import java.util.Set;
  */
 public class EdgeListMapper {
     
-    public static final int HEADER_SIZE = 4; // num_edges (1 int)
+    public static final int HEADER_SIZE = 8; // num_edges (1 long)
     public static final int BYTES_PER_EDGE = 28; // 3 ints + 2 longs per edge
     public static final long NO_OFFSET = -1L;
     
@@ -170,7 +170,7 @@ public class EdgeListMapper {
             mbb.order(ByteOrder.nativeOrder());
             
             // Write header
-            mbb.putInt(edges.size());
+            mbb.putLong(edges.size());
             
             // Create EdgeEntry objects and assign offsets
             long currentOffset = HEADER_SIZE;
@@ -268,11 +268,11 @@ public class EdgeListMapper {
                 throw new IOException("Edge file size is not a multiple of edge size (28 bytes)");
             }
             
-            int edgeCount = (int) (size / BYTES_PER_EDGE);
+            long edgeCount = (size - HEADER_SIZE) / BYTES_PER_EDGE;
             MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, HEADER_SIZE, size - HEADER_SIZE);
             mbb.order(ByteOrder.nativeOrder());
             
-            for (int i = 0; i < edgeCount; i++) {
+            for (long i = 0; i < edgeCount; i++) {
                 int srcId = mbb.getInt();
                 int dstId = mbb.getInt();
                 int weight = mbb.getInt();
@@ -311,11 +311,11 @@ public class EdgeListMapper {
                 throw new IOException("Edge file size is not a multiple of edge size (28 bytes)");
             }
             
-            int edgeCount = (int) (size / BYTES_PER_EDGE);
+            long edgeCount = (size - HEADER_SIZE) / BYTES_PER_EDGE;
             MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, HEADER_SIZE, size - HEADER_SIZE);
             mbb.order(ByteOrder.nativeOrder());
             
-            for (int i = 0; i < edgeCount; i++) {
+            for (long i = 0; i < edgeCount; i++) {
                 int srcId = mbb.getInt();
                 int dstId = mbb.getInt();
                 int weight = mbb.getInt();
@@ -343,13 +343,13 @@ public class EdgeListMapper {
      * @return Number of edges in the file
      * @throws IOException if file operations fail
      */
-    public static int getNumEdges(String fileName) throws IOException {
+    public static long getNumEdges(String fileName) throws IOException {
         try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
              FileChannel channel = raf.getChannel()) {
             
             MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
             mbb.order(ByteOrder.nativeOrder());
-            return mbb.getInt();
+            return mbb.getLong();
         }
     }
     
@@ -445,7 +445,7 @@ public class EdgeListMapper {
             // Read header to get edge count
             MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, HEADER_SIZE);
             headerMbb.order(ByteOrder.nativeOrder());
-            int edgeCount = headerMbb.getInt();
+            long edgeCount = headerMbb.getLong();
             
             // Calculate new edge offset (at end of file)
             long newEdgeOffset = fileSize;
@@ -512,7 +512,7 @@ public class EdgeListMapper {
             
             // Update edge count in header
             headerMbb.rewind();
-            headerMbb.putInt(edgeCount + 1);
+            headerMbb.putLong(edgeCount + 1);
             headerMbb.force();
         }
     }
@@ -566,10 +566,10 @@ public class EdgeListMapper {
             
             MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
             headerMbb.order(ByteOrder.nativeOrder());
-            int currentEdgeCount = headerMbb.getInt();
+            long currentEdgeCount = headerMbb.getLong();
             
             // Calculate total number of edges to add
-            int totalNewEdges = 0;
+            long totalNewEdges = 0;
             for (List<Edge> edges : nodeEdgesMap.values()) {
                 totalNewEdges += edges.size();
             }
@@ -709,7 +709,7 @@ public class EdgeListMapper {
             // Update header with new edge count
             MappedByteBuffer newHeaderMbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, HEADER_SIZE);
             newHeaderMbb.order(ByteOrder.nativeOrder());
-            newHeaderMbb.putInt(currentEdgeCount + totalNewEdges);
+            newHeaderMbb.putLong(currentEdgeCount + totalNewEdges);
             newHeaderMbb.force();
             
             // Update node index with new first edge offsets
@@ -940,12 +940,12 @@ public class EdgeListMapper {
      * @param count Number of edges to decrement
      * @throws IOException if file operations fail
      */
-    private static void decrementHeader(String filename, FileChannel channel, int count) throws IOException {
+    private static void decrementHeader(String filename, FileChannel channel, long count) throws IOException {
         MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, HEADER_SIZE);
         headerMbb.order(ByteOrder.nativeOrder());
-        int edgeCount = headerMbb.getInt();
+        long edgeCount = headerMbb.getLong();
         headerMbb.rewind();
-        headerMbb.putInt(edgeCount - count);
+        headerMbb.putLong(edgeCount - count);
         headerMbb.force();
     }
 
@@ -1153,7 +1153,7 @@ public class EdgeListMapper {
             // Read header
             MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
             headerMbb.order(ByteOrder.nativeOrder());
-            int numEdges = headerMbb.getInt();
+            long numEdges = headerMbb.getLong();
             
             if (numEdges == 0) {
                 return; // No edges to remove
@@ -1167,12 +1167,12 @@ public class EdgeListMapper {
             // Track which edges to keep and rebuild linked lists
             // Map from destination node ID to list of edges
             Map<Integer, List<EdgeEntry>> keptEdgesByDest = new HashMap<>();
-            int keptCount = 0;
+            long keptCount = 0;
             
             // First pass: identify edges to keep
-            for (int i = 0; i < numEdges; i++) {
-                int readOffset = i * BYTES_PER_EDGE;
-                dataMbb.position(readOffset);
+            for (long i = 0; i < numEdges; i++) {
+                long readOffset = i * BYTES_PER_EDGE;
+                dataMbb.position((int) readOffset);
                 
                 int srcId = dataMbb.getInt();
                 int destId = dataMbb.getInt();
@@ -1246,7 +1246,7 @@ public class EdgeListMapper {
             // Update header with new edge count
             headerMbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, HEADER_SIZE);
             headerMbb.order(ByteOrder.nativeOrder());
-            headerMbb.putInt(keptCount);
+            headerMbb.putLong(keptCount);
             headerMbb.force();
             
             // Update node incoming edge offsets

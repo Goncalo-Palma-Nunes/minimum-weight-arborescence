@@ -132,12 +132,12 @@ public class EdgeListMapperRemovalTest {
     @Test
     public void testEdgeRemovalHeadOfLinkedList() throws IOException {
         
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         long edgeOffset = offsetMap.get(2); // Example offset for edge to remove
         EdgeListMapper.removeEdgeAtOffset(EDGES_FILE_NAME, edgeOffset);
 
         long newOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
 
         Assert.assertNotEquals(edgeOffset, newOffset);
         Assert.assertEquals(initialNumEdges - 1, newNumEdges);
@@ -146,12 +146,12 @@ public class EdgeListMapperRemovalTest {
     @Test
     public void testEdgeRemovalOnlyEdgeInLinkedList() throws IOException {
         
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         long edgeOffset = offsetMap.get(0); // Example offset for edge to remove
         EdgeListMapper.removeEdgeAtOffset(EDGES_FILE_NAME, edgeOffset);
 
         long newOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 0);
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
 
         Assert.assertEquals(-1, newOffset);
         Assert.assertEquals(initialNumEdges - 1, newNumEdges);
@@ -160,7 +160,7 @@ public class EdgeListMapperRemovalTest {
     @Test
     public void testRemoveSeveralEdges() throws IOException {
         
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         List<Integer> nodesToRemoveEdgesFrom = List.of(1, 3, 2);
         List<Long> offsetsToRemove = new ArrayList<>();
 
@@ -175,7 +175,7 @@ public class EdgeListMapperRemovalTest {
             EdgeListMapper.removeEdgeAtOffset(EDGES_FILE_NAME, offset);
         }
 
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
 
         Assert.assertEquals(initialNumEdges - offsetsToRemove.size(), newNumEdges);
 
@@ -189,7 +189,7 @@ public class EdgeListMapperRemovalTest {
     @Test
     public void testRemoveNonExistentEdge() throws IOException {
         
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         long invalidOffset = EdgeListMapper.HEADER_SIZE + (initialNumEdges + 1) * EdgeListMapper.BYTES_PER_EDGE; // An offset that does not exist
 
         // check exception is thrown
@@ -207,11 +207,11 @@ public class EdgeListMapperRemovalTest {
         deleteTestFiles(BASE_FILE_NAME);
         initializeNodeIndexMapper(new Graph(new ArrayList<>()));
 
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         long invalidOffset = EdgeListMapper.HEADER_SIZE; // No edges exist
         
         EdgeListMapper.removeEdgeAtOffset(EDGES_FILE_NAME, invalidOffset);
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(initialNumEdges, newNumEdges);
 
         invalidOffset = -10; // Negative offset
@@ -222,30 +222,30 @@ public class EdgeListMapperRemovalTest {
 
     @Test
     public void testRemoveInvalidOffset() throws IOException {
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         long invalidOffset = EdgeListMapper.HEADER_SIZE + 1L; // Misaligned offset
 
         // check no exception is thrown
         EdgeListMapper.removeEdgeAtOffset(EDGES_FILE_NAME, invalidOffset);
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(initialNumEdges, newNumEdges);
     }
 
     @Test
     public void testRemoveEdgeAtEndOfFile() throws IOException {
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         long edgeOffset = EdgeListMapper.HEADER_SIZE + (initialNumEdges - 1) * EdgeListMapper.BYTES_PER_EDGE; // Offset of last edge
         EdgeListMapper.removeEdgeAtOffset(EDGES_FILE_NAME, edgeOffset);
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(initialNumEdges - 1, newNumEdges);
     }
 
     @Test
     public void testRemoveLinkedList() throws IOException {
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         long startOffset = offsetMap.get(1); // Example offset for start of linked list
         EdgeListMapper.removeLinkedList(EDGES_FILE_NAME, startOffset);
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertTrue(newNumEdges < initialNumEdges);
 
         long newStartOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
@@ -257,27 +257,27 @@ public class EdgeListMapperRemovalTest {
         deleteTestFiles(BASE_FILE_NAME);
         initializeNodeIndexMapper(new Graph(new ArrayList<>()));
 
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         long startOffset = EdgeListMapper.HEADER_SIZE; // Start of linked list
         EdgeListMapper.removeLinkedList(EDGES_FILE_NAME, startOffset);
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(initialNumEdges, newNumEdges);
         Assert.assertEquals(0, newNumEdges);
     }
 
     @Test
     public void testRemoveLinkedListWithInvalidOffset() throws IOException {
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         long invalidOffset = EdgeListMapper.HEADER_SIZE + 1L; // Misaligned offset
         // check no exception is thrown
         EdgeListMapper.removeLinkedList(EDGES_FILE_NAME, invalidOffset);
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(initialNumEdges, newNumEdges);
     }
 
     @Test
     public void testRemoveAllLinkedLists() throws IOException {
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         // printOffsets();
         for (int nodeId : offsetMap.keySet()) {
             // printOffsetPerEach(EDGES_FILE_NAME);
@@ -286,7 +286,7 @@ public class EdgeListMapperRemovalTest {
                 EdgeListMapper.removeLinkedList(EDGES_FILE_NAME, startOffset);
             }
         }
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(0, newNumEdges);
         Assert.assertTrue(newNumEdges <= initialNumEdges);
     }
@@ -350,13 +350,13 @@ public class EdgeListMapperRemovalTest {
 
     @Test
     public void testRemoveEdgeBySourceAndDest() throws IOException {
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         
         // Remove edge 0->1
         long linkedListOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
         EdgeListMapper.removeEdge(EDGES_FILE_NAME, 0, 1, linkedListOffset);
         
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(initialNumEdges - 1, newNumEdges);
         
         // Verify the edge no longer exists
@@ -367,14 +367,14 @@ public class EdgeListMapperRemovalTest {
 
     @Test
     public void testRemoveEdgeFromMiddleOfLinkedList() throws IOException {
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         
         // Node 2 has two incoming edges: 0->2 and 1->2
         // Remove the second edge (1->2)
         long linkedListOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
         EdgeListMapper.removeEdge(EDGES_FILE_NAME, 1, 2, linkedListOffset);
         
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(initialNumEdges - 1, newNumEdges);
         
         // Verify 1->2 is gone but 0->2 still exists
@@ -388,30 +388,30 @@ public class EdgeListMapperRemovalTest {
 
     @Test
     public void testRemoveNonExistentEdgeBySourceAndDest() throws IOException {
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         
         // Try to remove non-existent edge 0->3
         long linkedListOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 3);
         EdgeListMapper.removeEdge(EDGES_FILE_NAME, 0, 3, linkedListOffset);
         
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals("Edge count should remain unchanged", initialNumEdges, newNumEdges);
     }
 
     @Test
     public void testRemoveEdgeWithInvalidOffset() throws IOException {
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         
         // Try to remove edge with invalid offset
         EdgeListMapper.removeEdge(EDGES_FILE_NAME, 0, 1, -1);
         
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals("Edge count should remain unchanged", initialNumEdges, newNumEdges);
     }
 
     @Test
     public void testRemoveEdgeHeadOfList() throws IOException {
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         
         // Node 2 has edges 0->2 and 1->2
         // Remove the head of the list (first edge)
@@ -424,7 +424,7 @@ public class EdgeListMapperRemovalTest {
         int srcId = headEdge.getSource().getId();
         EdgeListMapper.removeEdge(EDGES_FILE_NAME, srcId, 2, linkedListOffset);
         
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(initialNumEdges - 1, newNumEdges);
         
         // Verify offset changed for node 2
@@ -438,7 +438,7 @@ public class EdgeListMapperRemovalTest {
 
     @Test
     public void testRemoveMultipleEdgesBySourceAndDest() throws IOException {
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         
         // Remove edges 1->2 and 2->3
         long offset1 = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
@@ -447,7 +447,7 @@ public class EdgeListMapperRemovalTest {
         long offset2 = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 3);
         EdgeListMapper.removeEdge(EDGES_FILE_NAME, 2, 3, offset2);
         
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(initialNumEdges - 2, newNumEdges);
         
         // Verify both edges are gone
@@ -479,13 +479,13 @@ public class EdgeListMapperRemovalTest {
 
     @Test
     public void testRemoveEdgeOnlyEdgeToDestination() throws IOException {
-        int initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         
         // Node 0 has only one incoming edge: 3->0
         long linkedListOffset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 0);
         EdgeListMapper.removeEdge(EDGES_FILE_NAME, 3, 0, linkedListOffset);
         
-        int newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long newNumEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(initialNumEdges - 1, newNumEdges);
         
         // Verify no edges remain to node 0

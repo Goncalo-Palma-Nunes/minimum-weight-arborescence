@@ -62,8 +62,8 @@ public class GraphMapperTest {
         Assert.assertTrue("Edge file should not be empty", edgeFile.length() > 0);
         Assert.assertTrue("Node file should not be empty", nodeFile.length() > 0);
         
-        // Edge file: 4 bytes (header = num edges) + 6 edges * 28 bytes = 172 bytes
-        Assert.assertEquals("Edge file size should be 172 bytes", 172, edgeFile.length());
+        // Edge file: 8 bytes (header = num edges) + 6 edges * 28 bytes = 176 bytes
+        Assert.assertEquals("Edge file size should be 176 bytes", 176, edgeFile.length());
         
         // Node file: header (9 bytes: 4+4+1 for num_nodes, mlst_length, sequence_type) + 4 nodes × (4 bytes node_id + 20 bytes MLST + 8 bytes offset) = 9 + 4×32 = 137 bytes
         Assert.assertEquals("Node file size should be 137 bytes", 137, nodeFile.length());

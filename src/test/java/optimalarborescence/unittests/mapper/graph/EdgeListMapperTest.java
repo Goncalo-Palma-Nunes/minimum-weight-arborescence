@@ -88,7 +88,7 @@ public class EdgeListMapperTest {
         EdgeListMapper.saveEdgesToMappedFile(edges, EDGES_FILE_NAME);
 
         // Get number of edges
-        int numEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long numEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(edges.size(), numEdges);
     }
 
@@ -98,7 +98,7 @@ public class EdgeListMapperTest {
         EdgeListMapper.saveEdgesToMappedFile(new ArrayList<>(), EDGES_FILE_NAME);
 
         // Get number of edges
-        int numEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long numEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(0, numEdges);
     }
 
@@ -675,9 +675,9 @@ public class EdgeListMapperTest {
         // Assert
         Assert.assertEquals("Node 0 should have 2 outgoing edges", 2, offsets.size());
 
-        // Expected offsets: 4 (first edge) and 60 (third edge)
-        Assert.assertTrue("Should contain offset 4", offsets.contains(4L));
-        Assert.assertTrue("Should contain offset 60", offsets.contains(60L));
+        // Expected offsets: 8 (first edge) and 64 (third edge) with 8-byte header
+        Assert.assertTrue("Should contain offset 8", offsets.contains(8L));
+        Assert.assertTrue("Should contain offset 64", offsets.contains(64L));
     }
 
     /**
@@ -791,10 +791,10 @@ public class EdgeListMapperTest {
         Assert.assertTrue("Offsets should be in ascending order", 
             offsets.get(0) < offsets.get(1) && offsets.get(1) < offsets.get(2));
 
-        // Expected offsets: 4, 60, 116
-        Assert.assertEquals("First offset should be 4", 4L, offsets.get(0).longValue());
-        Assert.assertEquals("Second offset should be 60", 60L, offsets.get(1).longValue());
-        Assert.assertEquals("Third offset should be 116", 116L, offsets.get(2).longValue());
+        // Expected offsets: 8, 64, 120 (with 8-byte header)
+        Assert.assertEquals("First offset should be 8", 8L, offsets.get(0).longValue());
+        Assert.assertEquals("Second offset should be 64", 64L, offsets.get(1).longValue());
+        Assert.assertEquals("Third offset should be 120", 120L, offsets.get(2).longValue());
     }
 
     // ===== Tests for addEdgesBatch method =====
@@ -875,12 +875,12 @@ public class EdgeListMapperTest {
         initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
         initializeNodeIndexMapper(initialEdges);
 
-        int edgeCountBefore = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long edgeCountBefore = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
 
         // Add empty batch (should do nothing)
         EdgeListMapper.addEdgesBatch(new HashMap<>(), EDGES_FILE_NAME);
 
-        int edgeCountAfter = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long edgeCountAfter = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals("Edge count should not change", edgeCountBefore, edgeCountAfter);
     }
 
@@ -891,12 +891,12 @@ public class EdgeListMapperTest {
         initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
         initializeNodeIndexMapper(initialEdges);
 
-        int edgeCountBefore = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long edgeCountBefore = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
 
         // Add null batch (should do nothing)
         EdgeListMapper.addEdgesBatch(null, EDGES_FILE_NAME);
 
-        int edgeCountAfter = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long edgeCountAfter = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals("Edge count should not change", edgeCountBefore, edgeCountAfter);
     }
 
@@ -949,7 +949,7 @@ public class EdgeListMapperTest {
         EdgeListMapper.addEdgesBatch(nodeEdgesMap, EDGES_FILE_NAME);
 
         // Verify edge count
-        int totalEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long totalEdges = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(101, totalEdges); // 1 initial + 100 new
     }
 
@@ -1038,7 +1038,7 @@ public class EdgeListMapperTest {
         initializeNodeIndexMapper(edges);
 
         // Verify initial state
-        int initialCount = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialCount = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(5, initialCount);
 
         // Remove all edges incident to nodes 1 and 3
@@ -1069,12 +1069,12 @@ public class EdgeListMapperTest {
 
         initializeNodeIndexMapper(edges);
 
-        int initialCount = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long initialCount = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
 
         // Remove empty set
         EdgeListMapper.removeEdgesBatch(java.util.Set.of(), EDGES_FILE_NAME);
 
-        int finalCount = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long finalCount = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(initialCount, finalCount);
     }
 
@@ -1095,7 +1095,7 @@ public class EdgeListMapperTest {
         EdgeListMapper.removeEdgesBatch(allNodes, EDGES_FILE_NAME);
 
         // Verify no edges remain
-        int finalCount = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+        long finalCount = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
         Assert.assertEquals(0, finalCount);
 
         List<Edge> remainingEdges = EdgeListMapper.loadEdgesFromMappedFile(EDGES_FILE_NAME);
