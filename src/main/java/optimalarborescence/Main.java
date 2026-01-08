@@ -26,6 +26,9 @@ import java.util.Comparator;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
 
 import javax.management.RuntimeErrorException;
 
@@ -186,13 +189,15 @@ public class Main {
         }
     }
 
-    private static int approximatesGraph() {
+    private static int approximatesGraph() throws IOException{
         System.out.println("Do you want to approximate the graph using an approximate nearest neighbour search algorithm? Enter:\n\t- 0 to use the base data set;\n\t- a positive integer k (k > 0) for the maximum number of neighbors for each node;\n\t- or " + EXIT + " to quit.");
 
         String response = "";
         while (!response.equals(String.valueOf(YES)) && !response.equals(String.valueOf(NO))) {
 
-            response = System.console().readLine().trim().toLowerCase();
+            //response = System.console().readLine().trim().toLowerCase();
+	    BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+	    response = reader.readLine();
             if (response.equals(EXIT)) {
                 System.out.println("Exiting the program.");
                 System.exit(0);
@@ -267,14 +272,16 @@ public class Main {
         return file.exists() && file.isFile();
     }
 
-    private static String readAlgorithmType() {
+    private static String readAlgorithmType() throws IOException {
         System.out.println("Select the algorithm type:\n'static' for the Static Camerini Algorithm\n'dynamic' for the Dynamic Camerini Algorithm\nEnter " + EXIT + " to quit.");
 
         String response = "";
         while (!response.equals(STATIC_ALGORITHM) && !response.equals(DYNAMIC_ALGORITHM)) {
 
-            response = System.console().readLine().trim().toLowerCase();
-            if (response.equals(STATIC_ALGORITHM)) {
+            //response = System.console().readLine().trim().toLowerCase();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+	    response = reader.readLine().trim().toLowerCase();
+	    if (response.equals(STATIC_ALGORITHM)) {
                 return STATIC_ALGORITHM;
             } else if (response.equals(DYNAMIC_ALGORITHM)) {
                 return DYNAMIC_ALGORITHM;
