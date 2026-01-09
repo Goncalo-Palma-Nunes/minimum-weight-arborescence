@@ -693,7 +693,28 @@ public class EdgeListMapper {
             for (Node destNode : nodeEdgesMap.keySet()) {
                 nodeIdsToCheck.add(destNode.getId());
             }
+            
+            System.out.println(String.format(
+                "  Chunk info: checking %d destination nodes, nodeIds range: [%d - %d]",
+                nodeIdsToCheck.size(),
+                nodeIdsToCheck.stream().mapToInt(Integer::intValue).min().orElse(-1),
+                nodeIdsToCheck.stream().mapToInt(Integer::intValue).max().orElse(-1)));
+            
             Map<Integer, Long> existingOffsets = NodeIndexMapper.getIncomingEdgeOffsetsBatch(nodeFileName, nodeIdsToCheck);
+            
+            System.out.println(String.format(
+                "  Found %d/%d nodes in node index file",
+                existingOffsets.size(), nodeIdsToCheck.size()));
+            
+            if (existingOffsets.size() < nodeIdsToCheck.size()) {
+                Set<Integer> missingNodes = new HashSet<>(nodeIdsToCheck);
+                missingNodes.removeAll(existingOffsets.keySet());
+                System.err.println(String.format(
+                    "  WARNING: %d nodes not found in node index: %s",
+                    missingNodes.size(),
+                    missingNodes.size() <= 20 ? missingNodes.toString() : 
+                    (missingNodes.stream().limit(20).toArray() + "...")));
+            }
             
             long currentOffset = appendPosition;
             Map<Long, Long> edgeUpdates = new HashMap<>(); // offset -> new prev value
@@ -788,6 +809,27 @@ public class EdgeListMapper {
             
             // Update node index with new first edge offsets
             if (!firstEdgeOffsets.isEmpty()) {
+                // Verify all nodes in firstEdgeOffsets were found in existingOffsets check
+                Set<Integer> missingNodes = new HashSet<>();
+                for (Integer nodeId : firstEdgeOffsets.keySet()) {
+                    if (!existingOffsets.containsKey(nodeId)) {
+                        missingNodes.add(nodeId);
+                    }
+                }
+                
+                if (!missingNodes.isEmpty()) {
+                    // This is a critical error - nodes should have been added before edges
+                    throw new IOException(String.format(
+                        "CRITICAL: %d destination nodes not found in node index file when updating offsets: %s. " +
+                        "These nodes should have been added to the node index before adding edges. " +
+                        "This may indicate: (1) nodes were not added via addNodesBatch, " +
+                        "(2) file corruption, or (3) concurrent modification. " +
+                        "Total nodes in this chunk: %d, Missing nodes: %s",
+                        missingNodes.size(), nodeFileName, firstEdgeOffsets.size(),
+                        missingNodes.size() <= 20 ? missingNodes.toString() : 
+                        (missingNodes.stream().sorted().limit(20).map(String::valueOf).toArray() + "...")));
+                }
+                
                 NodeIndexMapper.updateIncomingEdgeOffsets(nodeFileName, firstEdgeOffsets);
             }
         }
