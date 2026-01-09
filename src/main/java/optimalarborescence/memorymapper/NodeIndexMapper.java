@@ -552,12 +552,13 @@ public class NodeIndexMapper {
             int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
             int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
 
-            // OPTIMIZATION: The nodes we're updating were just added at the END of the file
-            // So we only need to scan the last N entries where N = updatedOffsets.size()
-            int numToCheck = Math.min(updatedOffsets.size() + 100, numNodes); // +100 buffer for safety
+            // OPTIMIZATION: The nodes we're updating were typically just added at the END of the file
+            // So we first try to scan the last N entries. If we don't find all nodes, we fall back
+            // to scanning the entire file (needed when chunks are split).
+            int numToCheck = Math.min(updatedOffsets.size() + 1000, numNodes); // +1000 buffer for safety
             int startIndex = Math.max(0, numNodes - numToCheck);
             
-            // Map the entire region we need to check at ONCE (not one node at a time!)
+            // Map the region we need to check at ONCE (not one node at a time!)
             long startPosition = HEADER_SIZE + (long) startIndex * entrySize;
             long regionSize = (long) numToCheck * entrySize;
             
@@ -596,6 +597,40 @@ public class NodeIndexMapper {
             }
             
             regionMbb.force();
+            
+            // If we didn't find all nodes in the optimized region, fall back to full file scan
+            if (foundNodes.size() < updatedOffsets.size()) {
+                System.out.println(String.format(
+                    "  NodeIndexMapper: Found only %d/%d nodes in last %d entries, falling back to full scan",
+                    foundNodes.size(), updatedOffsets.size(), numToCheck));
+                
+                // Map the entire data region (from start to beginning of region we already scanned)
+                long fullDataSize = startPosition - HEADER_SIZE;
+                if (fullDataSize > 0) {
+                    MappedByteBuffer fullMbb = channel.map(FileChannel.MapMode.READ_WRITE, HEADER_SIZE, fullDataSize);
+                    fullMbb.order(ByteOrder.nativeOrder());
+                    
+                    offsetInRegion = 0;
+                    for (int i = 0; i < startIndex && offsetInRegion + entrySize <= fullDataSize; i++) {
+                        int currentNodeId = fullMbb.getInt(offsetInRegion);
+                        
+                        if (updatedOffsets.containsKey(currentNodeId) && !foundNodes.contains(currentNodeId)) {
+                            long newOffset = updatedOffsets.get(currentNodeId);
+                            int offsetFieldPosition = offsetInRegion + NODE_ID_BYTES + mlstLength * bytesPerElement;
+                            fullMbb.putLong(offsetFieldPosition, newOffset);
+                            foundNodes.add(currentNodeId);
+                            
+                            if (foundNodes.size() == updatedOffsets.size()) {
+                                break;
+                            }
+                        }
+                        
+                        offsetInRegion += entrySize;
+                    }
+                    
+                    fullMbb.force();
+                }
+            }
             
             // Check if any requested nodes were not found
             for (Integer nodeId : updatedOffsets.keySet()) {
