@@ -270,6 +270,11 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
     }
 
     @Override
+    public void clear() {
+        this.root = null;
+    }
+
+    @Override
     public String toString() 
     {
         return "PairingHeap {" +

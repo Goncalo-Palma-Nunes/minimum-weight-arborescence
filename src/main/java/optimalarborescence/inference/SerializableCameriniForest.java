@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,6 +57,12 @@ public class SerializableCameriniForest extends CameriniForest {
     private Map<Integer, Boolean> queueInitialized;
     private EdgeListMapper.EdgeLoader edgeLoader;  // Keeps file channel open during algorithm execution
     private Map<Integer, Long> nodeOffsetCache;  // Preloaded offsets to avoid repeated file opens
+    /**
+     * Maps SCC representative ID to the set of all node IDs that have been merged into this SCC.
+     * Updated during contractionPhase when cycles are detected and nodes are unified.
+     * Used during queue re-initialization to load edges for all nodes in the SCC.
+     */
+    private Map<Integer, Set<Integer>> sccComposition;
     
     /**
      * Constructor for in-memory operation (backward compatibility).
@@ -66,6 +73,7 @@ public class SerializableCameriniForest extends CameriniForest {
     public SerializableCameriniForest(Graph graph, Comparator<Edge> comparator) {
         super(graph, comparator);
         this.useMemoryMappedFiles = false;
+        this.sccComposition = new HashMap<>();
     }
     
     /**
@@ -87,6 +95,7 @@ public class SerializableCameriniForest extends CameriniForest {
         this.baseName = baseName;
         this.useMemoryMappedFiles = true;
         this.queueInitialized = new HashMap<>();
+        this.sccComposition = new HashMap<>();
         
         // Load node map for edge reconstruction during lazy loading
         this.nodeMap = GraphMapper.loadNodeMap(baseName);
@@ -118,6 +127,7 @@ public class SerializableCameriniForest extends CameriniForest {
         this.baseName = baseName;
         this.useMemoryMappedFiles = true;
         this.queueInitialized = new HashMap<>();
+        this.sccComposition = new HashMap<>();
         
         // Load node map for edge reconstruction during lazy loading
         this.nodeMap = GraphMapper.loadNodeMap(baseName);
@@ -150,6 +160,120 @@ public class SerializableCameriniForest extends CameriniForest {
         }
         
         return graph;
+    }
+
+    private void clearQueue(MergeableHeapInterface<HeapNode> q, int nodeId) {
+        q.clear();
+        queueInitialized.put(nodeId, false);
+    }
+
+    /**
+     * Override contractionPhase to clear queues after processing a node. A cleared queue is 
+     * re-initialized if the node is accessed again (this only happens if it is part of a contraction),
+     * allowing for lazy re-loading of edges. This helps manage memory usage when working with large graphs.
+     * <p>
+     * This method is only used when useMemoryMappedFiles is true.
+     * </p>
+     * Note: This method essentially duplicates the code from the parent class with the addition of clearing the queue.
+     */
+    private void contractionPhase() {
+        while (!roots.isEmpty()) {
+                Node root = roots.remove(0);
+                MergeableHeapInterface<HeapNode> q = getQueue(sccFind(root)); // priority queue of edges entering r
+
+                if (emptyQueue(q)) {
+                    rset.add(root);
+                    continue;
+                }
+                Edge e = q.extractMin().getEdge();
+                while (!emptyQueue(q) && sccFind(e.getSource()) == sccFind(e.getDestination())) {
+                    e = q.extractMin().getEdge();
+                }
+
+                if (sccFind(e.getSource()) == sccFind(e.getDestination())) {
+                    // Both ends of the edge are in the same SCC, skip this edge
+                    rset.add(root);
+                    // TODO - dar clear da queue aqui também só por consistência?
+                    continue;
+                }
+
+                Node u = e.getSource();
+                Node v = e.getDestination();
+
+                TarjanForestNode minNode = createMinNode(e);
+                if (wccFind(u) != wccFind(v)) {
+                    // no cycle formed
+                    inEdgeNode.set(root.getId(), minNode);
+                    wccUnion(u, v);
+                    clearQueue(q, sccFind(root).getId()); // Clear the queue to free memory
+                }
+                else {
+
+                    // store nodes in cycle
+                    List<Integer> contractionSet = new ArrayList<>();
+                    contractionSet.add(sccFind(v).getId());
+
+                    // keep track of the edges in the cycle
+                    List<TarjanForestNode> edgeNodesInCycle = new ArrayList<>();
+                    edgeNodesInCycle.add(minNode);
+
+                    // map the edge incident in a node
+                    Map<Integer, TarjanForestNode> map = new HashMap<>();
+                    map.put(sccFind(v).getId(), minNode);
+
+                    // since a cycle as arisen we need to choose a new minimum weight edge incident in node root
+                    inEdgeNode.set(root.getId(), null);
+
+                    Set<Integer> visited = new HashSet<>();
+                    for (int i = sccFind(u).getId(); inEdgeNode.get(i) != null; i = sccFind(inEdgeNode.get(i).edge.getSource()).getId()) {
+                        if (visited.contains(i)) {
+                            break;  // Cycle detected - prevent infinite loop
+                        }
+                        visited.add(i);
+                        map.put(i, inEdgeNode.get(i));
+                        edgeNodesInCycle.add(inEdgeNode.get(i));
+                        contractionSet.add(i);
+                    }
+
+                    TarjanForestNode maxWeightTarjanNode = getMaxWeightEdgeInCycle(edgeNodesInCycle);
+                    Edge maxWeightEdge = maxWeightTarjanNode.edge;
+                    Node dst = sccFind(maxWeightEdge.getDestination());
+
+                    int sigma = getAdjustedWeight(maxWeightEdge).intValue();
+                    updateReducedCosts(contractionSet, sigma, map);
+
+                    for (TarjanForestNode n: edgeNodesInCycle) { // Perform union of the nodes in the cycle
+                        sccUnion(n.edge.getSource(), n.edge.getDestination());
+                    }
+
+                    Node rep = sccFind(maxWeightEdge.getDestination());
+                    
+                    // Track SCC composition for lazy queue re-initialization
+                    if (!sccComposition.containsKey(rep.getId())) {
+                        sccComposition.put(rep.getId(), new HashSet<>());
+                    }
+                    Set<Integer> repComposition = sccComposition.get(rep.getId());
+                    
+                    // Add all nodes from contractionSet to this SCC's composition
+                    for (Integer nodeId : contractionSet) {
+                        // If this node was already a representative of another SCC, merge those compositions
+                        if (sccComposition.containsKey(nodeId) && nodeId != rep.getId()) {
+                            repComposition.addAll(sccComposition.get(nodeId));
+                            sccComposition.remove(nodeId); // Clean up old entry
+                        }
+                        repComposition.add(nodeId);
+                    }
+                    
+                    roots.add(0, rep); // Add representative to roots to be processed again
+                    for (Integer node : contractionSet) { // Merge queues involved in the cycle
+                        if (rep.getId() != node) {
+                            getQueue(rep).merge(getQueue(getNodes().get(node)));
+                        }
+                    }
+                    updateMax(rep, dst);
+                    cycleEdgeNodes.set(rep.getId(), edgeNodesInCycle);
+                }
+            }
     }
     
     /**
@@ -202,32 +326,55 @@ public class SerializableCameriniForest extends CameriniForest {
     
     /**
      * Initialize the queue for a specific node by loading its incoming edges from disk.
+     * If the node is part of an SCC, loads edges for all nodes in the SCC.
      * Uses preloaded offset cache and EdgeLoader for maximum efficiency.
      * 
      * @param v The node whose incoming edges to load
      * @throws IOException if file operations fail
      */
     private void initializeQueueForNode(Node v) throws IOException {
-        // Get offset from preloaded cache (no file I/O!)
-        Long offset = nodeOffsetCache.get(v.getId());
+        // Find the SCC representative for this node
+        Node rep = sccFind(v);
+        int repId = rep.getId();
         
-        if (offset == null || offset < 0) {
-            // No incoming edges for this node
-            return;
-        }
-        
-        // Load incoming edges using EdgeLoader (efficient chunked loading)
-        List<Edge> incomingEdges;
-        if (edgeLoader != null) {
-            incomingEdges = edgeLoader.loadLinkedList(offset, nodeMap);
+        // Determine which nodes' edges need to be loaded
+        Set<Integer> nodesToLoad;
+        if (sccComposition.containsKey(repId)) {
+            // This is an SCC representative with merged queues
+            // Load edges for ALL nodes in this SCC
+            nodesToLoad = sccComposition.get(repId);
         } else {
-            // Fallback - should rarely happen
-            incomingEdges = GraphMapper.getIncomingEdges(baseName, v.getId(), nodeMap);
+            // This node is not part of any SCC (or is a singleton SCC)
+            // Load only its own edges
+            nodesToLoad = new HashSet<>();
+            nodesToLoad.add(repId);
         }
         
-        MergeableHeapInterface<HeapNode> queue = queues.get(v.getId());
-        for (Edge edge : incomingEdges) {
-            queue.insert(new HeapNode(edge, null, null));
+        // Get the queue for the representative (this is the merged queue)
+        MergeableHeapInterface<HeapNode> queue = queues.get(repId);
+        
+        // Load and insert edges for all nodes in the SCC
+        for (Integer nodeId : nodesToLoad) {
+            Long offset = nodeOffsetCache.get(nodeId);
+            
+            if (offset == null || offset < 0) {
+                // No incoming edges for this node
+                continue;
+            }
+            
+            // Load incoming edges for this node
+            List<Edge> incomingEdges;
+            if (edgeLoader != null) {
+                incomingEdges = edgeLoader.loadLinkedList(offset, nodeMap);
+            } else {
+                // Fallback - should rarely happen
+                incomingEdges = GraphMapper.getIncomingEdges(baseName, nodeId, nodeMap);
+            }
+            
+            // Insert all edges into the representative's queue
+            for (Edge edge : incomingEdges) {
+                queue.insert(new HeapNode(edge, null, null));
+            }
         }
     }
     
@@ -259,6 +406,7 @@ public class SerializableCameriniForest extends CameriniForest {
         this.baseName = baseName;
         this.useMemoryMappedFiles = true;
         this.queueInitialized = new HashMap<>();
+        this.sccComposition = new HashMap<>();
         
         // Save graph to memory-mapped files
         GraphMapper.saveGraph(graph, sequenceLength, baseName);
@@ -314,8 +462,10 @@ public class SerializableCameriniForest extends CameriniForest {
         try (EdgeListMapper.EdgeLoader loader = new EdgeListMapper.EdgeLoader(edgeFile)) {
             this.edgeLoader = loader;
             
-            // Run the algorithm with EdgeLoader active
-            return super.inferPhylogeny(graph);
+            // Run the algorithm with EdgeLoader active and custom contractionPhase
+            contractionPhase();
+            List<Edge> forest = expansionPhase();
+            return new Graph(forest);
             
         } catch (IOException e) {
             throw new RuntimeException("Failed to open EdgeLoader for inference", e);

@@ -747,6 +747,10 @@ public class Main {
                 throw new IllegalArgumentException("Unsupported operation type: " + operationType);
         }
         
+        System.out.println("Instantiating Static algorithm with persisted graph, where persistedGraphFile = " + persistedGraphFile);
+        if (persistedGraphFile == null) {
+            throw new IllegalArgumentException("Persisted graph file must be provided for Static Camerini Algorithm.");
+        }
         CameriniForest camerini = new SerializableCameriniForest(EDGE_COMPARATOR, persistedGraphFile);
         
         System.out.println("Inferring phylogeny using Static Camerini Algorithm...");

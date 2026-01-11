@@ -22,7 +22,7 @@ import optimalarborescence.graph.Edge;
 public class CameriniForest extends StaticAlgorithm {
 
     /**  Array that for each i stores a node from the forest which is associated with the minimum weight edge incident in node i */
-    List<TarjanForestNode> inEdgeNode;
+    protected List<TarjanForestNode> inEdgeNode;
     
     /** Array that for each i, where i is a cycle representative, stores a cycle of nodes of the forest */
     // List<TarjanForestNode> cycleEdgeNode;
@@ -32,16 +32,16 @@ public class CameriniForest extends StaticAlgorithm {
     private TarjanForestNode[] leaves;
 
     /** A list of vertices to be processed. Initialized with all the vertices in 𝑉 */
-    private List<Node> roots;
+    protected List<Node> roots;
 
     /** A set of the root components of the subgraph 𝐺′ = (𝑉, 𝐻) with no incident edges of positive value */
-    private Set<Node> rset;
+    protected Set<Node> rset;
 
     /** A list of the maximum weight edge for each SCC */
     private List<Node> max;
 
     /** A list that stores for each representative cycle vertex 𝑣 the list of cycle edge nodes in F */
-    private List<List<TarjanForestNode>> cycleEdgeNodes;
+    protected List<List<TarjanForestNode>> cycleEdgeNodes;
 
     /** A union-find data structure to maintain the strongly connected components of 𝐻 */
     private UnionFindStronglyConnected ufSCC;
@@ -135,7 +135,7 @@ public class CameriniForest extends StaticAlgorithm {
         return queues.get(v.getId());
     }
 
-    private boolean emptyQueue(MergeableHeapInterface<HeapNode> q) {
+    protected boolean emptyQueue(MergeableHeapInterface<HeapNode> q) {
         return q.isEmpty();
     }
 
@@ -143,7 +143,7 @@ public class CameriniForest extends StaticAlgorithm {
         leaves[index] = node;
     }
 
-    private TarjanForestNode createMinNode(Edge e) {  // Rever esta parte no paper
+    protected TarjanForestNode createMinNode(Edge e) {  // Rever esta parte no paper
         Node r = e.getDestination();
         List<TarjanForestNode> cycleEdges = getCycleEdges(r);
 
@@ -163,7 +163,7 @@ public class CameriniForest extends StaticAlgorithm {
         return cycleEdgeNodes.get(sccFind(v).getId());
     }
 
-    private Node wccFind(Node v) {
+    protected Node wccFind(Node v) {
         int repId = ufWCC.find(v.getId());
         // Find the node with the representative ID
         for (Node node : getNodes()) {
@@ -174,11 +174,11 @@ public class CameriniForest extends StaticAlgorithm {
         throw new RuntimeException("Node with ID " + repId + " not found in wccFind");
     }
 
-    private void wccUnion(Node u, Node v) {
+    protected void wccUnion(Node u, Node v) {
         ufWCC.union(u.getId(), v.getId());
     }
 
-    private Node sccFind(Node v) {
+    protected Node sccFind(Node v) {
         int repId = ufSCC.find(v.getId());
         // Find the node with the representative ID
         for (Node node : getNodes()) {
@@ -189,7 +189,7 @@ public class CameriniForest extends StaticAlgorithm {
         throw new RuntimeException("Node with ID " + repId + " not found in sccFind");
     }
 
-    private void sccUnion(Node u, Node v) {
+    protected void sccUnion(Node u, Node v) {
         ufSCC.union(u.getId(), v.getId());
     }
 
@@ -202,7 +202,7 @@ public class CameriniForest extends StaticAlgorithm {
         return e.getWeight() + ufSCC.findWeight(e.getDestination().getId());
     }
 
-    private void updateReducedCosts(List<Integer> contractionSet, int sigma, Map<Integer, TarjanForestNode> map) {
+    protected void updateReducedCosts(List<Integer> contractionSet, int sigma, Map<Integer, TarjanForestNode> map) {
         for (Integer node : contractionSet) { // Update reduced costs
             Number incidentW = getAdjustedWeight(map.get(node).getEdge());
             Number reducedCost = sigma - incidentW.floatValue();
@@ -213,7 +213,7 @@ public class CameriniForest extends StaticAlgorithm {
         }
     }
 
-    private TarjanForestNode getMaxWeightEdgeInCycle(List<TarjanForestNode> cycle) {
+    protected TarjanForestNode getMaxWeightEdgeInCycle(List<TarjanForestNode> cycle) {
         // System.out.println("\t\u001B[32mcycle edges: \u001B[0m");
         for (TarjanForestNode n : cycle) {
             // System.out.println("\t\t(" + n.getEdge().getSource().getId() + "," + n.getEdge().getDestination().getId() + ", adjusted weight=" + getAdjustedWeight(n.getEdge()) + ")");
@@ -240,7 +240,7 @@ public class CameriniForest extends StaticAlgorithm {
         max.set(rep.getId(), maxEdge.getDestination());
     }
 
-    private void updateMax(Node index, Node newVal) {
+    protected void updateMax(Node index, Node newVal) {
 
         // System.out.println("\u001B[31mUpdating max for SCC represented by node " + index.getId() + "\u001B[0m");
         // System.out.println("\tNew candidate max: " + (newVal != null ? newVal.getId() : "null"));
@@ -459,7 +459,7 @@ public class CameriniForest extends StaticAlgorithm {
         }
     }
 
-    private List<Edge> expansionPhase() {
+    protected List<Edge> expansionPhase() {
         // List<Edge> B = new ArrayList<>(); // optimal arborescence (called H in other places)
         // List<Node> R = rset.stream().map(v -> getSCCMaxTarget(v)).collect(Collectors.toCollection(ArrayList::new));
         // Set<Node> R = rset.stream()
