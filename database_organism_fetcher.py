@@ -46,6 +46,18 @@ TRIPLES = [
      "Campylobacter_jejuni_coli/in/mlst.csv",
      "https://rest.pubmlst.org/db/pubmlst_campylobacter_seqdef/schemes/1/profiles_csv"
      ),
+    ("pubmlst_neisseria_seqdef",
+     "Neisseria/in/meningitis_cgMLST_v3.csv",
+     "https://rest.pubmlst.org/db/pubmlst_neisseria_seqdef/schemes/88/profiles_csv"
+     ),
+    ("pubmlst_neisseria_seqdef",
+     "Neisseria/in/gonorreia_cgMLST_v2.csv",
+     "https://rest.pubmlst.org/db/pubmlst_neisseria_seqdef/schemes/85/profiles_csv"
+     ),
+    ("pubmlst_neisseria_seqdef",
+     "Neisseria/in/mlst.csv",
+     "https://rest.pubmlst.org/db/pubmlst_neisseria_seqdef/schemes/1/profiles_csv"
+     ),
 ]
 
 
@@ -294,7 +306,7 @@ if __name__ == "__main__":
     # output_response_path = "Neisseria_sp/in/baaaaah.csv"  # Example output path
     # output_response_path = "Streptococcus pneumoniae/in/cgMLST.csv"  # Corrected output path
     # scheme = "https://rest.pubmlst.org/db/pubmlst_spneumoniae_seqdef/schemes/2/profiles_csv"
-    triple = TRIPLES[5]  # Select the desired triple
+    triple = TRIPLES[-3]  # Select the desired triple
     database, output_response_path, scheme = triple
 
 
