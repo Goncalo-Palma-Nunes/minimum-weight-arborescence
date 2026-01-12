@@ -177,7 +177,8 @@ public class SerializableCameriniForest extends CameriniForest {
     }
 
     private void clearQueue(MergeableHeapInterface<HeapNode> q, int nodeId) {
-        q.clear();
+	System.out.println("!!!! Clearing queue for node " + nodeId + " to free memory. !!!!");
+  	q.clear();
         queueInitialized.put(nodeId, false);
     }
 
@@ -403,15 +404,19 @@ public class SerializableCameriniForest extends CameriniForest {
         
         // Determine which nodes' edges need to be loaded
         Set<Integer> nodesToLoad;
+	//System.out.println("Initializing queue for node " + repId);
         if (sccComposition.containsKey(repId)) {
             // This is an SCC representative with merged queues
             // Load edges for ALL nodes in this SCC
             nodesToLoad = sccComposition.get(repId);
+	    //System.out.println("\tNodes in the SCC: " + nodesToLoad);
+	    //System.exit(1);
         } else {
             // This node is not part of any SCC (or is a singleton SCC)
             // Load only its own edges
             nodesToLoad = new HashSet<>();
             nodesToLoad.add(repId);
+	    //System.out.println("\tSingleton SCC");
         }
         
         // Get the queue for the representative (this is the merged queue)
