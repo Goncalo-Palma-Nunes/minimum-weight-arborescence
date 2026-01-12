@@ -249,19 +249,30 @@ public class SerializableCameriniForest extends CameriniForest {
                     Node rep = sccFind(maxWeightEdge.getDestination());
                     
                     // Track SCC composition for lazy queue re-initialization
+                    // Collect all original node IDs being merged into this SCC
+                    Set<Integer> originalNodeIds = new HashSet<>();
+                    for (Integer nodeId : contractionSet) {
+                        // If this node was already representing an SCC, get its original nodes
+                        if (sccComposition.containsKey(nodeId)) {
+                            originalNodeIds.addAll(sccComposition.get(nodeId));
+                        } else {
+                            // This is an original node ID - add it directly
+                            originalNodeIds.add(nodeId);
+                        }
+                    }
+                    
+                    // Store or update the composition for the new representative
                     if (!sccComposition.containsKey(rep.getId())) {
                         sccComposition.put(rep.getId(), new HashSet<>());
                     }
                     Set<Integer> repComposition = sccComposition.get(rep.getId());
+                    repComposition.addAll(originalNodeIds);
                     
-                    // Add all nodes from contractionSet to this SCC's composition
+                    // Clean up old representative entries that are now merged
                     for (Integer nodeId : contractionSet) {
-                        // If this node was already a representative of another SCC, merge those compositions
-                        if (sccComposition.containsKey(nodeId) && nodeId != rep.getId()) {
-                            repComposition.addAll(sccComposition.get(nodeId));
-                            sccComposition.remove(nodeId); // Clean up old entry
+                        if (nodeId != rep.getId()) {
+                            sccComposition.remove(nodeId);
                         }
-                        repComposition.add(nodeId);
                     }
                     
                     roots.add(0, rep); // Add representative to roots to be processed again
@@ -357,8 +368,16 @@ public class SerializableCameriniForest extends CameriniForest {
         for (Integer nodeId : nodesToLoad) {
             Long offset = nodeOffsetCache.get(nodeId);
             
-            if (offset == null || offset < 0) {
-                // No incoming edges for this node
+            if (offset == null) {
+                // This node doesn't exist in the original graph - this shouldn't happen
+                System.err.println("WARNING: Node " + nodeId + " not found in nodeOffsetCache. " +
+                                 "This indicates an issue with SCC composition tracking.");
+                System.err.println("Representative: " + repId + ", SCC composition: " + nodesToLoad);
+                continue;
+            }
+            
+            if (offset < 0) {
+                // No incoming edges for this node (but the node exists)
                 continue;
             }
             
