@@ -96,7 +96,20 @@ public class EdgeListMapper {
                 }
                 
                 // Check if we need to map a new chunk
-                if (currentOffset < currentChunkStart || currentOffset >= currentChunkEnd) {
+                // We need a new chunk if: (1) we're outside the current chunk range, OR
+                // (2) there aren't enough bytes remaining in the buffer to read a full edge
+                int positionInChunk = (int) (currentOffset - currentChunkStart);
+                boolean needNewChunk = (currentOffset < currentChunkStart || currentOffset >= currentChunkEnd);
+                
+                // Also check if current buffer has enough space for a full edge
+                if (!needNewChunk && currentBuffer != null) {
+                    int remainingInBuffer = currentBuffer.limit() - positionInChunk;
+                    if (remainingInBuffer < BYTES_PER_EDGE) {
+                        needNewChunk = true;
+                    }
+                }
+                
+                if (needNewChunk) {
                     // Calculate new chunk boundaries
                     currentChunkStart = currentOffset;
                     // Map up to CHUNK_SIZE, but don't exceed file size
@@ -109,6 +122,7 @@ public class EdgeListMapper {
                         currentBuffer = channel.map(FileChannel.MapMode.READ_ONLY, 
                                                    currentChunkStart, chunkSize);
                         currentBuffer.order(ByteOrder.nativeOrder());
+                        positionInChunk = 0; // Reset position since we remapped from currentOffset
                     } catch (IOException e) {
                         e.printStackTrace();
                         break;
@@ -116,8 +130,6 @@ public class EdgeListMapper {
                 }
                 
                 // Read edge from the current buffer
-                // Calculate position within the current chunk
-                int positionInChunk = (int) (currentOffset - currentChunkStart);
                 currentBuffer.position(positionInChunk);
                 
                 int sourceId = currentBuffer.getInt();
@@ -870,7 +882,20 @@ public class EdgeListMapper {
                 }
                 
                 // Check if we need to map a new chunk
-                if (currentOffset < currentChunkStart || currentOffset >= currentChunkEnd) {
+                // We need a new chunk if: (1) we're outside the current chunk range, OR
+                // (2) there aren't enough bytes remaining in the buffer to read a full edge
+                int positionInChunk = (int) (currentOffset - currentChunkStart);
+                boolean needNewChunk = (currentOffset < currentChunkStart || currentOffset >= currentChunkEnd);
+                
+                // Also check if current buffer has enough space for a full edge
+                if (!needNewChunk && currentBuffer != null) {
+                    int remainingInBuffer = currentBuffer.limit() - positionInChunk;
+                    if (remainingInBuffer < BYTES_PER_EDGE) {
+                        needNewChunk = true;
+                    }
+                }
+                
+                if (needNewChunk) {
                     // Calculate new chunk boundaries
                     currentChunkStart = currentOffset;
                     // Map up to CHUNK_SIZE, but don't exceed file size
@@ -881,11 +906,10 @@ public class EdgeListMapper {
                     // Map the new chunk
                     currentBuffer = channel.map(FileChannel.MapMode.READ_ONLY, currentChunkStart, chunkSize);
                     currentBuffer.order(ByteOrder.nativeOrder());
+                    positionInChunk = 0; // Reset position since we remapped from currentOffset
                 }
                 
                 // Read edge from the current buffer
-                // Calculate position within the current chunk
-                int positionInChunk = (int) (currentOffset - currentChunkStart);
                 currentBuffer.position(positionInChunk);
                 
                 int sourceId = currentBuffer.getInt();
