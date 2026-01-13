@@ -250,28 +250,42 @@ public class SerializableCameriniForest extends CameriniForest {
                     
                     // Track SCC composition for lazy queue re-initialization
                     // Collect all original node IDs being merged into this SCC
+                    // Use edgeNodesInCycle instead of contractionSet because contractionSet
+                    // contains Union-Find representative IDs, not original graph node IDs
                     Set<Integer> originalNodeIds = new HashSet<>();
-                    for (Integer nodeId : contractionSet) {
-                        // If this node was already representing an SCC, get its original nodes
-                        if (sccComposition.containsKey(nodeId)) {
-                            originalNodeIds.addAll(sccComposition.get(nodeId));
+                    
+                    for (TarjanForestNode n : edgeNodesInCycle) {
+                        int srcId = n.edge.getSource().getId();
+                        int dstId = n.edge.getDestination().getId();
+                        
+                        // Add source's composition
+                        if (sccComposition.containsKey(srcId)) {
+                            originalNodeIds.addAll(sccComposition.get(srcId));
                         } else {
-                            // This is an original node ID - add it directly
-                            originalNodeIds.add(nodeId);
+                            originalNodeIds.add(srcId);
+                        }
+                        
+                        // Add destination's composition
+                        if (sccComposition.containsKey(dstId)) {
+                            originalNodeIds.addAll(sccComposition.get(dstId));
+                        } else {
+                            originalNodeIds.add(dstId);
                         }
                     }
                     
-                    // Store or update the composition for the new representative
-                    if (!sccComposition.containsKey(rep.getId())) {
-                        sccComposition.put(rep.getId(), new HashSet<>());
-                    }
-                    Set<Integer> repComposition = sccComposition.get(rep.getId());
-                    repComposition.addAll(originalNodeIds);
+                    // Store the composition for the new representative
+                    int repId = rep.getId();
+                    sccComposition.put(repId, originalNodeIds);
                     
-                    // Clean up old representative entries that are now merged
-                    for (Integer nodeId : contractionSet) {
-                        if (nodeId != rep.getId()) {
-                            sccComposition.remove(nodeId);
+                    // Clean up old entries for nodes that are now merged
+                    for (TarjanForestNode n : edgeNodesInCycle) {
+                        int srcId = n.edge.getSource().getId();
+                        int dstId = n.edge.getDestination().getId();
+                        if (srcId != repId) {
+                            sccComposition.remove(srcId);
+                        }
+                        if (dstId != repId) {
+                            sccComposition.remove(dstId);
                         }
                     }
                     
