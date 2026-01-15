@@ -78,6 +78,12 @@ public class HammingDistanceTest {
                 String otherElement = (String) other.getElementAt(index);
                 return thisElement.compareTo(otherElement);
             }
+
+            @Override
+            public List<Integer> getPositionsWithMissingData() { return null; } // Not used in this test
+
+            @Override
+            public boolean isMissingDataAt(int index) { return false; } // Not used in this test
         };
 
         Sequence<String> seq2 = new Sequence<String>(new String[]{"A", "B", "C"}, 3) {
@@ -92,6 +98,12 @@ public class HammingDistanceTest {
                 String otherElement = (String) other.getElementAt(index);
                 return thisElement.compareTo(otherElement);
             }
+
+            @Override
+            public List<Integer> getPositionsWithMissingData() { return null; } // Not used in this test
+
+            @Override
+            public boolean isMissingDataAt(int index) { return false; } // Not used in this test
         };
 
         Sequence<String> seq3 = new Sequence<String>(new String[]{"A", "X", "C"}, 3) {
@@ -106,6 +118,12 @@ public class HammingDistanceTest {
                 String otherElement = (String) other.getElementAt(index);
                 return thisElement.compareTo(otherElement);
             }
+
+            @Override
+            public List<Integer> getPositionsWithMissingData() { return null; } // Not used in this test
+
+            @Override
+            public boolean isMissingDataAt(int index) { return false; } // Not used in this test
         };
 
         assertEquals("Hamming distance between identical generic sequences", 0.0, hammingDistance.calculate(seq1, seq2), 0.0);

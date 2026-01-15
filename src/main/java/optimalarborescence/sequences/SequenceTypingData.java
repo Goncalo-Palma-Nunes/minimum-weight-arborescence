@@ -1,10 +1,14 @@
 package optimalarborescence.sequences;
 
+import java.util.List;
+
 /**
  * SequenceTypingData represents a sequence of typing data, typically used in bioinformatics.
  * It extends the generic Sequence class with an integer array as its data type.
  */
 public class SequenceTypingData extends Sequence<Integer> {
+
+    private static final List<Integer> MISSING_DATA_SYMBOLS = List.of(-1, 0);
 
     public SequenceTypingData(Integer[] data, int length) {
         super(data, length);
@@ -31,6 +35,11 @@ public class SequenceTypingData extends Sequence<Integer> {
         Integer thisElement = getElementAt(index);
         Integer otherElement = (Integer) other.getElementAt(index);
         return thisElement.compareTo(otherElement);
+    }
+
+    @Override
+    public boolean isMissingDataAt(int index) {
+        return MISSING_DATA_SYMBOLS.contains(getElementAt(index));
     }
 
     @Override

@@ -4,6 +4,9 @@ import java.util.Scanner;
 
 import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
+
+import optimalarborescence.exception.NotImplementedException;
+
 import com.opencsv.CSVParserBuilder;
 
 import java.io.File;
@@ -120,6 +123,19 @@ public class Parser {
 
     public static int getSTFromProcessedCSVLine(Integer[] rawData) {
         return rawData[0];
+    }
+
+
+    public static List<SequenceTypingData> parseCSVWithMissingData(String filepath) {
+        /*
+         * 1 - Iterar sobre o csv linha a linha
+         * 2 - Para cada linha, criar um SequenceTypingData. Adicionar informação sobre
+         *  missing data (ex: nº de posições em falta)
+         * 3 - Adicionar o SequenceTypingData à lista
+         * 4 - Retornar a lista
+        */
+
+        throw new NotImplementedException("parseCSVWithMissingData is not implemented yet.");
     }
 
 }
