@@ -35,9 +35,10 @@ import javax.management.RuntimeErrorException;
 
 public class Main {
 
-    private static final String MLST = "mlst";
+    private static final String MLST_SYMMETRIC = "mlst-symmetric";
+    private static final String MLST_MISSING_DATA = "mlst-missing-data";
     private static final String ALLELIC = "allelic";
-    private static final List<String> SEQUENCE_TYPE = List.of(MLST, ALLELIC);
+    private static final List<String> SEQUENCE_TYPE = List.of(MLST_SYMMETRIC, MLST_MISSING_DATA, ALLELIC);
     private static final String STATIC_ALGORITHM = "static";
     private static final String DYNAMIC_ALGORITHM = "dynamic";
     private static final String NEIGHBOR_JOINING = "neighborJoining";
@@ -60,7 +61,7 @@ public class Main {
     public static void main(String[] args) throws FileNotFoundException, IOException {
         
         if (args.length < 4 || args.length > 6) {
-            System.err.println("Wrong Invocation: java -jar OptimalArborescence.jar <sequence_type> <input_sequence_file> <output_file> <operation_type> [<persisted_graph_file>] [<batch_size>]\nWhere:\n\t- <sequence_type> is either 'mlst' or 'allelic'\n\t- <input_sequence_file> is the path to the input sequence file\n\t- <output_file> is the path to the output file\n\t- <operation_type> is either 'add', 'remove', 'update', or 'test'\n\t- <persisted_graph_file> is an optional path to a persisted graph file to continue from a previous run\n\t- <batch_size> is an optional positive integer for test mode only, specifying how many points to add in each batch (only for static and neighborJoining algorithms)");
+            System.err.println("Wrong Invocation: java -jar OptimalArborescence.jar <sequence_type> <input_sequence_file> <output_file> <operation_type> [<persisted_graph_file>] [<batch_size>]\nWhere:\n\t- <sequence_type> is either 'mlst-symmetric', 'mlst-missing-data', or 'allelic'\n\t- <input_sequence_file> is the path to the input sequence file\n\t- <output_file> is the path to the output file\n\t- <operation_type> is either 'add', 'remove', 'update', or 'test'\n\t- <persisted_graph_file> is an optional path to a persisted graph file to continue from a previous run\n\t- <batch_size> is an optional positive integer for test mode only, specifying how many points to add in each batch (only for static and neighborJoining algorithms)");
             System.exit(1);
         }
         String sequenceType = args[0];
@@ -301,14 +302,17 @@ public class Main {
         List<Point<?>> points = new ArrayList<>();
         
         switch (sequenceType) {
-            case MLST:
-                List<Integer[]> rawMLSTData = Parser.readCSVLines(inputFile);
+            case MLST_SYMMETRIC:
+                List<Long[]> rawMLSTData = Parser.readCSVLines(inputFile);
                 List<SequenceTypingData> mlstData = Parser.processedCSVToTypingData(rawMLSTData);
                 for (int i = 0; i < mlstData.size(); i++) {
-                    int identifier = Parser.getSTFromProcessedCSVLine(rawMLSTData.get(i));
-                    points.add(new Point<>(identifier, mlstData.get(i)));
+                    long identifier = Parser.getSTFromProcessedCSVLine(rawMLSTData.get(i));
+                    points.add(new Point<>((int)identifier, mlstData.get(i)));
                 }
                 break;
+            case MLST_MISSING_DATA:
+                throw new NotImplementedException("Handling of MLST sequences with missing data has not been implemented yet.");
+                // break;
             case ALLELIC:
                 // TODO - implementar
                 throw new NotImplementedException("Handling of allelic sequences has not been implemented yet.");

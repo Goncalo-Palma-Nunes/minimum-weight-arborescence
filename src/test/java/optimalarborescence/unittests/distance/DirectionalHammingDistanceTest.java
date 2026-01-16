@@ -35,7 +35,7 @@ public class DirectionalHammingDistanceTest {
         return new AllelicProfile(data, sequence.length());
     }
 
-    private SequenceTypingData createSequenceTypingData(Integer... values) {
+    private SequenceTypingData createSequenceTypingData(Long... values) {
         return new SequenceTypingData(values, values.length);
     }
 
@@ -160,8 +160,8 @@ public class DirectionalHammingDistanceTest {
 
     @Test
     public void testSequenceTypingDataIdentical() {
-        SequenceTypingData seq1 = createSequenceTypingData(1, 2, 3, 4, 5);
-        SequenceTypingData seq2 = createSequenceTypingData(1, 2, 3, 4, 5);
+        SequenceTypingData seq1 = createSequenceTypingData(1L, 2L, 3L, 4L, 5L);
+        SequenceTypingData seq2 = createSequenceTypingData(1L, 2L, 3L, 4L, 5L);
         
         assertEquals("Distance between identical typing data should be 0", 
                      0.0, directionalDistance.calculate(seq1, seq2), 0.0);
@@ -170,8 +170,8 @@ public class DirectionalHammingDistanceTest {
     @Test
     public void testSequenceTypingDataWithDifferencesSeq1Greater() {
         // Testing positions where seq1 > seq2
-        SequenceTypingData seq1 = createSequenceTypingData(10, 20, 30, 40, 50);
-        SequenceTypingData seq2 = createSequenceTypingData(5, 10, 15, 20, 25);
+        SequenceTypingData seq1 = createSequenceTypingData(10L, 20L, 30L, 40L, 50L);
+        SequenceTypingData seq2 = createSequenceTypingData(5L, 10L, 15L, 20L, 25L);
         
         // All positions have seq1 > seq2
         assertEquals("Distance should count all positions where seq1 > seq2", 
@@ -181,8 +181,8 @@ public class DirectionalHammingDistanceTest {
     @Test
     public void testSequenceTypingDataWithDifferencesSeq1Less() {
         // Testing positions where seq1 < seq2
-        SequenceTypingData seq1 = createSequenceTypingData(1, 2, 3, 4, 5);
-        SequenceTypingData seq2 = createSequenceTypingData(10, 20, 30, 40, 50);
+        SequenceTypingData seq1 = createSequenceTypingData(1L, 2L, 3L, 4L, 5L);
+        SequenceTypingData seq2 = createSequenceTypingData(10L, 20L, 30L, 40L, 50L);
         
         // All positions have seq1 < seq2, so distance = 0
         assertEquals("Distance should be 0 when seq1 < seq2 at all positions", 
@@ -192,8 +192,8 @@ public class DirectionalHammingDistanceTest {
     @Test
     public void testSequenceTypingDataWithMissingAsMinusOne() {
         // Positions where seq2 has -1 (missing)
-        SequenceTypingData seq1 = createSequenceTypingData(1, 2, 3, 4, 5);
-        SequenceTypingData seq2 = createSequenceTypingData(1, -1, 3, -1, 5);
+        SequenceTypingData seq1 = createSequenceTypingData(1L, 2L, 3L, 4L, 5L);
+        SequenceTypingData seq2 = createSequenceTypingData(1L, -1L, 3L, -1L, 5L);
         
         // Position 1: seq2 missing (+1), else if skipped
         // Position 3: seq2 missing (+1), else if skipped
@@ -204,8 +204,8 @@ public class DirectionalHammingDistanceTest {
 
     @Test
     public void testSequenceTypingDataWithMissingAsZero() {
-        SequenceTypingData seq1 = createSequenceTypingData(1, 2, 3, 4, 5);
-        SequenceTypingData seq2 = createSequenceTypingData(1, 0, 3, 0, 5);
+        SequenceTypingData seq1 = createSequenceTypingData(1L, 2L, 3L, 4L, 5L);
+        SequenceTypingData seq2 = createSequenceTypingData(1L, 0L, 3L, 0L, 5L);
         
         // Position 1: seq2 missing (+1), else if skipped
         // Position 3: seq2 missing (+1), else if skipped
@@ -216,8 +216,8 @@ public class DirectionalHammingDistanceTest {
 
     @Test
     public void testSequenceTypingDataBothHaveSameMissing() {
-        SequenceTypingData seq1 = createSequenceTypingData(1, -1, 3, 0, 5);
-        SequenceTypingData seq2 = createSequenceTypingData(1, -1, 3, 0, 5);
+        SequenceTypingData seq1 = createSequenceTypingData(1L, -1L, 3L, 0L, 5L);
+        SequenceTypingData seq2 = createSequenceTypingData(1L, -1L, 3L, 0L, 5L);
         
         assertEquals("Distance should be 0 when both have same values and missing positions", 
                      0.0, directionalDistance.calculate(seq1, seq2), 0.0);
@@ -226,8 +226,8 @@ public class DirectionalHammingDistanceTest {
     @Test
     public void testSequenceTypingDataFirstHasMoreMissing() {
         // seq1 has 2 missing, seq2 has 0 missing -> should throw
-        SequenceTypingData seq1 = createSequenceTypingData(1, -1, 3, 0, 5);
-        SequenceTypingData seq2 = createSequenceTypingData(1, 2, 3, 4, 5);
+        SequenceTypingData seq1 = createSequenceTypingData(1L, -1L, 3L, 0L, 5L);
+        SequenceTypingData seq2 = createSequenceTypingData(1L, 2L, 3L, 4L, 5L);
         
         try {
             directionalDistance.calculate(seq1, seq2);
@@ -359,8 +359,8 @@ public class DirectionalHammingDistanceTest {
 
     @Test
     public void testLongSequenceAllGreater() {
-        SequenceTypingData seq1 = createSequenceTypingData(10, 20, 30, 40, 50, 60, 70, 80, 90, 100);
-        SequenceTypingData seq2 = createSequenceTypingData(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        SequenceTypingData seq1 = createSequenceTypingData(10L, 20L, 30L, 40L, 50L, 60L, 70L, 80L, 90L, 100L);
+        SequenceTypingData seq2 = createSequenceTypingData(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L);
         
         // All positions have seq1 > seq2
         assertEquals("Distance should count all positions where seq1 > seq2", 
@@ -370,8 +370,8 @@ public class DirectionalHammingDistanceTest {
     @Test
     public void testIntegerComparisonBoundary() {
         // Test comparison with 0 and negative values
-        SequenceTypingData seq1 = createSequenceTypingData(1, 1, 1, 1);
-        SequenceTypingData seq2 = createSequenceTypingData(0, -1, 1, 2);
+        SequenceTypingData seq1 = createSequenceTypingData(1L, 1L, 1L, 1L);
+        SequenceTypingData seq2 = createSequenceTypingData(0L, -1L, 1L, 2L);
         
         // Position 0: 1 vs 0 (missing) -> missing(+1), else if skipped
         // Position 1: 1 vs -1 (missing) -> missing(+1), else if skipped

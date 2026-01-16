@@ -35,7 +35,7 @@ public class HammingDistanceTest {
         return new AllelicProfile(data, sequence.length());
     }
 
-    private SequenceTypingData createSequenceTypingData(Integer... values) {
+    private SequenceTypingData createSequenceTypingData(Long... values) {
         return new SequenceTypingData(values, values.length);
     }
 
@@ -53,10 +53,10 @@ public class HammingDistanceTest {
 
     @Test
     public void testCalculateSequenceWithSequenceTypingData() {
-        SequenceTypingData seq1 = createSequenceTypingData(1, 2, 3, 4, 5);
-        SequenceTypingData seq2 = createSequenceTypingData(1, 2, 3, 4, 5);
-        SequenceTypingData seq3 = createSequenceTypingData(1, 3, 3, 5, 5);
-        SequenceTypingData seq4 = createSequenceTypingData(10, 20, 30, 40, 50);
+        SequenceTypingData seq1 = createSequenceTypingData(1L, 2L, 3L, 4L, 5L);
+        SequenceTypingData seq2 = createSequenceTypingData(1L, 2L, 3L, 4L, 5L);
+        SequenceTypingData seq3 = createSequenceTypingData(1L, 3L, 3L, 5L, 5L);
+        SequenceTypingData seq4 = createSequenceTypingData(10L, 20L, 30L, 40L, 50L);
 
         assertEquals("Hamming distance between identical typing data", 0.0, hammingDistance.calculate(seq1, seq2), 0.0);
         assertEquals("Hamming distance with 2 differences", 2.0, hammingDistance.calculate(seq1, seq3), 0.0);
@@ -154,7 +154,7 @@ public class HammingDistanceTest {
     @Test
     public void testCalculateSequenceMixedTypes() {
         AllelicProfile allelicProfile = createAllelicProfile("ACGT");
-        SequenceTypingData typingData = createSequenceTypingData(1, 2, 3, 4);
+        SequenceTypingData typingData = createSequenceTypingData(1L, 2L, 3L, 4L);
 
         try {
             hammingDistance.calculate(allelicProfile, typingData);

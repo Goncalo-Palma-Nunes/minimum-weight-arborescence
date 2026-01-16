@@ -112,8 +112,8 @@ public class PointTest {
 
     @Test
     public void testEqualPointsSequenceTypingData() {
-        Point<Integer> p1 = new Point<>(1, new optimalarborescence.sequences.SequenceTypingData(new Integer[]{1, 2, 3, 4}, 4));
-        Point<Integer> p2 = new Point<>(1, new optimalarborescence.sequences.SequenceTypingData(new Integer[]{1, 2, 3, 4}, 4));
+        Point<Long> p1 = new Point<>(1, new optimalarborescence.sequences.SequenceTypingData(new Long[]{1L, 2L, 3L, 4L}, 4));
+        Point<Long> p2 = new Point<>(1, new optimalarborescence.sequences.SequenceTypingData(new Long[]{1L, 2L, 3L, 4L}, 4));
         assertEquals(p1, p2);
     }
 

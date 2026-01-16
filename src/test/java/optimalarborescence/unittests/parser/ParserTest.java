@@ -18,11 +18,11 @@ public class ParserTest {
     List<String> allelicSequences = new ArrayList<>();
     List<SequenceTypingData> typingDataList = new ArrayList<>() {
         {
-            add(new SequenceTypingData(new Integer[]{1, 1, 1, 1, 1, 1, 1}, 7));
-            add(new SequenceTypingData(new Integer[]{2, 2, 2, 2, 2, 2, 26}, 7));
-            add(new SequenceTypingData(new Integer[]{1, 1, 1, 9, 1, 1, 12}, 7));
-            add(new SequenceTypingData(new Integer[]{10, 10, 8, 6, 10, 3, 2}, 7));
-            add(new SequenceTypingData(new Integer[]{1, 4, 1, 4, 12, 1, 10}, 7));
+            add(new SequenceTypingData(new Long[]{1L, 1L, 1L, 1L, 1L, 1L, 1L}, 7));
+            add(new SequenceTypingData(new Long[]{2L, 2L, 2L, 2L, 2L, 2L, 26L}, 7));
+            add(new SequenceTypingData(new Long[]{1L, 1L, 1L, 9L, 1L, 1L, 12L}, 7));
+            add(new SequenceTypingData(new Long[]{10L, 10L, 8L, 6L, 10L, 3L, 2L}, 7));
+            add(new SequenceTypingData(new Long[]{1L, 4L, 1L, 4L, 12L, 1L, 10L}, 7));
         }
     };
 
@@ -45,6 +45,45 @@ public class ParserTest {
         assertEquals(typingDataList.size(), parsedTypingDataList.size());
         for (int i = 0; i < typingDataList.size(); i++) {
             assertArrayEquals(typingDataList.get(i).getData(), parsedTypingDataList.get(i).getData());
+        }
+    }
+
+    @Test
+    public void testParseCSVWithMissingData() {
+        String testFilepath = System.getProperty("user.dir") + "/src/test/java/optimalarborescence/unittests/parser/test_missing_data.csv";
+        List<SequenceTypingData> parsedTypingDataList = Parser.parseCSVWithMissingData(testFilepath);
+        
+        // Verify we have 1 sequence
+        assertEquals(1, parsedTypingDataList.size());
+        
+        SequenceTypingData seq = parsedTypingDataList.get(0);
+        
+        // Verify the sequence has 6 alleles (ST column is excluded)
+        assertEquals(6, seq.getLength());
+        
+        // Expected values: first allele is missing (represented as -1), others are the parsed long integers
+        Long[] expectedValues = new Long[]{
+            -1L,  // ? should be -1
+            55555555555555555L,
+            2222222222222222L,
+            7777777777777777L,
+            33333333333333333L,
+            11111111111111111L
+        };
+        
+        // Verify each allele value
+        for (int i = 0; i < expectedValues.length; i++) {
+            assertEquals("Allele at position " + i + " does not match", 
+                expectedValues[i], 
+                seq.getElementAt(i));
+        }
+        
+        // Verify that the first position is correctly identified as missing data
+        assertTrue("First allele should be missing data", seq.isMissingDataAt(0));
+        
+        // Verify that the other positions are not missing data
+        for (int i = 1; i < seq.getLength(); i++) {
+            assertFalse("Allele at position " + i + " should not be missing data", seq.isMissingDataAt(i));
         }
     }
 

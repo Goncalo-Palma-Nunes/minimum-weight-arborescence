@@ -44,9 +44,9 @@ public class SerializableCameriniForestTest {
         nodes = new ArrayList<>();
         for (int i = 0; i < 4; i++) {
             // Create simple test sequences (all zeros for simplicity)
-            Integer[] alleles = new Integer[SEQUENCE_LENGTH];
+            Long[] alleles = new Long[SEQUENCE_LENGTH];
             for (int j = 0; j < SEQUENCE_LENGTH; j++) {
-                alleles[j] = i; // Different value per node for uniqueness
+                alleles[j] = (long) i; // Different value per node for uniqueness
             }
             SequenceTypingData seq = new SequenceTypingData(alleles, SEQUENCE_LENGTH);
             nodes.add(new Node(seq, i));
@@ -173,9 +173,9 @@ public class SerializableCameriniForestTest {
         // Create a larger graph to better test lazy loading
         List<Node> largeNodes = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
-            Integer[] alleles = new Integer[SEQUENCE_LENGTH];
+            Long[] alleles = new Long[SEQUENCE_LENGTH];
             for (int j = 0; j < SEQUENCE_LENGTH; j++) {
-                alleles[j] = i;
+                alleles[j] = (long) i;
             }
             SequenceTypingData seq = new SequenceTypingData(alleles, SEQUENCE_LENGTH);
             largeNodes.add(new Node(seq, i));

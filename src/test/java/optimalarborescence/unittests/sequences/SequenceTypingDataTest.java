@@ -9,34 +9,34 @@ import optimalarborescence.sequences.SequenceTypingData;
 
 public class SequenceTypingDataTest {
 
-    private SequenceTypingData createSequenceTypingData(Integer... values) {
+    private SequenceTypingData createSequenceTypingData(Long... values) {
         return new SequenceTypingData(values, values.length);
     }
 
     @Test
     public void testGetElementAt() {
-        SequenceTypingData seq = createSequenceTypingData(1, 2, 3, 4, 5);
+        SequenceTypingData seq = createSequenceTypingData(1L, 2L, 3L, 4L, 5L);
         
-        assertEquals(Integer.valueOf(1), seq.getElementAt(0));
-        assertEquals(Integer.valueOf(3), seq.getElementAt(2));
-        assertEquals(Integer.valueOf(5), seq.getElementAt(4));
+        assertEquals(Long.valueOf(1), seq.getElementAt(0));
+        assertEquals(Long.valueOf(3), seq.getElementAt(2));
+        assertEquals(Long.valueOf(5), seq.getElementAt(4));
     }
 
     @Test(expected = IndexOutOfBoundsException.class)
     public void testGetElementAtNegativeIndex() {
-        SequenceTypingData seq = createSequenceTypingData(1, 2, 3);
+        SequenceTypingData seq = createSequenceTypingData(1L, 2L, 3L);
         seq.getElementAt(-1);
     }
 
     @Test(expected = IndexOutOfBoundsException.class)
     public void testGetElementAtOutOfBounds() {
-        SequenceTypingData seq = createSequenceTypingData(1, 2, 3);
+        SequenceTypingData seq = createSequenceTypingData(1L, 2L, 3L);
         seq.getElementAt(3);
     }
 
     @Test
     public void testIsMissingDataAtWithMissingValues() {
-        SequenceTypingData seq = createSequenceTypingData(1, -1, 3, 0, 5);
+        SequenceTypingData seq = createSequenceTypingData(1L, -1L, 3L, 0L, 5L);
         
         assertFalse("Position 0 should not be missing data", seq.isMissingDataAt(0));
         assertTrue("Position 1 should be missing data (-1)", seq.isMissingDataAt(1));
@@ -47,7 +47,7 @@ public class SequenceTypingDataTest {
 
     @Test
     public void testIsMissingDataAtWithNoMissingValues() {
-        SequenceTypingData seq = createSequenceTypingData(1, 2, 3, 4, 5);
+        SequenceTypingData seq = createSequenceTypingData(1L, 2L, 3L, 4L, 5L);
         
         for (int i = 0; i < seq.getLength(); i++) {
             assertFalse("Position " + i + " should not be missing data", seq.isMissingDataAt(i));
@@ -56,7 +56,7 @@ public class SequenceTypingDataTest {
 
     @Test
     public void testIsMissingDataAtWithAllMissingValues() {
-        SequenceTypingData seq = createSequenceTypingData(-1, 0, -1, 0);
+        SequenceTypingData seq = createSequenceTypingData(-1L, 0L, -1L, 0L);
         
         for (int i = 0; i < seq.getLength(); i++) {
             assertTrue("Position " + i + " should be missing data", seq.isMissingDataAt(i));
@@ -65,7 +65,7 @@ public class SequenceTypingDataTest {
 
     @Test
     public void testGetPositionsWithMissingDataNoMissing() {
-        SequenceTypingData seq = createSequenceTypingData(1, 2, 3, 4, 5);
+        SequenceTypingData seq = createSequenceTypingData(1L, 2L, 3L, 4L, 5L);
         
         List<Integer> missingPositions = seq.getPositionsWithMissingData();
         
@@ -75,7 +75,7 @@ public class SequenceTypingDataTest {
 
     @Test
     public void testGetPositionsWithMissingDataSomeMissing() {
-        SequenceTypingData seq = createSequenceTypingData(1, -1, 3, 0, 5, -1);
+        SequenceTypingData seq = createSequenceTypingData(1L, -1L, 3L, 0L, 5L, -1L);
         
         List<Integer> missingPositions = seq.getPositionsWithMissingData();
         
@@ -88,7 +88,7 @@ public class SequenceTypingDataTest {
 
     @Test
     public void testGetPositionsWithMissingDataAllMissing() {
-        SequenceTypingData seq = createSequenceTypingData(-1, 0, -1, 0);
+        SequenceTypingData seq = createSequenceTypingData(-1L, 0L, -1L, 0L);
         
         List<Integer> missingPositions = seq.getPositionsWithMissingData();
         
@@ -101,7 +101,7 @@ public class SequenceTypingDataTest {
 
     @Test
     public void testGetPositionsWithMissingDataCaching() {
-        SequenceTypingData seq = createSequenceTypingData(1, -1, 3, 0, 5);
+        SequenceTypingData seq = createSequenceTypingData(1L, -1L, 3L, 0L, 5L);
         
         List<Integer> firstCall = seq.getPositionsWithMissingData();
         List<Integer> secondCall = seq.getPositionsWithMissingData();
@@ -121,8 +121,8 @@ public class SequenceTypingDataTest {
 
     @Test
     public void testCompareAt() {
-        SequenceTypingData seq1 = createSequenceTypingData(1, 2, 3, 4, 5);
-        SequenceTypingData seq2 = createSequenceTypingData(1, 3, 3, 2, 6);
+        SequenceTypingData seq1 = createSequenceTypingData(1L, 2L, 3L, 4L, 5L);
+        SequenceTypingData seq2 = createSequenceTypingData(1L, 3L, 3L, 2L, 6L);
         
         assertEquals("Values at position 0 should be equal", 0, seq1.compareAt(0, seq2));
         assertTrue("Value at position 1 in seq1 should be less than seq2", seq1.compareAt(1, seq2) < 0);
@@ -133,7 +133,7 @@ public class SequenceTypingDataTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testCompareAtWithDifferentType() {
-        SequenceTypingData seq = createSequenceTypingData(1, 2, 3);
+        SequenceTypingData seq = createSequenceTypingData(1L, 2L, 3L);
         // Create a mock sequence of different type
         optimalarborescence.sequences.AllelicProfile otherSeq = 
             new optimalarborescence.sequences.AllelicProfile(new Character[]{'A', 'B', 'C'}, 3);
@@ -143,8 +143,8 @@ public class SequenceTypingDataTest {
 
     @Test
     public void testGetLength() {
-        SequenceTypingData seq1 = createSequenceTypingData(1, 2, 3);
-        SequenceTypingData seq2 = createSequenceTypingData(1, 2, 3, 4, 5, 6, 7);
+        SequenceTypingData seq1 = createSequenceTypingData(1L, 2L, 3L);
+        SequenceTypingData seq2 = createSequenceTypingData(1L, 2L, 3L, 4L, 5L, 6L, 7L);
         SequenceTypingData seq3 = createSequenceTypingData();
         
         assertEquals("Length should be 3", 3, seq1.getLength());
@@ -154,19 +154,19 @@ public class SequenceTypingDataTest {
 
     @Test
     public void testGetData() {
-        Integer[] data = {1, 2, 3, 4, 5};
+        Long[] data = {1L, 2L, 3L, 4L, 5L};
         SequenceTypingData seq = new SequenceTypingData(data, data.length);
         
-        Integer[] retrievedData = seq.getData();
+        Long[] retrievedData = seq.getData();
         assertArrayEquals("Data arrays should be equal", data, retrievedData);
     }
 
     @Test
     public void testEquals() {
-        SequenceTypingData seq1 = createSequenceTypingData(1, 2, 3, 4, 5);
-        SequenceTypingData seq2 = createSequenceTypingData(1, 2, 3, 4, 5);
-        SequenceTypingData seq3 = createSequenceTypingData(1, 2, 3, 4, 6);
-        SequenceTypingData seq4 = createSequenceTypingData(1, 2, 3);
+        SequenceTypingData seq1 = createSequenceTypingData(1L, 2L, 3L, 4L, 5L);
+        SequenceTypingData seq2 = createSequenceTypingData(1L, 2L, 3L, 4L, 5L);
+        SequenceTypingData seq3 = createSequenceTypingData(1L, 2L, 3L, 4L, 6L);
+        SequenceTypingData seq4 = createSequenceTypingData(1L, 2L, 3L);
         
         assertTrue("Identical sequences should be equal", seq1.equals(seq2));
         assertFalse("Sequences with different values should not be equal", seq1.equals(seq3));
@@ -177,9 +177,9 @@ public class SequenceTypingDataTest {
 
     @Test
     public void testEqualsWithMissingData() {
-        SequenceTypingData seq1 = createSequenceTypingData(1, -1, 3, 0, 5);
-        SequenceTypingData seq2 = createSequenceTypingData(1, -1, 3, 0, 5);
-        SequenceTypingData seq3 = createSequenceTypingData(1, 0, 3, -1, 5);
+        SequenceTypingData seq1 = createSequenceTypingData(1L, -1L, 3L, 0L, 5L);
+        SequenceTypingData seq2 = createSequenceTypingData(1L, -1L, 3L, 0L, 5L);
+        SequenceTypingData seq3 = createSequenceTypingData(1L, 0L, 3L, -1L, 5L);
         
         assertTrue("Sequences with same missing data should be equal", seq1.equals(seq2));
         assertFalse("Sequences with different missing data positions should not be equal", seq1.equals(seq3));
@@ -187,7 +187,7 @@ public class SequenceTypingDataTest {
 
     @Test
     public void testToString() {
-        SequenceTypingData seq = createSequenceTypingData(1, 2, 3, 4, 5);
+        SequenceTypingData seq = createSequenceTypingData(1L, 2L, 3L, 4L, 5L);
         String str = seq.toString();
         
         assertTrue("toString should contain class name", str.contains("SequenceTypingData"));
@@ -198,7 +198,7 @@ public class SequenceTypingDataTest {
 
     @Test
     public void testToStringWithMissingData() {
-        SequenceTypingData seq = createSequenceTypingData(1, -1, 3, 0, 5);
+        SequenceTypingData seq = createSequenceTypingData(1L, -1L, 3L, 0L, 5L);
         String str = seq.toString();
         
         assertTrue("toString should contain missing data marker -1", str.contains("-1"));

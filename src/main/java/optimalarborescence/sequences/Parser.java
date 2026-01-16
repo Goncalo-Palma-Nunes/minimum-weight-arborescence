@@ -68,8 +68,8 @@ public class Parser {
         return allelicProfiles;
     }
 
-    public static List<Integer[]> readCSVLines(String filepath) {
-        List<Integer[]> typingDataList = new ArrayList<>();
+    public static List<Long[]> readCSVLines(String filepath) {
+        List<Long[]> typingDataList = new ArrayList<>();
         try {
             FileReader filereader = new FileReader(filepath);
 
@@ -82,17 +82,17 @@ public class Parser {
             csvReader.readNext();
 
             while ((nextRecord = csvReader.readNext()) != null) {
-                Integer sequenceType = Integer.parseInt(nextRecord[0]); // not used currently
-                Integer[] typingDataSequence = new Integer[nextRecord.length];
+                Long sequenceType = Long.parseLong(nextRecord[0]); // not used currently
+                Long[] typingDataSequence = new Long[nextRecord.length];
                 typingDataSequence[0] = sequenceType;
                 for (int i = 1; i < nextRecord.length; i++) {
-                    // check if record can be parsed to integer
+                    // check if record can be parsed to long
                     try {
-                        typingDataSequence[i] = Integer.parseInt(nextRecord[i]);
+                        typingDataSequence[i] = Long.parseLong(nextRecord[i]);
                     } catch (NumberFormatException e) {
-                        typingDataSequence[i] = -1; // or any other default value for missing data
+                        typingDataSequence[i] = -1L; // or any other default value for missing data
                     }
-                    // typingDataSequence[i] = Integer.parseInt(nextRecord[i]);
+                    // typingDataSequence[i] = Long.parseLong(nextRecord[i]);
                 }
                 // typingDataList.add(new SequenceTypingData(typingDataSequence, typingDataSequence.length));
                 typingDataList.add(typingDataSequence);
@@ -109,33 +109,66 @@ public class Parser {
         return typingDataList;
     }
 
-    public static List<SequenceTypingData> processedCSVToTypingData(List<Integer[]> rawData) {
+    public static List<SequenceTypingData> processedCSVToTypingData(List<Long[]> rawData) {
         List<SequenceTypingData> typingDataList = new ArrayList<>();
         for (int i = 0; i < rawData.size(); i++) {
-            Integer[] fullArray = rawData.get(i);
+            Long[] fullArray = rawData.get(i);
             // Extract only the allele columns (skip ST at index 0)
-            Integer[] alleles = new Integer[fullArray.length - 1];
+            Long[] alleles = new Long[fullArray.length - 1];
             System.arraycopy(fullArray, 1, alleles, 0, fullArray.length - 1);
             typingDataList.add(new SequenceTypingData(alleles, alleles.length));
         }
         return typingDataList;
     }
 
-    public static int getSTFromProcessedCSVLine(Integer[] rawData) {
+    public static long getSTFromProcessedCSVLine(Long[] rawData) {
         return rawData[0];
     }
 
 
     public static List<SequenceTypingData> parseCSVWithMissingData(String filepath) {
-        /*
-         * 1 - Iterar sobre o csv linha a linha
-         * 2 - Para cada linha, criar um SequenceTypingData. Adicionar informação sobre
-         *  missing data (ex: nº de posições em falta)
-         * 3 - Adicionar o SequenceTypingData à lista
-         * 4 - Retornar a lista
-        */
+        List<SequenceTypingData> typingDataList = new ArrayList<>();
+        try {
+            FileReader filereader = new FileReader(filepath);
 
-        throw new NotImplementedException("parseCSVWithMissingData is not implemented yet.");
+            CSVReader csvReader = new CSVReaderBuilder(filereader)
+                .withCSVParser(new CSVParserBuilder().withSeparator('\t').build())
+                .build();
+            String[] nextRecord;
+
+            // skip header
+            csvReader.readNext();
+
+            while ((nextRecord = csvReader.readNext()) != null) {
+                // Skip ST column (index 0) and process only allele data (from index 1 onwards)
+                Long[] alleles = new Long[nextRecord.length - 1];
+                
+                for (int i = 1; i < nextRecord.length; i++) {
+                    // Check if the value is '?' (missing data)
+                    if (nextRecord[i].trim().equals("?")) {
+                        alleles[i - 1] = -1L; // Use -1 to represent missing data
+                    } else {
+                        // Try to parse to long
+                        try {
+                            alleles[i - 1] = Long.parseLong(nextRecord[i].trim());
+                        } catch (NumberFormatException e) {
+                            alleles[i - 1] = -1L; // Use -1 for any unparseable data
+                        }
+                    }
+                }
+                
+                typingDataList.add(new SequenceTypingData(alleles, alleles.length));
+            }
+            csvReader.close();
+        }
+        catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return typingDataList;
     }
 
 }

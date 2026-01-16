@@ -180,7 +180,7 @@ public class AllelicProfileTest {
     public void testCompareAtWithDifferentType() {
         AllelicProfile profile = createAllelicProfile("ACGT");
         optimalarborescence.sequences.SequenceTypingData otherSeq = 
-            new optimalarborescence.sequences.SequenceTypingData(new Integer[]{1, 2, 3, 4}, 4);
+            new optimalarborescence.sequences.SequenceTypingData(new Long[]{1L, 2L, 3L, 4L}, 4);
         
         profile.compareAt(0, otherSeq);
     }

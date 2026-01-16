@@ -31,7 +31,7 @@ import java.util.Set;
  * 
  * Sequence types:
  *    0 = AllelicProfile (1 byte per element - Character)
- *    1 = SequenceTypingData (4 bytes per element - Integer)
+ *    1 = SequenceTypingData (8 bytes per element - Long)
  * 
  * Node IDs are now explicitly stored in the file.
  */
@@ -60,7 +60,7 @@ public class NodeIndexMapper {
      * Helper method to convert node sequence to bytes based on its type.
      */
     private static byte[] sequenceToBytes(Node node, int mlstLength, byte sequenceType) {
-        int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+        int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
         byte[] bytes = new byte[mlstLength * bytesPerElement];
         
         if (node.getMLSTdata() instanceof AllelicProfile) {
@@ -71,12 +71,16 @@ public class NodeIndexMapper {
         } else if (node.getMLSTdata() instanceof SequenceTypingData) {
             SequenceTypingData typingData = (SequenceTypingData) node.getMLSTdata();
             for (int i = 0; i < Math.min(mlstLength, typingData.getLength()); i++) {
-                int value = typingData.getElementAt(i);
-                int offset = i * Integer.BYTES;
-                bytes[offset] = (byte) (value >> 24);
-                bytes[offset + 1] = (byte) (value >> 16);
-                bytes[offset + 2] = (byte) (value >> 8);
-                bytes[offset + 3] = (byte) value;
+                long value = typingData.getElementAt(i);
+                int offset = i * Long.BYTES;
+                bytes[offset] = (byte) (value >> 56);
+                bytes[offset + 1] = (byte) (value >> 48);
+                bytes[offset + 2] = (byte) (value >> 40);
+                bytes[offset + 3] = (byte) (value >> 32);
+                bytes[offset + 4] = (byte) (value >> 24);
+                bytes[offset + 5] = (byte) (value >> 16);
+                bytes[offset + 6] = (byte) (value >> 8);
+                bytes[offset + 7] = (byte) value;
             }
         }
         
@@ -95,15 +99,19 @@ public class NodeIndexMapper {
             }
             return new Node(new AllelicProfile(data, mlstLength), nodeId);
         } else {
-            // SequenceTypingData: 4 bytes per integer
+            // SequenceTypingData: 8 bytes per long
             int numElements = mlstLength;
-            Integer[] data = new Integer[numElements];
+            Long[] data = new Long[numElements];
             for (int i = 0; i < numElements; i++) {
-                int offset = i * Integer.BYTES;
-                data[i] = ((bytes[offset] & 0xFF) << 24) |
-                         ((bytes[offset + 1] & 0xFF) << 16) |
-                         ((bytes[offset + 2] & 0xFF) << 8) |
-                         (bytes[offset + 3] & 0xFF);
+                int offset = i * Long.BYTES;
+                data[i] = ((long)(bytes[offset] & 0xFF) << 56) |
+                         ((long)(bytes[offset + 1] & 0xFF) << 48) |
+                         ((long)(bytes[offset + 2] & 0xFF) << 40) |
+                         ((long)(bytes[offset + 3] & 0xFF) << 32) |
+                         ((long)(bytes[offset + 4] & 0xFF) << 24) |
+                         ((long)(bytes[offset + 5] & 0xFF) << 16) |
+                         ((long)(bytes[offset + 6] & 0xFF) << 8) |
+                         (long)(bytes[offset + 7] & 0xFF);
             }
             return new Node(new SequenceTypingData(data, numElements), nodeId);
         }
@@ -122,7 +130,7 @@ public class NodeIndexMapper {
                                   String fileName) throws IOException {
         // Detect sequence type
         byte sequenceType = detectSequenceType(nodes);
-        int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+        int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
         
         // Calculate file size: header + entries
         // Each entry: node_id (4 bytes) + mlst_data + incoming_edge_offset (8 bytes)
@@ -224,7 +232,7 @@ public class NodeIndexMapper {
             int mlstLength = mbb.getInt();
             byte sequenceType = mbb.get();
             
-            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
             
             // Read data for each node entry
             for (int i = 0; i < numNodes; i++) {
@@ -271,7 +279,7 @@ public class NodeIndexMapper {
             int mlstLength = headerMbb.getInt();
             byte sequenceType = headerMbb.get();
             
-            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
             
             // Calculate entry size: node_id + mlst_data + offset
             int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
@@ -335,7 +343,7 @@ public class NodeIndexMapper {
             int mlstLength = headerMbb.getInt();
             byte sequenceType = headerMbb.get();
             
-            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
             int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
             
             // Map the entire file at once
@@ -394,7 +402,7 @@ public class NodeIndexMapper {
             // Read sequence type from header
             MappedByteBuffer headerReadMbb = channel.map(FileChannel.MapMode.READ_ONLY, 2 * Integer.BYTES, 1);
             byte sequenceType = headerReadMbb.get();
-            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
             
             // Calculate entry size and total size needed
             int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
@@ -443,7 +451,7 @@ public class NodeIndexMapper {
             // Read sequence type from header
             MappedByteBuffer headerReadMbb = channel.map(FileChannel.MapMode.READ_ONLY, 2 * Integer.BYTES, 1);
             byte sequenceType = headerReadMbb.get();
-            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
             
             // Append node entry at the end of file: node_id + mlst_data + offset
             long position = channel.size();
@@ -487,7 +495,7 @@ public class NodeIndexMapper {
             int mlstLength = headerMbb.getInt();
             byte sequenceType = headerMbb.get();
             
-            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
             
             // Calculate entry size: node_id + mlst_data + offset
             int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
@@ -549,7 +557,7 @@ public class NodeIndexMapper {
             int mlstLength = headerMbb.getInt();
             byte sequenceType = headerMbb.get();
             
-            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
             int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
 
             // OPTIMIZATION: The nodes we're updating were typically just added at the END of the file
@@ -663,7 +671,7 @@ public class NodeIndexMapper {
             int mlstLength = headerMbb.getInt();
             byte sequenceType = headerMbb.get();
             
-            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
             int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
 
             int nodeIdToRemove = node.getId();
@@ -759,7 +767,7 @@ public class NodeIndexMapper {
             int mlstLength = headerMbb.getInt();
             byte sequenceType = headerMbb.get();
             
-            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
             int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
             
             // Calculate total data size
