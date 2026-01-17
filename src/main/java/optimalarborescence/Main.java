@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Comparator;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -156,14 +158,14 @@ public class Main {
                 phylogeny = runDynamicCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, operationType);
                 break;
             case NEIGHBOR_JOINING:
-                outputFile += "_neighbor_joining";
-                DistanceMatrix distanceMatrix = (DistanceMatrix) g;
-                NeighbourJoining nj = new NeighbourJoining(distanceMatrix, distanceMatrix.getDistanceFunction());
-                phylogeny = nj.inferPhylogeny(null).getEdges();
-
+                // outputFile += "_neighbor_joining";
+                // DistanceMatrix distanceMatrix = (DistanceMatrix) g;
+                // NeighbourJoining nj = new NeighbourJoining(distanceMatrix, distanceMatrix.getDistanceFunction());
+                // phylogeny = nj.inferPhylogeny(null).getEdges();
+                throw new NotImplementedException("Neighbor Joining algorithm is not implemented yet.");
                 // TODO - save the graph
 
-                break;
+                // break;
             default:
                 throw new RuntimeErrorException(new Error("Something went wrong while selecting the algorithm type."));
         }
@@ -305,6 +307,7 @@ public class Main {
         
         switch (sequenceType) {
             case MLST_SYMMETRIC:
+            case MLST_MISSING_DATA:
                 List<Long[]> rawMLSTData = Parser.readCSVLines(inputFile);
                 List<SequenceTypingData> mlstData = Parser.processedCSVToTypingData(rawMLSTData);
                 for (int i = 0; i < mlstData.size(); i++) {
@@ -312,9 +315,6 @@ public class Main {
                     points.add(new Point<>((int)identifier, mlstData.get(i)));
                 }
                 break;
-            case MLST_MISSING_DATA:
-                throw new NotImplementedException("Handling of MLST sequences with missing data has not been implemented yet.");
-                // break;
             case ALLELIC:
                 // TODO - implementar
                 throw new NotImplementedException("Handling of allelic sequences has not been implemented yet.");
@@ -347,7 +347,7 @@ public class Main {
                     List<Node> newNodes = points.stream()
                                                 .map(p -> new Node(p.getSequence(), p.getId()))
                                                 .toList();
-                    addNodesIncrementallyToApproximateGraph(newNodes, outputFile, numNeighbors, nnAlgorithm, numNeighbors);
+                    addNodesIncrementallyToApproximateGraph(newNodes, outputFile, points.get(0).getSequence().getLength(), nnAlgorithm, numNeighbors, sequenceType);
                 }
                 else {
                     List<Node> newNodes = points.stream()
@@ -368,7 +368,7 @@ public class Main {
             // Use incremental construction to avoid memory overflow
             String tempFile = outputFile + "_building";
             if (numNeighbors > 0) {
-                generateApproximateGraphIncrementally(points, tempFile, nnAlgorithm, numNeighbors);
+                generateApproximateGraphIncrementally(points, tempFile, nnAlgorithm, numNeighbors, sequenceType);
             }
             else {
                 generateExactGraphIncrementally(points, tempFile, sequenceType);
@@ -606,8 +606,158 @@ public class Main {
 
     private static void generateApproximateGraphIncrementally(List<Point<?>> points, String outputFile, 
                                                   NearestNeighbourSearchAlgorithm<?> nnAlgorithm,
-                                                  int numNeighbors) throws IOException {
-        throw new NotImplementedException("Incremental construction of approximate graphs is not implemented yet.");
+                                                  int numNeighbors, String sequenceType) throws IOException {
+        if (points.size() < 2) {
+            throw new IllegalArgumentException("At least 2 points are required to build a graph.");
+        }
+        
+        int sequenceLength = points.get(0).getSequence().getLength();
+        DistanceFunction distanceFunction = SYMMETRIC_DATA.contains(sequenceType) 
+            ? new HammingDistance() 
+            : new DirectionalHammingDistance();
+        
+        @SuppressWarnings("unchecked")
+        NearestNeighbourSearchAlgorithm<Object> nnAlgo = (NearestNeighbourSearchAlgorithm<Object>) nnAlgorithm;
+        
+        // Maintain node map for efficiency
+        Map<Integer, Node> nodeMap = new HashMap<>();
+        
+        // Step 1: Initialize with first 2 nodes
+        List<Node> initialNodes = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            Node node = new Node(points.get(i).getSequence(), points.get(i).getId());
+            initialNodes.add(node);
+            nodeMap.put(node.getId(), node);
+        }
+        
+        // Create minimal graph with 2 nodes and 1 edge
+        Graph graph = new Graph(new ArrayList<>());
+        graph.addNode(initialNodes.get(0));
+        graph.addNode(initialNodes.get(1));
+        graph.addEdge(buildEdge(initialNodes.get(0), initialNodes.get(1), sequenceType, distanceFunction));
+        
+        // Add initial nodes to NN algorithm
+        for (Node node : initialNodes) {
+            nnAlgo.storePoint((Point<Object>) node.getPoint());
+        }
+        
+        // Save initial graph
+        ensureDirectoryExists(outputFile);
+        GraphMapper.saveGraph(graph, sequenceLength, outputFile);
+        
+        // Step 2: Add remaining nodes in batches
+        int totalPoints = points.size();
+        long startTime = System.currentTimeMillis();
+        
+        for (int i = 2; i < totalPoints; i += BATCH_SIZE) {
+            int endIdx = Math.min(i + BATCH_SIZE, totalPoints);
+            List<Point<?>> batchPoints = points.subList(i, endIdx);
+            int batchSize = batchPoints.size();
+            
+            long batchStart = System.currentTimeMillis();
+            System.out.println("\n=== Processing batch: nodes " + (i + 1) + " to " + endIdx + " of " + totalPoints + " ===");
+            
+            // Create nodes for this batch
+            List<Node> batchNodes = new ArrayList<>();
+            for (Point<?> point : batchPoints) {
+                Node node = new Node(point.getSequence(), point.getId());
+                batchNodes.add(node);
+                nodeMap.put(node.getId(), node);
+            }
+            
+            // Insert all batch nodes into NN algorithm BEFORE searching
+            System.out.println("Inserting " + batchSize + " nodes into NN algorithm...");
+            for (Node node : batchNodes) {
+                nnAlgo.storePoint((Point<Object>) node.getPoint());
+            }
+            
+            // Find nearest neighbors and create edges
+            Map<Node, List<Edge>> nodeEdgesMap = new HashMap<>();
+            Map<Node, List<Edge>> existingNodeNewEdges = new HashMap<>();
+            Set<String> createdEdges = new HashSet<>();  // Track edges to avoid duplicates
+            
+            System.out.println("Finding " + numNeighbors + " nearest neighbors for " + batchSize + " new nodes...");
+            long distStart = System.currentTimeMillis();
+            
+            for (Node newNode : batchNodes) {
+                List<Edge> incomingEdges = new ArrayList<>();
+                
+                // Find k nearest neighbors
+                List<Point<Object>> neighbors = nnAlgo.neighbourSearch(
+                    (Point<Object>) newNode.getPoint(), 
+                    numNeighbors
+                );
+                
+                // Create edges between neighbors and new node
+                for (Point<?> neighborPoint : neighbors) {
+                    // Skip self-loops
+                    if (neighborPoint.getId() == newNode.getId()) {
+                        continue;
+                    }
+                    
+                    Node neighborNode = nodeMap.get(neighborPoint.getId());
+                    if (neighborNode == null) {
+                        continue; // Shouldn't happen, but be safe
+                    }
+                    
+                    Edge edge = buildEdge(neighborNode, newNode, sequenceType, distanceFunction);
+                    
+                    // Create unique key to avoid duplicates
+                    String edgeKey;
+                    if (SYMMETRIC_DATA.contains(sequenceType)) {
+                        // For symmetric: unordered pair (always min_id, max_id)
+                        int minId = Math.min(edge.getSource().getId(), edge.getDestination().getId());
+                        int maxId = Math.max(edge.getSource().getId(), edge.getDestination().getId());
+                        edgeKey = minId + "-" + maxId;
+                    } else {
+                        // For asymmetric: ordered pair (source_id -> dest_id)
+                        edgeKey = edge.getSource().getId() + "->" + edge.getDestination().getId();
+                    }
+                    
+                    // Only add if not already created
+                    if (createdEdges.add(edgeKey)) {
+                        if (edge.getDestination().equals(newNode)) {
+                            // Edge points TO new node
+                            incomingEdges.add(edge);
+                        } else {
+                            // Edge points TO existing/other node
+                            Node destNode = edge.getDestination();
+                            existingNodeNewEdges.computeIfAbsent(destNode, k -> new ArrayList<>()).add(edge);
+                        }
+                    }
+                }
+                
+                nodeEdgesMap.put(newNode, incomingEdges);
+            }
+            
+            long distEnd = System.currentTimeMillis();
+            System.out.println("NN search and edge creation: " + (distEnd - distStart) + " ms");
+            
+            // Write to memory-mapped file
+            System.out.println("Writing to memory-mapped file...");
+            long writeStart = System.currentTimeMillis();
+            GraphMapper.addNodesBatch(batchNodes, nodeEdgesMap, existingNodeNewEdges, outputFile, sequenceLength);
+            long writeEnd = System.currentTimeMillis();
+            System.out.println("File write: " + (writeEnd - writeStart) + " ms");
+            
+            // Clear maps to free memory
+            nodeEdgesMap.clear();
+            existingNodeNewEdges.clear();
+            createdEdges.clear();
+            
+            long batchEnd = System.currentTimeMillis();
+            long batchTime = batchEnd - batchStart;
+            long totalTime = batchEnd - startTime;
+            double avgTimePerNode = batchTime / (double) batchSize;
+            int nodesRemaining = totalPoints - endIdx;
+            long estimatedRemaining = (long) (nodesRemaining * avgTimePerNode / 1000.0);
+            
+            System.out.println("Batch completed in " + batchTime + " ms (" + String.format("%.2f", avgTimePerNode) + " ms/node)");
+            System.out.println("Total time: " + (totalTime / 1000) + " seconds");
+            System.out.println("Estimated time remaining: ~" + estimatedRemaining + " seconds");
+        }
+        
+        System.out.println("Approximate graph construction complete. All nodes and edges saved to memory-mapped file.");
     }
 
     /**
@@ -697,14 +847,14 @@ public class Main {
     private static void addNodesIncrementallyToApproximateGraph(List<Node> nodesToAdd, 
                                                           String outputFile, int sequenceLength,
                                                           NearestNeighbourSearchAlgorithm<?> nnAlgorithm,
-                                                          int numNeighbors) throws IOException {
+                                                          int numNeighbors, String sequenceType) throws IOException {
         if (nodesToAdd.isEmpty()) return;
         if (nnAlgorithm == null || numNeighbors <= 0) {
             throw new IllegalArgumentException("Nearest Neighbour Search Algorithm and number of neighbors must be provided for approximate graph.");
         }
 
 
-        DistanceFunction distanceFunction = new HammingDistance();
+        DistanceFunction distanceFunction = SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance();
         System.out.println("Adding " + nodesToAdd.size() + " nodes incrementally to approximate graph...");
 
         // Load existing nodes from file
@@ -714,6 +864,7 @@ public class Main {
 
         // Prepare edges for all new nodes
         Map<Node, List<Edge>> nodeEdgesMap = new HashMap<>();
+        Map<Node, List<Edge>> existingNodeNewEdges = new HashMap<>();  // Track edges TO existing nodes
         long distStart = System.currentTimeMillis();
         for (int i = 0; i < nodesToAdd.size(); i++) {
             Node newNode = nodesToAdd.get(i);
@@ -721,15 +872,19 @@ public class Main {
             // Find nearest neighbors using the NN algorithm
             @SuppressWarnings("unchecked")
             List<Point<Object>> neighbors = ((NearestNeighbourSearchAlgorithm<Object>) nnAlgorithm).neighbourSearch((Point<Object>) newNode.getPoint(), numNeighbors);
-            // Create edges FROM neighbors TO new node
+            // Create edges between neighbors and new node
             for (Point<?> neighborPoint : neighbors) {
                 Node neighborNode = existingNodeMap.get(neighborPoint.getId());
                 if (neighborNode != null) {
-                    int dist = (int) distanceFunction.calculate(
-                        neighborNode.getPoint().getSequence(),
-                        newNode.getPoint().getSequence()
-                    );
-                    incomingEdges.add(new Edge(neighborNode, newNode, dist));
+                    Edge edge = buildEdge(neighborNode, newNode, sequenceType, distanceFunction);
+                    
+                    if (edge.getDestination().equals(newNode)) {
+                        // Edge points TO new node (incoming to new node)
+                        incomingEdges.add(edge);
+                    } else {
+                        // Edge points FROM new node TO existing node
+                        existingNodeNewEdges.computeIfAbsent(neighborNode, k -> new ArrayList<>()).add(edge);
+                    }
                 }
             }
             nodeEdgesMap.put(newNode, incomingEdges);
@@ -744,7 +899,7 @@ public class Main {
         
         // Add all nodes and edges in one batch operation
         long writeStart = System.currentTimeMillis();
-        GraphMapper.addNodesBatch(nodesToAdd, nodeEdgesMap, new HashMap<>(), outputFile, sequenceLength);
+        GraphMapper.addNodesBatch(nodesToAdd, nodeEdgesMap, existingNodeNewEdges, outputFile, sequenceLength);
         long writeEnd = System.currentTimeMillis();
         System.out.println("File write: " + (writeEnd - writeStart) + " ms");
         
@@ -1049,7 +1204,7 @@ public class Main {
             // Create new graph with initial points using memory-mapped files
             if (numNeighbors > 0) {
                 // Approximate graph
-                generateApproximateGraphIncrementally(points, tempGraphFile, nnAlgorithm, numNeighbors);
+                generateApproximateGraphIncrementally(points, tempGraphFile, nnAlgorithm, numNeighbors, sequenceType);
             } else {
                 // Exact graph
                 generateExactGraphIncrementally(points, tempGraphFile, sequenceType);
@@ -1062,7 +1217,7 @@ public class Main {
             
             if (numNeighbors > 0) {
                 // Approximate graph
-                addNodesIncrementallyToApproximateGraph(nodesToAdd, tempGraphFile, sequenceLength, nnAlgorithm, numNeighbors);
+                addNodesIncrementallyToApproximateGraph(nodesToAdd, tempGraphFile, sequenceLength, nnAlgorithm, numNeighbors, sequenceType);
             } else {
                 // Exact graph
                 addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength, sequenceType);
@@ -1100,7 +1255,7 @@ public class Main {
             // Create new graph with initial points using memory-mapped files
             if (numNeighbors > 0) {
                 // Approximate graph
-                generateApproximateGraphIncrementally(points, tempGraphFile, nnAlgorithm, numNeighbors);
+                generateApproximateGraphIncrementally(points, tempGraphFile, nnAlgorithm, numNeighbors, sequenceType);
             } else {
                 // Exact graph
                 generateExactGraphIncrementally(points, tempGraphFile, sequenceType);
@@ -1121,7 +1276,7 @@ public class Main {
             
             if (numNeighbors > 0) {
                 // Approximate graph
-                addNodesIncrementallyToApproximateGraph(nodesToAdd, tempGraphFile, sequenceLength, nnAlgorithm, numNeighbors);
+                addNodesIncrementallyToApproximateGraph(nodesToAdd, tempGraphFile, sequenceLength, nnAlgorithm, numNeighbors, sequenceType);
             } else {
                 // Exact graph
                 addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength, sequenceType);
