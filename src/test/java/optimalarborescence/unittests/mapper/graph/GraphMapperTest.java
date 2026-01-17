@@ -12,6 +12,7 @@ import optimalarborescence.sequences.AllelicProfile;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.HashMap;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -1214,7 +1215,7 @@ public class GraphMapperTest {
         nodeEdges.put(node5, edgesForNode5);
 
         // Add batch
-        GraphMapper.addNodesBatch(newNodes, nodeEdges, TEST_BASE_NAME, MLST_LENGTH);
+        GraphMapper.addNodesBatch(newNodes, nodeEdges, new HashMap<>(), TEST_BASE_NAME, MLST_LENGTH);
 
         // Load and verify
         Graph loadedGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
@@ -1262,7 +1263,7 @@ public class GraphMapperTest {
         }
 
         // Add batch
-        GraphMapper.addNodesBatch(newNodes, nodeEdges, TEST_BASE_NAME, MLST_LENGTH);
+        GraphMapper.addNodesBatch(newNodes, nodeEdges, new HashMap<>(), TEST_BASE_NAME, MLST_LENGTH);
 
         // Load and verify
         Graph loadedGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
@@ -1281,7 +1282,7 @@ public class GraphMapperTest {
         int edgeCountBefore = graphBefore.getNumEdges();
 
         // Add empty batch
-        GraphMapper.addNodesBatch(new ArrayList<>(), new java.util.HashMap<>(), TEST_BASE_NAME, MLST_LENGTH);
+        GraphMapper.addNodesBatch(new ArrayList<>(), new java.util.HashMap<>(), new HashMap<>(), TEST_BASE_NAME, MLST_LENGTH);
 
         // Verify no change
         Graph graphAfter = GraphMapper.loadGraph(TEST_BASE_NAME);
@@ -1305,7 +1306,7 @@ public class GraphMapperTest {
         Map<Node, List<Edge>> nodeEdges = new java.util.HashMap<>();
 
         // Add batch
-        GraphMapper.addNodesBatch(newNodes, nodeEdges, TEST_BASE_NAME, MLST_LENGTH);
+        GraphMapper.addNodesBatch(newNodes, nodeEdges, new HashMap<>(), TEST_BASE_NAME, MLST_LENGTH);
 
         // Load and verify
         Graph loadedGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
@@ -1340,7 +1341,7 @@ public class GraphMapperTest {
         nodeEdges.put(node4, edges);
 
         // Add batch
-        GraphMapper.addNodesBatch(newNodes, nodeEdges, TEST_BASE_NAME, MLST_LENGTH);
+        GraphMapper.addNodesBatch(newNodes, nodeEdges, new HashMap<>(), TEST_BASE_NAME, MLST_LENGTH);
 
         // Load and verify original nodes/edges are preserved
         Graph loadedGraph = GraphMapper.loadGraph(TEST_BASE_NAME);
@@ -1395,7 +1396,7 @@ public class GraphMapperTest {
         nodeEdges.put(node4, edges);
 
         // Add batch
-        GraphMapper.addNodesBatch(newNodes, nodeEdges, TEST_BASE_NAME, MLST_LENGTH);
+        GraphMapper.addNodesBatch(newNodes, nodeEdges, new HashMap<>(), TEST_BASE_NAME, MLST_LENGTH);
 
         // Load and verify
         Graph loadedGraph = GraphMapper.loadGraph(TEST_BASE_NAME);

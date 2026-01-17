@@ -202,11 +202,13 @@ public class GraphMapper {
      * 
      * @param nodes List of nodes to add
      * @param nodeEdges Map of node to its incoming edges
+     * @param existingNodeNewEdges Map of existing nodes to edges that should be added to them (edges from new nodes TO existing nodes)
      * @param baseName Base name for files
      * @param mlstLength Fixed length for MLST data
      * @throws IOException if file operations fail
      */
     public static void addNodesBatch(List<Node> nodes, Map<Node, List<Edge>> nodeEdges, 
+                                     Map<Node, List<Edge>> existingNodeNewEdges,
                                      String baseName, int mlstLength) throws IOException {
         String nodeFile = baseName + "_nodes.dat";
         String edgeFile = baseName + "_edges.dat";
@@ -214,8 +216,13 @@ public class GraphMapper {
         // Add all nodes at once
         NodeIndexMapper.addNodesBatch(nodes, nodeFile, mlstLength);
         
-        // Add all edges in one batch operation (much faster!)
+        // Add edges for new nodes in one batch operation
         EdgeListMapper.addEdgesBatch(nodeEdges, edgeFile);
+        
+        // Add edges to existing nodes (edges from new nodes TO existing nodes)
+        if (existingNodeNewEdges != null && !existingNodeNewEdges.isEmpty()) {
+            EdgeListMapper.addEdgesToExistingNodes(existingNodeNewEdges, nodeFile, edgeFile);
+        }
     }
 
     public static void removeNode(Node node, String baseName, int mlstLength) throws IOException {

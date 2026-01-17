@@ -1179,4 +1179,261 @@ public class EdgeListMapperTest {
             Assert.assertNotEquals(2, edge.getDestination().getId());
         }
     }
+
+    // ===== Tests for addEdgesToExistingNodes method =====
+
+    @Test
+    public void testAddEdgesToExistingNodesSingleNodeSingleEdge() throws IOException {
+        // Initialize with nodes and some initial edges
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        initialEdges.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(3), 20));
+        initializeNodeIndexMapper(initialEdges);
+
+        // Add a new edge TO existing node 1 (from a "new" node 4)
+        Map<Node, List<Edge>> existingNodeNewEdges = new HashMap<>();
+        List<Edge> edgesToNode1 = new ArrayList<>();
+        edgesToNode1.add(new Edge(TEST_NODES.get(4), TEST_NODES.get(1), 30));
+        existingNodeNewEdges.put(TEST_NODES.get(1), edgesToNode1);
+
+        EdgeListMapper.addEdgesToExistingNodes(existingNodeNewEdges, NODES_FILE_NAME, EDGES_FILE_NAME);
+
+        // Verify total edge count
+        Assert.assertEquals(3, EdgeListMapper.getNumEdges(EDGES_FILE_NAME));
+
+        // Load all edges and verify the new edge is present
+        List<Edge> allEdges = EdgeListMapper.loadEdgesFromMappedFile(EDGES_FILE_NAME);
+        boolean foundNewEdge = false;
+        for (Edge edge : allEdges) {
+            if (edge.getSource().getId() == 4 && edge.getDestination().getId() == 1 && edge.getWeight() == 30) {
+                foundNewEdge = true;
+                break;
+            }
+        }
+        Assert.assertTrue("New edge from node 4 to node 1 should be present", foundNewEdge);
+
+        // Verify incoming edges to node 1
+        long node1Offset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
+        List<Edge> incomingToNode1 = EdgeListMapper.loadLinkedList(EDGES_FILE_NAME, node1Offset);
+        Assert.assertEquals("Node 1 should have 2 incoming edges", 2, incomingToNode1.size());
+    }
+
+    @Test
+    public void testAddEdgesToExistingNodesMultipleEdgesToSameNode() throws IOException {
+        // Initialize with nodes and some initial edges
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        initializeNodeIndexMapper(initialEdges);
+
+        // Add multiple new edges TO existing node 1
+        Map<Node, List<Edge>> existingNodeNewEdges = new HashMap<>();
+        List<Edge> edgesToNode1 = new ArrayList<>();
+        edgesToNode1.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(1), 20));
+        edgesToNode1.add(new Edge(TEST_NODES.get(3), TEST_NODES.get(1), 30));
+        edgesToNode1.add(new Edge(TEST_NODES.get(4), TEST_NODES.get(1), 40));
+        existingNodeNewEdges.put(TEST_NODES.get(1), edgesToNode1);
+
+        EdgeListMapper.addEdgesToExistingNodes(existingNodeNewEdges, NODES_FILE_NAME, EDGES_FILE_NAME);
+
+        // Verify total edge count
+        Assert.assertEquals(4, EdgeListMapper.getNumEdges(EDGES_FILE_NAME));
+
+        // Verify incoming edges to node 1
+        long node1Offset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
+        List<Edge> incomingToNode1 = EdgeListMapper.loadLinkedList(EDGES_FILE_NAME, node1Offset);
+        Assert.assertEquals("Node 1 should have 4 incoming edges", 4, incomingToNode1.size());
+
+        // Verify all edges point to node 1
+        for (Edge edge : incomingToNode1) {
+            Assert.assertEquals("All edges should point to node 1", 1, edge.getDestination().getId());
+        }
+    }
+
+    @Test
+    public void testAddEdgesToExistingNodesMultipleNodes() throws IOException {
+        // Initialize with nodes and some initial edges
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(2), 20));
+        initializeNodeIndexMapper(initialEdges);
+
+        // Add new edges TO multiple existing nodes
+        Map<Node, List<Edge>> existingNodeNewEdges = new HashMap<>();
+        
+        List<Edge> edgesToNode1 = new ArrayList<>();
+        edgesToNode1.add(new Edge(TEST_NODES.get(3), TEST_NODES.get(1), 30));
+        existingNodeNewEdges.put(TEST_NODES.get(1), edgesToNode1);
+        
+        List<Edge> edgesToNode2 = new ArrayList<>();
+        edgesToNode2.add(new Edge(TEST_NODES.get(3), TEST_NODES.get(2), 40));
+        edgesToNode2.add(new Edge(TEST_NODES.get(4), TEST_NODES.get(2), 50));
+        existingNodeNewEdges.put(TEST_NODES.get(2), edgesToNode2);
+
+        EdgeListMapper.addEdgesToExistingNodes(existingNodeNewEdges, NODES_FILE_NAME, EDGES_FILE_NAME);
+
+        // Verify total edge count: 2 initial + 3 new = 5
+        Assert.assertEquals(5, EdgeListMapper.getNumEdges(EDGES_FILE_NAME));
+
+        // Verify incoming edges to node 1
+        long node1Offset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
+        List<Edge> incomingToNode1 = EdgeListMapper.loadLinkedList(EDGES_FILE_NAME, node1Offset);
+        Assert.assertEquals("Node 1 should have 2 incoming edges", 2, incomingToNode1.size());
+
+        // Verify incoming edges to node 2
+        long node2Offset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
+        List<Edge> incomingToNode2 = EdgeListMapper.loadLinkedList(EDGES_FILE_NAME, node2Offset);
+        Assert.assertEquals("Node 2 should have 3 incoming edges", 3, incomingToNode2.size());
+    }
+
+    @Test
+    public void testAddEdgesToExistingNodesWithNoInitialEdges() throws IOException {
+        // Initialize nodes but with no edges initially
+        List<Edge> initialEdges = new ArrayList<>();
+        initializeNodeIndexMapper(initialEdges);
+
+        // Add edges TO existing nodes that had no incoming edges before
+        Map<Node, List<Edge>> existingNodeNewEdges = new HashMap<>();
+        List<Edge> edgesToNode1 = new ArrayList<>();
+        edgesToNode1.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        existingNodeNewEdges.put(TEST_NODES.get(1), edgesToNode1);
+
+        EdgeListMapper.addEdgesToExistingNodes(existingNodeNewEdges, NODES_FILE_NAME, EDGES_FILE_NAME);
+
+        // Verify edge was added
+        Assert.assertEquals(1, EdgeListMapper.getNumEdges(EDGES_FILE_NAME));
+
+        // Verify incoming edges to node 1
+        long node1Offset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
+        List<Edge> incomingToNode1 = EdgeListMapper.loadLinkedList(EDGES_FILE_NAME, node1Offset);
+        Assert.assertEquals("Node 1 should have 1 incoming edge", 1, incomingToNode1.size());
+    }
+
+    @Test
+    public void testAddEdgesToExistingNodesEmptyMap() throws IOException {
+        // Initialize with some edges
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        initializeNodeIndexMapper(initialEdges);
+
+        long initialEdgeCount = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+
+        // Call with empty map
+        EdgeListMapper.addEdgesToExistingNodes(new HashMap<>(), NODES_FILE_NAME, EDGES_FILE_NAME);
+
+        // Verify nothing changed
+        Assert.assertEquals(initialEdgeCount, EdgeListMapper.getNumEdges(EDGES_FILE_NAME));
+    }
+
+    @Test
+    public void testAddEdgesToExistingNodesNullMap() throws IOException {
+        // Initialize with some edges
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        initializeNodeIndexMapper(initialEdges);
+
+        long initialEdgeCount = EdgeListMapper.getNumEdges(EDGES_FILE_NAME);
+
+        // Call with null map (should handle gracefully)
+        EdgeListMapper.addEdgesToExistingNodes(null, NODES_FILE_NAME, EDGES_FILE_NAME);
+
+        // Verify nothing changed
+        Assert.assertEquals(initialEdgeCount, EdgeListMapper.getNumEdges(EDGES_FILE_NAME));
+    }
+
+    @Test
+    public void testAddEdgesToExistingNodesPreservesLinkedListOrder() throws IOException {
+        // Initialize with multiple edges to the same destination
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(2), 10));
+        initialEdges.add(new Edge(TEST_NODES.get(1), TEST_NODES.get(2), 20));
+        initializeNodeIndexMapper(initialEdges);
+
+        // Add new edges TO node 2
+        Map<Node, List<Edge>> existingNodeNewEdges = new HashMap<>();
+        List<Edge> edgesToNode2 = new ArrayList<>();
+        edgesToNode2.add(new Edge(TEST_NODES.get(3), TEST_NODES.get(2), 30));
+        edgesToNode2.add(new Edge(TEST_NODES.get(4), TEST_NODES.get(2), 40));
+        existingNodeNewEdges.put(TEST_NODES.get(2), edgesToNode2);
+
+        EdgeListMapper.addEdgesToExistingNodes(existingNodeNewEdges, NODES_FILE_NAME, EDGES_FILE_NAME);
+
+        // Load incoming edges to node 2
+        long node2Offset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 2);
+        List<Edge> incomingToNode2 = EdgeListMapper.loadLinkedList(EDGES_FILE_NAME, node2Offset);
+
+        // Verify all 4 edges are present
+        Assert.assertEquals("Node 2 should have 4 incoming edges", 4, incomingToNode2.size());
+
+        // Verify that new edges were prepended (should appear first in the linked list)
+        Assert.assertEquals("First edge should be from node 3", 3, incomingToNode2.get(0).getSource().getId());
+        Assert.assertEquals("Second edge should be from node 4", 4, incomingToNode2.get(1).getSource().getId());
+    }
+
+    @Test
+    public void testAddEdgesToExistingNodesUpdatesNodeIndexOffsets() throws IOException {
+        // Initialize with initial edges
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        initializeNodeIndexMapper(initialEdges);
+
+        // Get original offset for node 1
+        long originalNode1Offset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
+
+        // Add new edges TO node 1
+        Map<Node, List<Edge>> existingNodeNewEdges = new HashMap<>();
+        List<Edge> edgesToNode1 = new ArrayList<>();
+        edgesToNode1.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(1), 20));
+        existingNodeNewEdges.put(TEST_NODES.get(1), edgesToNode1);
+
+        EdgeListMapper.addEdgesToExistingNodes(existingNodeNewEdges, NODES_FILE_NAME, EDGES_FILE_NAME);
+
+        // Get updated offset for node 1
+        long updatedNode1Offset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
+
+        // Offset should have changed (new edge is now first)
+        Assert.assertNotEquals("Node 1 offset should be updated to point to new first edge", 
+                               originalNode1Offset, updatedNode1Offset);
+
+        // Load and verify the linked list is correct
+        List<Edge> incomingToNode1 = EdgeListMapper.loadLinkedList(EDGES_FILE_NAME, updatedNode1Offset);
+        Assert.assertEquals("Node 1 should have 2 incoming edges", 2, incomingToNode1.size());
+    }
+
+    @Test
+    public void testAddEdgesToExistingNodesWithDifferentWeights() throws IOException {
+        // Initialize with initial edge
+        List<Edge> initialEdges = new ArrayList<>();
+        initialEdges.add(new Edge(TEST_NODES.get(0), TEST_NODES.get(1), 10));
+        initializeNodeIndexMapper(initialEdges);
+
+        // Add edges with various weights
+        Map<Node, List<Edge>> existingNodeNewEdges = new HashMap<>();
+        List<Edge> edgesToNode1 = new ArrayList<>();
+        edgesToNode1.add(new Edge(TEST_NODES.get(2), TEST_NODES.get(1), 100));
+        edgesToNode1.add(new Edge(TEST_NODES.get(3), TEST_NODES.get(1), 1));
+        edgesToNode1.add(new Edge(TEST_NODES.get(4), TEST_NODES.get(1), 999));
+        existingNodeNewEdges.put(TEST_NODES.get(1), edgesToNode1);
+
+        EdgeListMapper.addEdgesToExistingNodes(existingNodeNewEdges, NODES_FILE_NAME, EDGES_FILE_NAME);
+
+        // Load edges and verify weights
+        long node1Offset = NodeIndexMapper.getIncomingEdgeOffset(NODES_FILE_NAME, 1);
+        List<Edge> incomingToNode1 = EdgeListMapper.loadLinkedList(EDGES_FILE_NAME, node1Offset);
+
+        Assert.assertEquals(4, incomingToNode1.size());
+
+        // Verify each weight is preserved
+        boolean found100 = false, found1 = false, found999 = false, found10 = false;
+        for (Edge edge : incomingToNode1) {
+            if (edge.getWeight() == 100) found100 = true;
+            if (edge.getWeight() == 1) found1 = true;
+            if (edge.getWeight() == 999) found999 = true;
+            if (edge.getWeight() == 10) found10 = true;
+        }
+
+        Assert.assertTrue("Edge with weight 100 should exist", found100);
+        Assert.assertTrue("Edge with weight 1 should exist", found1);
+        Assert.assertTrue("Edge with weight 999 should exist", found999);
+        Assert.assertTrue("Edge with weight 10 should exist", found10);
+    }
 }

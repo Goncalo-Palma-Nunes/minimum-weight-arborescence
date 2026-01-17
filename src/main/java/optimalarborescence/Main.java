@@ -8,6 +8,7 @@ import optimalarborescence.graph.PhylogeneticData;
 import optimalarborescence.graph.DistanceMatrix;
 import optimalarborescence.distance.DistanceFunction;
 import optimalarborescence.distance.HammingDistance;
+import optimalarborescence.distance.DirectionalHammingDistance;
 import optimalarborescence.exception.NotImplementedException;
 import optimalarborescence.sequences.*;
 import optimalarborescence.nearestneighbour.*;
@@ -39,6 +40,7 @@ public class Main {
     private static final String MLST_MISSING_DATA = "mlst-missing-data";
     private static final String ALLELIC = "allelic";
     private static final List<String> SEQUENCE_TYPE = List.of(MLST_SYMMETRIC, MLST_MISSING_DATA, ALLELIC);
+    private static final List<String> SYMMETRIC_DATA = List.of(MLST_SYMMETRIC, ALLELIC);
     private static final String STATIC_ALGORITHM = "static";
     private static final String DYNAMIC_ALGORITHM = "dynamic";
     private static final String NEIGHBOR_JOINING = "neighborJoining";
@@ -351,7 +353,7 @@ public class Main {
                     List<Node> newNodes = points.stream()
                                                 .map(p -> new Node(p.getSequence(), p.getId()))
                                                 .toList();
-                    addNodesIncrementallyToExactGraph(newNodes, outputFile, points.get(0).getSequence().getLength());
+                    addNodesIncrementallyToExactGraph(newNodes, outputFile, points.get(0).getSequence().getLength(), sequenceType);
                 }
             }
             return persistedGraphFile;
@@ -369,7 +371,7 @@ public class Main {
                 generateApproximateGraphIncrementally(points, tempFile, nnAlgorithm, numNeighbors);
             }
             else {
-                generateExactGraphIncrementally(points, tempFile);
+                generateExactGraphIncrementally(points, tempFile, sequenceType);
             }
             return tempFile;
         }
@@ -449,6 +451,25 @@ public class Main {
     }
 
 
+    private static Edge buildEdge(Node u, Node v, String sequenceType, DistanceFunction distanceFunction) {
+        if (SYMMETRIC_DATA.contains(sequenceType)) {
+            int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
+            return new Edge(u, v, dist);
+        }
+        else {
+            Edge e;
+            if (u.getPoint().getSequence().getPositionsWithMissingData().size() <= v.getPoint().getSequence().getPositionsWithMissingData().size()) {
+                int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
+                e = new Edge(u, v, dist);
+            }
+            else {
+                int dist = (int) distanceFunction.calculate(v.getPoint().getSequence(), u.getPoint().getSequence());
+                e = new Edge(v, u, dist);
+            }
+            return e;
+        }
+    }
+
 
     /**
      * Generates an exact graph incrementally to avoid memory overflow.
@@ -463,13 +484,14 @@ public class Main {
      * @param points All points to include in the graph
      * @param outputFile Path for the memory-mapped graph file
      */
-    private static void generateExactGraphIncrementally(List<Point<?>> points, String outputFile) throws IOException {
+    private static void generateExactGraphIncrementally(List<Point<?>> points, String outputFile, String sequenceType) throws IOException {
         if (points.size() < 2) {
             throw new IllegalArgumentException("At least 2 points are required to build a graph.");
         }
         
         int sequenceLength = points.get(0).getSequence().getLength();
-        DistanceFunction distanceFunction = new HammingDistance();
+        // DistanceFunction distanceFunction = new HammingDistance();
+        DistanceFunction distanceFunction = SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance();
         
         // Step 1: Initialize with first 2 nodes
         // System.out.println("Initializing graph with first 2 nodes...");
@@ -483,12 +505,8 @@ public class Main {
         graph.addNode(initialNodes.get(0));
         graph.addNode(initialNodes.get(1));
         
-        // Only create edge from node 0 -> node 1 (upper triangle)
-        int distance = (int) distanceFunction.calculate(
-            initialNodes.get(0).getPoint().getSequence(),
-            initialNodes.get(1).getPoint().getSequence()
-        );
-        graph.addEdge(new Edge(initialNodes.get(0), initialNodes.get(1), distance));
+        // Create first edge
+        graph.addEdge(buildEdge(initialNodes.get(0), initialNodes.get(1), sequenceType, distanceFunction));
         
         // Save initial graph to memory-mapped file
         ensureDirectoryExists(outputFile);
@@ -527,13 +545,9 @@ public class Main {
             for (Node newNode : batchNodes) {
                 List<Edge> incomingEdges = new ArrayList<>();
                 
-                // Create edges FROM existing nodes TO new node (upper triangle)
+                // Create edges FROM existing nodes TO new node
                 for (Node existingNode : allNodes) {
-                    int dist = (int) distanceFunction.calculate(
-                        existingNode.getPoint().getSequence(),
-                        newNode.getPoint().getSequence()
-                    );
-                    incomingEdges.add(new Edge(existingNode, newNode, dist));
+                    incomingEdges.add(buildEdge(existingNode, newNode, sequenceType, distanceFunction));
                 }
                 
                 nodeEdgesMap.put(newNode, incomingEdges);
@@ -548,22 +562,22 @@ public class Main {
                 Node nodeJ = batchNodes.get(j);
                 List<Edge> nodeJEdges = nodeEdgesMap.get(nodeJ);
                 
-                // Add edges from earlier nodes in batch to this node
                 for (int k = 0; k < j; k++) {
                     Node nodeK = batchNodes.get(k);
-                    int dist = (int) distanceFunction.calculate(
-                        nodeK.getPoint().getSequence(),
-                        nodeJ.getPoint().getSequence()
-                    );
-                    // nodeK -> nodeJ (upper triangle: earlier node to later node)
-                    nodeJEdges.add(new Edge(nodeK, nodeJ, dist));
+                    List<Edge> nodeKEdges = nodeEdgesMap.get(nodeK);
+                    Edge e = buildEdge(nodeK, nodeJ, sequenceType, distanceFunction);
+                    if (e.getSource().equals(nodeK) && e.getDestination().equals(nodeJ)) {
+                        nodeKEdges.add(e);
+                    } else {
+                        nodeJEdges.add(e);
+                    }
                 }
             }
             
             // Add all nodes and edges in one batch operation
             System.out.println("Writing to memory-mapped file...");
             long writeStart = System.currentTimeMillis();
-            GraphMapper.addNodesBatch(batchNodes, nodeEdgesMap, outputFile, sequenceLength);
+            GraphMapper.addNodesBatch(batchNodes, nodeEdgesMap, new HashMap<>(), outputFile, sequenceLength);
             long writeEnd = System.currentTimeMillis();
             System.out.println("File write: " + (writeEnd - writeStart) + " ms");
             
@@ -607,12 +621,12 @@ public class Main {
      * @param sequenceLength Length of sequences (for serialization)
      */
     private static void addNodesIncrementallyToExactGraph(List<Node> nodesToAdd, 
-                                                          String outputFile, int sequenceLength) throws IOException {
+                                                          String outputFile, int sequenceLength, String sequenceType) throws IOException {
         if (nodesToAdd.isEmpty()) {
             return;
         }
         
-        DistanceFunction distanceFunction = new HammingDistance();
+        DistanceFunction distanceFunction = SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance();
         
         System.out.println("Adding " + nodesToAdd.size() + " nodes incrementally...");
         
@@ -624,29 +638,42 @@ public class Main {
         
         // Prepare edges for all new nodes (upper triangle only)
         Map<Node, List<Edge>> nodeEdgesMap = new HashMap<>();
+        Map<Node, List<Edge>> existingNodeNewEdges = new HashMap<>();  // Track edges TO existing nodes
         
         long distStart = System.currentTimeMillis();
         for (int i = 0; i < nodesToAdd.size(); i++) {
             Node newNode = nodesToAdd.get(i);
             List<Edge> incomingEdges = new ArrayList<>();
             
-            // Create edges FROM all existing nodes TO new node
+            // Create edges between all existing nodes and new node
             for (Node existingNode : existingNodes) {
-                int dist = (int) distanceFunction.calculate(
-                    existingNode.getPoint().getSequence(),
-                    newNode.getPoint().getSequence()
-                );
-                incomingEdges.add(new Edge(existingNode, newNode, dist));
+                Edge edge = buildEdge(existingNode, newNode, sequenceType, distanceFunction);
+                
+                if (edge.getDestination().equals(newNode)) {
+                    // Edge points TO new node (incoming to new node)
+                    incomingEdges.add(edge);
+                } else {
+                    // Edge points FROM new node TO existing node
+                    // Need to add this to the existing node's incoming edges
+                    existingNodeNewEdges.computeIfAbsent(existingNode, k -> new ArrayList<>()).add(edge);
+                }
             }
             
-            // Create edges FROM previously added nodes in this batch TO new node
+            // Create edges between previously added nodes in this batch and new node
             for (int j = 0; j < i; j++) {
                 Node previousNode = nodesToAdd.get(j);
-                int dist = (int) distanceFunction.calculate(
-                    previousNode.getPoint().getSequence(),
-                    newNode.getPoint().getSequence()
-                );
-                incomingEdges.add(new Edge(previousNode, newNode, dist));
+                Edge edge = buildEdge(previousNode, newNode, sequenceType, distanceFunction);
+                
+                if (edge.getDestination().equals(newNode)) {
+                    // Edge points TO new node
+                    incomingEdges.add(edge);
+                } else {
+                    // Edge points TO previous node in batch
+                    List<Edge> prevNodeEdges = nodeEdgesMap.get(previousNode);
+                    if (prevNodeEdges != null) {
+                        prevNodeEdges.add(edge);
+                    }
+                }
             }
             
             nodeEdgesMap.put(newNode, incomingEdges);
@@ -660,7 +687,7 @@ public class Main {
         
         // Add all nodes and edges in one batch operation
         long writeStart = System.currentTimeMillis();
-        GraphMapper.addNodesBatch(nodesToAdd, nodeEdgesMap, outputFile, sequenceLength);
+        GraphMapper.addNodesBatch(nodesToAdd, nodeEdgesMap, existingNodeNewEdges, outputFile, sequenceLength);
         long writeEnd = System.currentTimeMillis();
         System.out.println("File write: " + (writeEnd - writeStart) + " ms");
         
@@ -717,7 +744,7 @@ public class Main {
         
         // Add all nodes and edges in one batch operation
         long writeStart = System.currentTimeMillis();
-        GraphMapper.addNodesBatch(nodesToAdd, nodeEdgesMap, outputFile, sequenceLength);
+        GraphMapper.addNodesBatch(nodesToAdd, nodeEdgesMap, new HashMap<>(), outputFile, sequenceLength);
         long writeEnd = System.currentTimeMillis();
         System.out.println("File write: " + (writeEnd - writeStart) + " ms");
         
@@ -738,14 +765,14 @@ public class Main {
         nodesToProcess = points.stream().map(p -> new Node(p.getSequence(), p.getId())).toList();
         switch (operationType) {
             case ADD:
-                GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), persistedGraphFile, points.get(0).getSequence().getLength());
+                GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), new HashMap<>(), persistedGraphFile, points.get(0).getSequence().getLength());
                 break;
             case REMOVE:
                 GraphMapper.removeNodesBatch(nodesToProcess, persistedGraphFile, points.get(0).getSequence().getLength());
                 break;
             case UPDATE:
                 GraphMapper.removeNodesBatch(nodesToProcess, persistedGraphFile, points.get(0).getSequence().getLength());
-                GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), persistedGraphFile, points.get(0).getSequence().getLength());
+                GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), new HashMap<>(), persistedGraphFile, points.get(0).getSequence().getLength());
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported operation type: " + operationType);
@@ -783,7 +810,7 @@ public class Main {
         switch (operationType) {
             case ADD:
                 // Step 1: Add nodes to persisted file using batch operation (without edges, they're already computed)
-                GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), persistedGraphFile, sequenceLength);
+                GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), new HashMap<>(), persistedGraphFile, sequenceLength);
                 
                 // Step 2: Reload node map to include newly added nodes
                 nodeMap = GraphMapper.loadNodeMap(persistedGraphFile);
@@ -853,7 +880,7 @@ public class Main {
                 
                 // Step 2: Remove and re-add nodes to persisted file
                 GraphMapper.removeNodesBatch(nodesToProcess, persistedGraphFile, sequenceLength);
-                GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), persistedGraphFile, sequenceLength);
+                GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), new HashMap<>(), persistedGraphFile, sequenceLength);
                 
                 // Step 3: Reload node map and add new edges to dynamic algorithm
                 nodeMap = GraphMapper.loadNodeMap(persistedGraphFile);
@@ -1025,7 +1052,7 @@ public class Main {
                 generateApproximateGraphIncrementally(points, tempGraphFile, nnAlgorithm, numNeighbors);
             } else {
                 // Exact graph
-                generateExactGraphIncrementally(points, tempGraphFile);
+                generateExactGraphIncrementally(points, tempGraphFile, sequenceType);
             }
         } else {
             // Add new nodes to existing memory-mapped graph
@@ -1038,7 +1065,7 @@ public class Main {
                 addNodesIncrementallyToApproximateGraph(nodesToAdd, tempGraphFile, sequenceLength, nnAlgorithm, numNeighbors);
             } else {
                 // Exact graph
-                addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength);
+                addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength, sequenceType);
             }
         }
         
@@ -1076,7 +1103,7 @@ public class Main {
                 generateApproximateGraphIncrementally(points, tempGraphFile, nnAlgorithm, numNeighbors);
             } else {
                 // Exact graph
-                generateExactGraphIncrementally(points, tempGraphFile);
+                generateExactGraphIncrementally(points, tempGraphFile, sequenceType);
             }
             
             // Initialize dynamic algorithm from persisted graph
@@ -1097,7 +1124,7 @@ public class Main {
                 addNodesIncrementallyToApproximateGraph(nodesToAdd, tempGraphFile, sequenceLength, nnAlgorithm, numNeighbors);
             } else {
                 // Exact graph
-                addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength);
+                addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength, sequenceType);
             }
             
             // Load node map for edge reconstruction
