@@ -82,10 +82,21 @@ public class Parser {
             csvReader.readNext();
 
             while ((nextRecord = csvReader.readNext()) != null) {
+                // Skip rows with insufficient data (need at least ST + 1 allele)
+                if (nextRecord.length < 2) {
+                    continue;
+                }
+                
                 // Parse hexadecimal ST identifier as String (can be too large for Long)
                 String sequenceType = nextRecord[0];
+                
+                // Skip rows with empty or null ST identifier
+                if (sequenceType == null || sequenceType.trim().isEmpty()) {
+                    continue;
+                }
+                
                 Object[] typingDataSequence = new Object[nextRecord.length];
-                typingDataSequence[0] = sequenceType;
+                typingDataSequence[0] = sequenceType.trim();
                 for (int i = 1; i < nextRecord.length; i++) {
                     // check if record can be parsed to long
                     try {
@@ -114,6 +125,10 @@ public class Parser {
         List<SequenceTypingData> typingDataList = new ArrayList<>();
         for (int i = 0; i < rawData.size(); i++) {
             Object[] fullArray = rawData.get(i);
+            // Skip rows that don't have allele data (length must be > 1)
+            if (fullArray == null || fullArray.length < 2) {
+                continue;
+            }
             // Extract only the allele columns (skip ST at index 0)
             Long[] alleles = new Long[fullArray.length - 1];
             for (int j = 1; j < fullArray.length; j++) {

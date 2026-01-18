@@ -179,6 +179,29 @@ public class ParserTest {
         assertEquals(Long.valueOf(500L), seq1.getElementAt(4));
     }
 
+    @Test
+    public void testReadCSVLinesSkipsInvalidRows() {
+        String testFilepath = System.getProperty("user.dir") + "/src/test/java/optimalarborescence/unittests/parser/test_invalid_rows.csv";
+        List<Object[]> rawData = Parser.readCSVLines(testFilepath);
+        
+        // Should only have 3 valid rows (skipping empty ST row and empty line)
+        assertEquals(3, rawData.size());
+        
+        // Verify the valid rows were parsed correctly
+        assertEquals("a", Parser.getSTFromProcessedCSVLine(rawData.get(0)));
+        assertEquals("66d8ada072e6d80d85bf7635", Parser.getSTFromProcessedCSVLine(rawData.get(1)));
+        assertEquals("ffff", Parser.getSTFromProcessedCSVLine(rawData.get(2)));
+        
+        // Verify processedCSVToTypingData also works correctly
+        List<SequenceTypingData> typingData = Parser.processedCSVToTypingData(rawData);
+        assertEquals(3, typingData.size());
+        
+        // All sequences should have 3 alleles
+        for (SequenceTypingData seq : typingData) {
+            assertEquals(3, seq.getLength());
+        }
+    }
+
     private void initializeAllelicProfiles() {
         allelicSequences.add(arcC_1);
         allelicSequences.add(arcC_2);
