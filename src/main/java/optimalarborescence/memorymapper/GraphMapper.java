@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashMap;
 import java.util.HashSet;
 
 /**
@@ -41,6 +42,28 @@ public class GraphMapper {
         
         // Save nodes with MLST data and offsets
         NodeIndexMapper.saveGraph(graph, mlstLength, incomingEdgeOffsets, nodeFile);
+    }
+
+
+    /**
+     * Save a graph with nodes but no edges to memory-mapped files. Useful for initializing empty graphs or
+     * when the edge weights are computed on-the-fly.
+     * 
+     * @param nodes List of nodes to save
+     * @param mlstLength Fixed length for MLST data (in bytes)
+     * @param baseName Base name for output files
+     * @throws IOException if file operations fail
+     */
+    public static void saveGraph(List<Node> nodes, int mlstLength, String baseName) throws IOException {
+        String nodeFile = baseName + "_nodes.dat";
+
+        Map<Integer, Long> incomingEdgeOffsets = new HashMap<>(); // No edges
+        for (Node node : nodes) {
+            incomingEdgeOffsets.put(node.getId(), -1L);
+        }
+        
+        // Save nodes with MLST data and no edges
+        NodeIndexMapper.saveGraph(nodes, mlstLength, incomingEdgeOffsets, nodeFile);
     }
     
 

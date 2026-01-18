@@ -56,6 +56,7 @@ public class Main {
     private static final String REMOVE = "remove";
     private static final String UPDATE = "update";
     private static final String TEST = "test";
+    private static final String ON_DEMAND = "--on-demand";
     private static final List<String> OPERATION_TYPE = List.of(ADD, REMOVE, UPDATE, TEST);
     private static final Comparator<Edge> EDGE_COMPARATOR = 
         (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
@@ -64,8 +65,17 @@ public class Main {
     
     public static void main(String[] args) throws FileNotFoundException, IOException {
         
-        if (args.length < 4 || args.length > 6) {
-            System.err.println("Wrong Invocation: java -jar OptimalArborescence.jar <sequence_type> <input_sequence_file> <output_file> <operation_type> [<persisted_graph_file>] [<batch_size>]\nWhere:\n\t- <sequence_type> is either 'mlst-symmetric', 'mlst-missing-data', or 'allelic'\n\t- <input_sequence_file> is the path to the input sequence file\n\t- <output_file> is the path to the output file\n\t- <operation_type> is either 'add', 'remove', 'update', or 'test'\n\t- <persisted_graph_file> is an optional path to a persisted graph file to continue from a previous run\n\t- <batch_size> is an optional positive integer for test mode only, specifying how many points to add in each batch (only for static and neighborJoining algorithms)");
+        // Check for --on-demand flag
+        boolean onDemand = false;
+        int effectiveArgsLength = args.length;
+        
+        if (args.length > 0 && args[args.length - 1].equals(ON_DEMAND)) {
+            onDemand = true;
+            effectiveArgsLength = args.length - 1;
+        }
+        
+        if (effectiveArgsLength < 4 || effectiveArgsLength > 6) {
+            System.err.println("Wrong Invocation: java -jar OptimalArborescence.jar <sequence_type> <input_sequence_file> <output_file> <operation_type> [<persisted_graph_file>] [<batch_size>] [--on-demand]\nWhere:\n\t- <sequence_type> is either 'mlst-symmetric', 'mlst-missing-data', or 'allelic'\n\t- <input_sequence_file> is the path to the input sequence file\n\t- <output_file> is the path to the output file\n\t- <operation_type> is either 'add', 'remove', 'update', or 'test'\n\t- <persisted_graph_file> is an optional path to a persisted graph file to continue from a previous run\n\t- <batch_size> is an optional positive integer for test mode only, specifying how many points to add in each batch (only for static and neighborJoining algorithms)\n\t the '--on-demand' flag tells the program to compute edge distances on demand, instead of storing them explicitly in a memory mapped file.");
             System.exit(1);
         }
         String sequenceType = args[0];
@@ -78,7 +88,7 @@ public class Main {
         int sequenceLength = -1;
         PhylogeneticData g = null;
         
-        if (args.length >= 5) {
+        if (effectiveArgsLength >= 5) {
             // Determine if arg[4] is persisted graph file or batch size for test mode
             if (operationType.equals(TEST)) {
                 // For test mode, arg[4] could be either persisted file or batch size
@@ -88,7 +98,7 @@ public class Main {
                         throw new IllegalArgumentException("Batch size must be a positive integer.");
                     }
                     // If there's a 6th argument, it's invalid for test mode
-                    if (args.length == 6) {
+                    if (effectiveArgsLength == 6) {
                         throw new IllegalArgumentException("Test mode accepts only batch_size parameter, not persisted_graph_file.");
                     }
                 } catch (NumberFormatException e) {
@@ -98,7 +108,7 @@ public class Main {
                         throw new FileNotFoundException("Persisted graph file does not exist: " + persistedGraphFile);
                     }
                     // Check if arg[5] exists and is batch size
-                    if (args.length == 6) {
+                    if (effectiveArgsLength == 6) {
                         try {
                             batchSize = Integer.parseInt(args[5]);
                             if (batchSize <= 0) {
@@ -115,7 +125,7 @@ public class Main {
                 if (!fileExists(persistedGraphFile)) {
                     throw new FileNotFoundException("Persisted graph file does not exist: " + persistedGraphFile);
                 }
-                if (args.length == 6) {
+                if (effectiveArgsLength == 6) {
                     throw new IllegalArgumentException("Batch size parameter is only valid for test mode.");
                 }
             }
@@ -124,7 +134,7 @@ public class Main {
 
         // Test mode: iteratively add points in batches
         if (operationType.equals(TEST)) {
-            runTestMode(sequenceType, inputSequenceFile, outputFile, persistedGraphFile, batchSize);
+            runTestMode(sequenceType, inputSequenceFile, outputFile, persistedGraphFile, batchSize, onDemand);
             return;
         }
 
@@ -144,14 +154,14 @@ public class Main {
         else { outputFile += "_exact"; }
 
         long startTime = System.currentTimeMillis();
-        persistedGraphFile = initializeGraph(sequenceType, inputSequenceFile, numNeighbors, persistedGraphFile, nnAlgorithm, newPoints, algorithmType, operationType, outputFile);
+        persistedGraphFile = initializeGraph(sequenceType, inputSequenceFile, numNeighbors, persistedGraphFile, nnAlgorithm, newPoints, algorithmType, operationType, outputFile, onDemand);
 
         
         List<Edge> phylogeny = null;
         switch (algorithmType) {
             case STATIC_ALGORITHM:
                 outputFile += "_static_camerini";
-                phylogeny = runStaticCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, operationType);
+                phylogeny = runStaticCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, operationType, onDemand, nnAlgorithm);
                 break;
             case DYNAMIC_ALGORITHM:
                 outputFile += "_dynamic_camerini";
@@ -336,7 +346,15 @@ public class Main {
     private static String initializeGraph(String sequenceType, String inputFile, 
                                         int numNeighbors, String persistedGraphFile,
                                         NearestNeighbourSearchAlgorithm<?> nnAlgorithm, List<Point<?>> points,
-                                        String algorithmType, String operationType, String outputFile) throws IOException {
+                                        String algorithmType, String operationType, String outputFile, boolean onDemand) throws IOException {
+        if (onDemand) {
+            // Save graph with nodes only, no edges
+            GraphMapper.saveGraph(points.stream().
+            map(p -> new Node(p.getSequence(), p.getId()))
+                                                .toList(), points.get(0).getSequence().getLength(), outputFile);
+            return outputFile;
+        }
+
 
         if (persistedGraphFile != null) {
             // Graph already exists. Add the new edges/points to it if needed.
@@ -408,7 +426,7 @@ public class Main {
                             break; // proceed to build new LSH
                         }
                     }
-                    return buildLSH(sequenceLength);
+                    return buildLSH(sequenceLength, sequenceType);
                 case EXIT:
                     System.out.println("Exiting the program.");
                     System.exit(0);
@@ -420,7 +438,7 @@ public class Main {
         return null;
     }
 
-    private static LSH<?> buildLSH(int sequenceLength) {
+    private static LSH<?> buildLSH(int sequenceLength, String sequenceType) {
         System.out.println("Enter a sequence of positive integers for the amount of compared sequence positions, the number of hash tables, and the maximum distance between two points:\n\tFormat: <num_compared_positions> <num_hash_tables> <max_distance>\n\tExample: 10 5 3\n\tEnter " + EXIT + " to quit.\n");
         String response = "";
 
@@ -440,7 +458,8 @@ public class Main {
                 int numHashTables = Integer.parseInt(parts[1]);
                 int maxDistance = Integer.parseInt(parts[2]);
                 if (numComparedPositions > 0 && numHashTables > 0 && maxDistance > 0) {
-                    return new LSH<>(numComparedPositions, numHashTables, 0, sequenceLength - 1, new HammingDistance(), maxDistance);
+                    DistanceFunction distanceFunction = SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance();
+                    return new LSH<>(numComparedPositions, numHashTables, 0, sequenceLength - 1, distanceFunction, maxDistance);
                 } else {
                     System.out.println("All values must be positive integers. Please try again. Enter "+ EXIT + " to quit.");
                 }
@@ -638,7 +657,9 @@ public class Main {
         
         // Add initial nodes to NN algorithm
         for (Node node : initialNodes) {
-            nnAlgo.storePoint((Point<Object>) node.getPoint());
+            @SuppressWarnings("unchecked")
+            Point<Object> point = (Point<Object>) node.getPoint();
+            nnAlgo.storePoint(point);
         }
         
         // Save initial graph
@@ -668,7 +689,9 @@ public class Main {
             // Insert all batch nodes into NN algorithm BEFORE searching
             System.out.println("Inserting " + batchSize + " nodes into NN algorithm...");
             for (Node node : batchNodes) {
-                nnAlgo.storePoint((Point<Object>) node.getPoint());
+                @SuppressWarnings("unchecked")
+                Point<Object> point = (Point<Object>) node.getPoint();
+                nnAlgo.storePoint(point);
             }
             
             // Find nearest neighbors and create edges
@@ -683,10 +706,9 @@ public class Main {
                 List<Edge> incomingEdges = new ArrayList<>();
                 
                 // Find k nearest neighbors
-                List<Point<Object>> neighbors = nnAlgo.neighbourSearch(
-                    (Point<Object>) newNode.getPoint(), 
-                    numNeighbors
-                );
+                @SuppressWarnings("unchecked")
+                Point<Object> queryPoint = (Point<Object>) newNode.getPoint();
+                List<Point<Object>> neighbors = nnAlgo.neighbourSearch(queryPoint, numNeighbors);
                 
                 // Create edges between neighbors and new node
                 for (Point<?> neighborPoint : neighbors) {
@@ -914,7 +936,7 @@ public class Main {
         }
     }
 
-    private static List<Edge> runStaticCameriniAlgorithm(String sequenceType, String inputFile, String outputFile, int numNeighbors, List<Point<?>> points, String persistedGraphFile, String operationType) throws IOException {
+    private static List<Edge> runStaticCameriniAlgorithm(String sequenceType, String inputFile, String outputFile, int numNeighbors, List<Point<?>> points, String persistedGraphFile, String operationType, boolean onDemand, NearestNeighbourSearchAlgorithm<?> nnAlgorithm) throws IOException {
 
         List<Node> nodesToProcess = null;
         nodesToProcess = points.stream().map(p -> new Node(p.getSequence(), p.getId())).toList();
@@ -937,7 +959,8 @@ public class Main {
         if (persistedGraphFile == null) {
             throw new IllegalArgumentException("Persisted graph file must be provided for Static Camerini Algorithm.");
         }
-        CameriniForest camerini = new SerializableCameriniForest(EDGE_COMPARATOR, persistedGraphFile);
+        DistanceFunction distanceFunction = SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance();
+        CameriniForest camerini = new SerializableCameriniForest(EDGE_COMPARATOR, persistedGraphFile, onDemand, nnAlgorithm, numNeighbors, distanceFunction, SYMMETRIC_DATA.contains(sequenceType));
         
         System.out.println("Inferring phylogeny using Static Camerini Algorithm...");
         return camerini.inferPhylogeny(null).getEdges();
@@ -1079,7 +1102,7 @@ public class Main {
         );
     }
 
-    private static void runTestMode(String sequenceType, String inputSequenceFile, String outputFile, String persistedGraphFile, Integer batchSize) throws FileNotFoundException, IOException {
+    private static void runTestMode(String sequenceType, String inputSequenceFile, String outputFile, String persistedGraphFile, Integer batchSize, boolean onDemand) throws FileNotFoundException, IOException {
         System.out.println("Running in TEST mode: adding points in batches...");
         
         // Get user parameters
@@ -1140,7 +1163,7 @@ public class Main {
         List<Edge> phylogeny = null;
         switch (algorithmType) {
             case STATIC_ALGORITHM:
-                phylogeny = runStaticTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, true);
+                phylogeny = runStaticTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, true, onDemand);
                 break;
             case DYNAMIC_ALGORITHM:
                 phylogeny = runDynamicTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, true);
@@ -1169,7 +1192,7 @@ public class Main {
             startTime = System.currentTimeMillis();
             switch (algorithmType) {
                 case STATIC_ALGORITHM:
-                    phylogeny = runStaticTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, false);
+                    phylogeny = runStaticTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, false, onDemand);
                     break;
                 case DYNAMIC_ALGORITHM:
                     // Dynamic algorithm processes points one by one
@@ -1198,7 +1221,7 @@ public class Main {
     private static List<Edge> runStaticTestIteration(String sequenceType, List<Point<?>> points, String tempGraphFile, 
                                                String outputFile, int numNeighbors, 
                                                NearestNeighbourSearchAlgorithm<?> nnAlgorithm, 
-                                               int sequenceLength, boolean isInitial) throws IOException {
+                                               int sequenceLength, boolean isInitial, boolean onDemand) throws IOException {
         
         if (isInitial) {
             // Create new graph with initial points using memory-mapped files
@@ -1225,7 +1248,9 @@ public class Main {
         }
         
         // Infer phylogeny using SerializableCameriniForest for lazy loading from memory-mapped files
-        CameriniForest camerini = new SerializableCameriniForest(EDGE_COMPARATOR, tempGraphFile);
+        CameriniForest camerini = new SerializableCameriniForest(EDGE_COMPARATOR, tempGraphFile, onDemand, nnAlgorithm, numNeighbors,
+                SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance(),
+                SYMMETRIC_DATA.contains(sequenceType));
         System.out.println("Inferring phylogeny using Static Camerini Algorithm...");
         List<Edge> phylogeny = camerini.inferPhylogeny(null).getEdges();
         

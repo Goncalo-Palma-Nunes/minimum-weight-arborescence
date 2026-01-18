@@ -8,6 +8,9 @@ import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Node;
 import optimalarborescence.memorymapper.EdgeListMapper;
 import optimalarborescence.memorymapper.GraphMapper;
+import optimalarborescence.nearestneighbour.NearestNeighbourSearchAlgorithm;
+import optimalarborescence.nearestneighbour.Point;
+import optimalarborescence.distance.DistanceFunction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,6 +55,11 @@ import java.util.Set;
 public class SerializableCameriniForest extends CameriniForest {
     
     private String baseName;
+    private boolean onDemand = false;
+    private NearestNeighbourSearchAlgorithm<?> nnAlgorithm = null;
+    private DistanceFunction distanceFunction = null;
+    private int numNeighbors = 0;
+    private boolean symmetric = true;
     private boolean useMemoryMappedFiles;
     private Map<Integer, Node> nodeMap;
     private Map<Integer, Boolean> queueInitialized;
@@ -119,12 +127,18 @@ public class SerializableCameriniForest extends CameriniForest {
      * 
      * @param comparator Edge comparator for determining minimum weight edges
      * @param baseName Base name for memory-mapped files containing the graph
+     * @param onDemand If true, edge weights are computed on-the-fly (no edges stored)
      * @throws IOException if file operations fail
      */
-    public SerializableCameriniForest(Comparator<Edge> comparator, String baseName) throws IOException {
+    public SerializableCameriniForest(Comparator<Edge> comparator, String baseName, boolean onDemand, NearestNeighbourSearchAlgorithm<?> nnAlgorithm, int numNeighbors, DistanceFunction distanceFunction, boolean symmetric) throws IOException {
         super(createMinimalGraph(baseName), comparator);
         
         this.baseName = baseName;
+        this.onDemand = onDemand;
+        this.nnAlgorithm = nnAlgorithm;
+        this.numNeighbors = numNeighbors;
+        this.distanceFunction = distanceFunction;
+        this.symmetric = symmetric;
         this.useMemoryMappedFiles = true;
         this.queueInitialized = new HashMap<>();
         this.sccComposition = new HashMap<>();
@@ -348,6 +362,7 @@ public class SerializableCameriniForest extends CameriniForest {
         return optimalarborescence.memorymapper.NodeIndexMapper.getIncomingEdgeOffsetsBatch(
             nodeFile, allNodeIds);
     }
+
     
     /**
      * Initialize the queue for a specific node by loading its incoming edges from disk.
@@ -380,28 +395,62 @@ public class SerializableCameriniForest extends CameriniForest {
         
         // Load and insert edges for all nodes in the SCC
         for (Integer nodeId : nodesToLoad) {
-            Long offset = nodeOffsetCache.get(nodeId);
-            
-            if (offset == null) {
-                // This node doesn't exist in the original graph - this shouldn't happen
-                System.err.println("WARNING: Node " + nodeId + " not found in nodeOffsetCache. " +
-                                 "This indicates an issue with SCC composition tracking.");
-                System.err.println("Representative: " + repId + ", SCC composition: " + nodesToLoad);
-                continue;
+            List<Edge> incomingEdges = new ArrayList<>();
+            if (onDemand) {
+                if (numNeighbors > 0) {
+                    // Compute incoming edges on-the-fly using nearest neighbor search
+                    Node node = nodeMap.get(nodeId);
+                    
+                    // NNSearch
+                    @SuppressWarnings("unchecked")
+                    List<Point<Object>> neighbors = ((NearestNeighbourSearchAlgorithm<Object>) nnAlgorithm)
+                        .neighbourSearch((Point<Object>) node.getPoint(), numNeighbors);
+
+                    for (Point<?> neighbor : neighbors) {
+                        Node otherNode = new Node(neighbor);
+                        Edge edge = buildEdge(otherNode, node, distanceFunction);
+                        if (edge.getDestination().getId() == nodeId) {
+                            incomingEdges.add(edge);
+                        }
+                    }
+                }
+                else {
+                    // Complete graph. Compute all distances to other nodes
+                    Node node = nodeMap.get(nodeId);
+                    for (Node otherNode : nodeMap.values()) {
+                        if (otherNode.getId() != nodeId) {
+                            Edge edge = buildEdge(otherNode, node, distanceFunction);
+                            if (edge.getDestination().getId() == nodeId) {
+                                incomingEdges.add(edge);
+                            }
+                        }
+                    }
+                }
+
             }
-            
-            if (offset < 0) {
-                // No incoming edges for this node (but the node exists)
-                continue;
-            }
-            
-            // Load incoming edges for this node
-            List<Edge> incomingEdges;
-            if (edgeLoader != null) {
-                incomingEdges = edgeLoader.loadLinkedList(offset, nodeMap);
-            } else {
-                // Fallback - should rarely happen
-                incomingEdges = GraphMapper.getIncomingEdges(baseName, nodeId, nodeMap);
+            else {
+                Long offset = nodeOffsetCache.get(nodeId);
+                
+                if (offset == null) {
+                    // This node doesn't exist in the original graph - this shouldn't happen
+                    System.err.println("WARNING: Node " + nodeId + " not found in nodeOffsetCache. " +
+                                    "This indicates an issue with SCC composition tracking.");
+                    System.err.println("Representative: " + repId + ", SCC composition: " + nodesToLoad);
+                    continue;
+                }
+                
+                if (offset < 0) {
+                    // No incoming edges for this node (but the node exists)
+                    continue;
+                }
+                
+                // Load incoming edges for this node
+                if (edgeLoader != null) {
+                    incomingEdges = edgeLoader.loadLinkedList(offset, nodeMap);
+                } else {
+                    // Fallback - should rarely happen
+                    incomingEdges = GraphMapper.getIncomingEdges(baseName, nodeId, nodeMap);
+                }
             }
             
             // Insert all edges into the representative's queue
@@ -464,6 +513,25 @@ public class SerializableCameriniForest extends CameriniForest {
      */
     public boolean isUsingMemoryMappedFiles() {
         return useMemoryMappedFiles;
+    }
+
+    private Edge buildEdge(Node u, Node v, DistanceFunction distanceFunction) {
+        if (symmetric) {
+            int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
+            return new Edge(u, v, dist);
+        }
+        else {
+            Edge e;
+            if (u.getPoint().getSequence().getPositionsWithMissingData().size() <= v.getPoint().getSequence().getPositionsWithMissingData().size()) {
+                int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
+                e = new Edge(u, v, dist);
+            }
+            else {
+                int dist = (int) distanceFunction.calculate(v.getPoint().getSequence(), u.getPoint().getSequence());
+                e = new Edge(v, u, dist);
+            }
+            return e;
+        }
     }
     
     /**
