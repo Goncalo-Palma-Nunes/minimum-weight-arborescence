@@ -145,6 +145,22 @@ public class Main {
             numNeighbors = approximatesGraph();
         }
         List<Point<?>> newPoints = processSequences(sequenceType, inputSequenceFile);
+        
+        // Validate we have enough data points
+        if (newPoints.size() < 2) {
+            System.err.println("\nError: Insufficient data points!");
+            System.err.println("  - Points found: " + newPoints.size());
+            System.err.println("  - Minimum required: 2");
+            System.err.println("\nPossible causes:");
+            System.err.println("  1. CSV file has too few valid rows");
+            System.err.println("  2. Most rows were skipped due to validation errors (check warnings above)");
+            System.err.println("  3. File format is incorrect (expecting tab-separated values)");
+            System.err.println("\nPlease check your input file: " + inputSequenceFile);
+            System.exit(1);
+        }
+        
+        System.out.println("\nSuccessfully loaded " + newPoints.size() + " data points.");
+        
         NearestNeighbourSearchAlgorithm<?> nnAlgorithm = null;
         if (numNeighbors > 0) {
             sequenceLength = newPoints.get(0).getSequence().getLength();
@@ -507,7 +523,10 @@ public class Main {
      */
     private static void generateExactGraphIncrementally(List<Point<?>> points, String outputFile, String sequenceType) throws IOException {
         if (points.size() < 2) {
-            throw new IllegalArgumentException("At least 2 points are required to build a graph.");
+            throw new IllegalArgumentException(
+                "At least 2 points are required to build a graph. Found: " + points.size() + " points. " +
+                "This should have been caught earlier - please report this as a bug."
+            );
         }
         
         int sequenceLength = points.get(0).getSequence().getLength();

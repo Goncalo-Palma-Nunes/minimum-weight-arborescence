@@ -70,6 +70,8 @@ public class Parser {
 
     public static List<Object[]> readCSVLines(String filepath) {
         List<Object[]> typingDataList = new ArrayList<>();
+        int lineNumber = 1; // Start at 1, will be 2 after skipping header
+        int skippedRows = 0;
         try {
             FileReader filereader = new FileReader(filepath);
 
@@ -80,10 +82,15 @@ public class Parser {
 
             // skip header
             csvReader.readNext();
+            lineNumber++;
 
             while ((nextRecord = csvReader.readNext()) != null) {
+                lineNumber++;
+                
                 // Skip rows with insufficient data (need at least ST + 1 allele)
                 if (nextRecord.length < 2) {
+                    System.err.println("Warning: Skipping line " + lineNumber + " - insufficient columns (found " + nextRecord.length + ", need at least 2)");
+                    skippedRows++;
                     continue;
                 }
                 
@@ -92,6 +99,8 @@ public class Parser {
                 
                 // Skip rows with empty or null ST identifier
                 if (sequenceType == null || sequenceType.trim().isEmpty()) {
+                    System.err.println("Warning: Skipping line " + lineNumber + " - empty or null ST identifier");
+                    skippedRows++;
                     continue;
                 }
                 
