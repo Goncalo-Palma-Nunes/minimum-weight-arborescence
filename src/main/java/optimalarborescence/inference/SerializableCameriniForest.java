@@ -558,21 +558,29 @@ public class SerializableCameriniForest extends CameriniForest {
             return super.inferPhylogeny(graph);
         }
         
-        // Open EdgeLoader for efficient lazy loading during algorithm execution
-        String edgeFile = baseName + "_edges.dat";
-        try (EdgeListMapper.EdgeLoader loader = new EdgeListMapper.EdgeLoader(edgeFile)) {
-            this.edgeLoader = loader;
-            
-            // Run the algorithm with EdgeLoader active and custom contractionPhase
+
+        if (onDemand) {
             contractionPhase();
             List<Edge> forest = expansionPhase();
             return new Graph(forest);
-            
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to open EdgeLoader for inference", e);
-        } finally {
-            // Clean up reference
-            this.edgeLoader = null;
+        }
+        else {
+            // Open EdgeLoader for efficient lazy loading during algorithm execution
+            String edgeFile = baseName + "_edges.dat";
+            try (EdgeListMapper.EdgeLoader loader = new EdgeListMapper.EdgeLoader(edgeFile)) {
+                this.edgeLoader = loader;
+                
+                // Run the algorithm with EdgeLoader active and custom contractionPhase
+                contractionPhase();
+                List<Edge> forest = expansionPhase();
+                return new Graph(forest);
+                
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to open EdgeLoader for inference", e);
+            } finally {
+                // Clean up reference
+                this.edgeLoader = null;
+            }
         }
     }
 }
