@@ -214,6 +214,8 @@ public class Main {
         System.out.println("Arborescence cost: " + cost);
         File logFile = new File(outputFile + "_log.txt");
         try (java.io.FileWriter writer = new java.io.FileWriter(logFile)) {
+            writer.write("Num New nodes: " + newPoints.size() + "\n");
+            writer.write("Num arborescence edges: " + phylogeny.size() + "\n");
             writer.write("Execution time (ms): " + (endTime - startTime) + "\n");
             writer.write("Arborescence cost: " + cost + "\n");
         } catch (IOException e) {
@@ -339,13 +341,8 @@ public class Main {
                 List<SequenceTypingData> mlstData = Parser.processedCSVToTypingData(rawMLSTData);
                 for (int i = 0; i < mlstData.size(); i++) {
                     String identifier = Parser.getSTFromProcessedCSVLine(rawMLSTData.get(i));
-                    // TODO: IMPORTANT - Currently using loop index as Point ID instead of actual ST identifier
-                    // This is a workaround because ST identifiers can be large hexadecimal values that:
-                    //   1. Cannot fit in an int (Point requires non-negative int ID)
-                    //   2. hashCode() can overflow to negative values
-                    // This issue only occurs with specific datasets that use hex ST identifiers.
-                    // FUTURE REFACTORING: Extend Point class to support String IDs or store original ST separately
-                    points.add(new Point<>(i, mlstData.get(i)));
+                    // Use hashCode for integer identifier since hex values may be too large
+                    points.add(new Point<>(identifier.hashCode(), mlstData.get(i)));
                 }
                 break;
             case ALLELIC:
