@@ -207,6 +207,8 @@ public class Main {
         // save arborescence
         GraphMapper.saveArborescence(phylogeny, outputFile);
         long endTime = System.currentTimeMillis();
+        System.out.println("Num new nodes added: " + newPoints.size());
+        System.out.println("Num arborescence edges: " + phylogeny.size());
         System.out.println("Execution time: " + (endTime - startTime) + " ms");
 
         // Save execution time and arborescence cost to a log file
