@@ -132,6 +132,53 @@ public class ParserTest {
                 "CGAACTTTAGCAGACGGTAAAAATATTGTCATTGCATGCGGTGGTGGCGGTATTCCAGTT" + //
                 "ATAAAAAAAGAAAATACCTATGAAGGTGTTGAAGCG";
 
+    @Test
+    public void testReadCSVLinesWithHexadecimalST() {
+        String testFilepath = System.getProperty("user.dir") + "/src/test/java/optimalarborescence/unittests/parser/test_hex_st.csv";
+        List<Object[]> rawData = Parser.readCSVLines(testFilepath);
+        
+        // Verify we have 3 sequences
+        assertEquals(3, rawData.size());
+        
+        // Test 1: Small hex value (a = 10 in decimal)
+        Object[] row1 = rawData.get(0);
+        assertEquals("a", Parser.getSTFromProcessedCSVLine(row1));
+        assertEquals(100L, row1[1]);
+        assertEquals(200L, row1[2]);
+        assertEquals(300L, row1[3]);
+        assertEquals(400L, row1[4]);
+        assertEquals(500L, row1[5]);
+        
+        // Test 2: Large hex value (too large for Long)
+        Object[] row2 = rawData.get(1);
+        String largeST = Parser.getSTFromProcessedCSVLine(row2);
+        assertEquals("66d8ada072e6d80d85bf7635", largeST);
+        assertEquals(1L, row2[1]);
+        assertEquals(2L, row2[2]);
+        assertEquals(3L, row2[3]);
+        assertEquals(4L, row2[4]);
+        assertEquals(5L, row2[5]);
+        
+        // Test 3: Medium hex value (ffff = 65535 in decimal)
+        Object[] row3 = rawData.get(2);
+        assertEquals("ffff", Parser.getSTFromProcessedCSVLine(row3));
+        assertEquals(999L, row3[1]);
+        assertEquals(888L, row3[2]);
+        assertEquals(777L, row3[3]);
+        assertEquals(666L, row3[4]);
+        assertEquals(555L, row3[5]);
+        
+        // Verify processedCSVToTypingData works correctly with Object[]
+        List<SequenceTypingData> typingData = Parser.processedCSVToTypingData(rawData);
+        assertEquals(3, typingData.size());
+        
+        // Verify first sequence alleles (excluding ST)
+        SequenceTypingData seq1 = typingData.get(0);
+        assertEquals(5, seq1.getLength());
+        assertEquals(Long.valueOf(100L), seq1.getElementAt(0));
+        assertEquals(Long.valueOf(500L), seq1.getElementAt(4));
+    }
+
     private void initializeAllelicProfiles() {
         allelicSequences.add(arcC_1);
         allelicSequences.add(arcC_2);

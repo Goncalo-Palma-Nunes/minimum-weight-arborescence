@@ -319,11 +319,12 @@ public class Main {
         switch (sequenceType) {
             case MLST_SYMMETRIC:
             case MLST_MISSING_DATA:
-                List<Long[]> rawMLSTData = Parser.readCSVLines(inputFile);
+                List<Object[]> rawMLSTData = Parser.readCSVLines(inputFile);
                 List<SequenceTypingData> mlstData = Parser.processedCSVToTypingData(rawMLSTData);
                 for (int i = 0; i < mlstData.size(); i++) {
-                    long identifier = Parser.getSTFromProcessedCSVLine(rawMLSTData.get(i));
-                    points.add(new Point<>((int)identifier, mlstData.get(i)));
+                    String identifier = Parser.getSTFromProcessedCSVLine(rawMLSTData.get(i));
+                    // Use hashCode for integer identifier since hex values may be too large
+                    points.add(new Point<>(identifier.hashCode(), mlstData.get(i)));
                 }
                 break;
             case ALLELIC:

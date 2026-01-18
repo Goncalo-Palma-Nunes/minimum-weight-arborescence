@@ -68,8 +68,8 @@ public class Parser {
         return allelicProfiles;
     }
 
-    public static List<Long[]> readCSVLines(String filepath) {
-        List<Long[]> typingDataList = new ArrayList<>();
+    public static List<Object[]> readCSVLines(String filepath) {
+        List<Object[]> typingDataList = new ArrayList<>();
         try {
             FileReader filereader = new FileReader(filepath);
 
@@ -82,8 +82,9 @@ public class Parser {
             csvReader.readNext();
 
             while ((nextRecord = csvReader.readNext()) != null) {
-                Long sequenceType = Long.parseLong(nextRecord[0]); // not used currently
-                Long[] typingDataSequence = new Long[nextRecord.length];
+                // Parse hexadecimal ST identifier as String (can be too large for Long)
+                String sequenceType = nextRecord[0];
+                Object[] typingDataSequence = new Object[nextRecord.length];
                 typingDataSequence[0] = sequenceType;
                 for (int i = 1; i < nextRecord.length; i++) {
                     // check if record can be parsed to long
@@ -109,20 +110,22 @@ public class Parser {
         return typingDataList;
     }
 
-    public static List<SequenceTypingData> processedCSVToTypingData(List<Long[]> rawData) {
+    public static List<SequenceTypingData> processedCSVToTypingData(List<Object[]> rawData) {
         List<SequenceTypingData> typingDataList = new ArrayList<>();
         for (int i = 0; i < rawData.size(); i++) {
-            Long[] fullArray = rawData.get(i);
+            Object[] fullArray = rawData.get(i);
             // Extract only the allele columns (skip ST at index 0)
             Long[] alleles = new Long[fullArray.length - 1];
-            System.arraycopy(fullArray, 1, alleles, 0, fullArray.length - 1);
+            for (int j = 1; j < fullArray.length; j++) {
+                alleles[j - 1] = (Long) fullArray[j];
+            }
             typingDataList.add(new SequenceTypingData(alleles, alleles.length));
         }
         return typingDataList;
     }
 
-    public static long getSTFromProcessedCSVLine(Long[] rawData) {
-        return rawData[0];
+    public static String getSTFromProcessedCSVLine(Object[] rawData) {
+        return (String) rawData[0];
     }
 
 
