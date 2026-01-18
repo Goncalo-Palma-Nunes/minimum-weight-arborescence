@@ -75,8 +75,21 @@ public class Parser {
         try {
             FileReader filereader = new FileReader(filepath);
 
+            // First, detect the delimiter by reading the first line
+            FileReader delimiterReader = new FileReader(filepath);
+            CSVReader tempReader = new CSVReaderBuilder(delimiterReader).build();
+            String[] firstLine = tempReader.readNext();
+            tempReader.close();
+            
+            // Detect delimiter: use tab if found, otherwise use comma
+            char delimiter = ',';
+            if (firstLine != null && firstLine.length == 1 && firstLine[0].contains("\t")) {
+                delimiter = '\t';
+            }
+            System.out.println("Detected CSV delimiter: " + (delimiter == '\t' ? "tab" : "comma"));
+
             CSVReader csvReader = new CSVReaderBuilder(filereader)
-                .withCSVParser(new CSVParserBuilder().withSeparator('\t').build())
+                .withCSVParser(new CSVParserBuilder().withSeparator(delimiter).build())
                 .build();
             String[] nextRecord;
 
@@ -156,10 +169,22 @@ public class Parser {
     public static List<SequenceTypingData> parseCSVWithMissingData(String filepath) {
         List<SequenceTypingData> typingDataList = new ArrayList<>();
         try {
+            // First, detect the delimiter by reading the first line
+            FileReader delimiterReader = new FileReader(filepath);
+            CSVReader tempReader = new CSVReaderBuilder(delimiterReader).build();
+            String[] firstLine = tempReader.readNext();
+            tempReader.close();
+            
+            // Detect delimiter: use tab if found, otherwise use comma
+            char delimiter = ',';
+            if (firstLine != null && firstLine.length == 1 && firstLine[0].contains("\t")) {
+                delimiter = '\t';
+            }
+            
             FileReader filereader = new FileReader(filepath);
 
             CSVReader csvReader = new CSVReaderBuilder(filereader)
-                .withCSVParser(new CSVParserBuilder().withSeparator('\t').build())
+                .withCSVParser(new CSVParserBuilder().withSeparator(delimiter).build())
                 .build();
             String[] nextRecord;
 
