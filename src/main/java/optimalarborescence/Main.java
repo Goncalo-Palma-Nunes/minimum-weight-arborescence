@@ -152,6 +152,7 @@ public class Main {
             outputFile += "_approx_" + numNeighbors;
         }
         else { outputFile += "_exact"; }
+        if (onDemand) { outputFile += "_ondemand"; }
 
         long startTime = System.currentTimeMillis();
         persistedGraphFile = initializeGraph(sequenceType, inputSequenceFile, numNeighbors, persistedGraphFile, nnAlgorithm, newPoints, algorithmType, operationType, outputFile, onDemand);
