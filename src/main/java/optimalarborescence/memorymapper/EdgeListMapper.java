@@ -178,11 +178,12 @@ public class EdgeListMapper {
              FileChannel channel = raf.getChannel()) {
             
             raf.setLength(fileSize);
-            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, fileSize);
-            mbb.order(ByteOrder.nativeOrder());
             
-            // Write header
-            mbb.putLong(edges.size());
+            // Write header first
+            MappedByteBuffer headerBuf = channel.map(FileChannel.MapMode.READ_WRITE, 0, HEADER_SIZE);
+            headerBuf.order(ByteOrder.nativeOrder());
+            headerBuf.putLong(edges.size());
+            headerBuf.force();
             
             // Create EdgeEntry objects and assign offsets
             long currentOffset = HEADER_SIZE;
@@ -219,12 +220,27 @@ public class EdgeListMapper {
                 }
             }
             
-            // Write all edges with their link pointers
-            for (EdgeEntry entry : allEntries) {
-                writeEdgeEntry(mbb, entry);
-            }
+            // Write all edges in chunks to avoid exceeding 2GB mapping limit
+            long MAX_MAPPING_SIZE = 1_500_000_000L; // 1.5GB safe limit
+            int edgesPerChunk = (int)(MAX_MAPPING_SIZE / BYTES_PER_EDGE);
+            if (edgesPerChunk == 0) edgesPerChunk = 1;
             
-            mbb.force();
+            for (int i = 0; i < allEntries.size(); i += edgesPerChunk) {
+                int endIdx = Math.min(i + edgesPerChunk, allEntries.size());
+                int chunkSize = endIdx - i;
+                long chunkBytes = (long)chunkSize * BYTES_PER_EDGE;
+                long chunkPosition = HEADER_SIZE + (long)i * BYTES_PER_EDGE;
+                
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, chunkPosition, chunkBytes);
+                mbb.order(ByteOrder.nativeOrder());
+                
+                // Write edges in this chunk
+                for (int j = i; j < endIdx; j++) {
+                    writeEdgeEntry(mbb, allEntries.get(j));
+                }
+                
+                mbb.force();
+            }
         }
         
         return incomingEdgeOffsets;
@@ -281,21 +297,33 @@ public class EdgeListMapper {
             }
             
             long edgeCount = (size - HEADER_SIZE) / BYTES_PER_EDGE;
-            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, HEADER_SIZE, size - HEADER_SIZE);
-            mbb.order(ByteOrder.nativeOrder());
             
-            for (long i = 0; i < edgeCount; i++) {
-                int srcId = mbb.getInt();
-                int dstId = mbb.getInt();
-                int weight = mbb.getInt();
-                mbb.getLong(); // skip nextOffset
-                mbb.getLong(); // skip prevOffset
-
-                Node src = nodeMap.get(srcId);
-                Node dst = nodeMap.get(dstId);
+            // Load edges in chunks to avoid exceeding 2GB mapping limit
+            long MAX_MAPPING_SIZE = 1_500_000_000L;
+            int edgesPerChunk = (int)(MAX_MAPPING_SIZE / BYTES_PER_EDGE);
+            if (edgesPerChunk == 0) edgesPerChunk = 1;
+            
+            for (long i = 0; i < edgeCount; i += edgesPerChunk) {
+                long endIdx = Math.min(i + edgesPerChunk, edgeCount);
+                long chunkSize = (endIdx - i) * BYTES_PER_EDGE;
+                long chunkPosition = HEADER_SIZE + i * BYTES_PER_EDGE;
                 
-                if (src != null && dst != null) {
-                    edges.add(new Edge(src, dst, weight));
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, chunkPosition, chunkSize);
+                mbb.order(ByteOrder.nativeOrder());
+                
+                for (long j = i; j < endIdx; j++) {
+                    int srcId = mbb.getInt();
+                    int dstId = mbb.getInt();
+                    int weight = mbb.getInt();
+                    mbb.getLong(); // skip nextOffset
+                    mbb.getLong(); // skip prevOffset
+
+                    Node src = nodeMap.get(srcId);
+                    Node dst = nodeMap.get(dstId);
+                    
+                    if (src != null && dst != null) {
+                        edges.add(new Edge(src, dst, weight));
+                    }
                 }
             }
         }
@@ -324,24 +352,35 @@ public class EdgeListMapper {
             }
             
             long edgeCount = (size - HEADER_SIZE) / BYTES_PER_EDGE;
-            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, HEADER_SIZE, size - HEADER_SIZE);
-            mbb.order(ByteOrder.nativeOrder());
             
-            for (long i = 0; i < edgeCount; i++) {
-                int srcId = mbb.getInt();
-                int dstId = mbb.getInt();
-                int weight = mbb.getInt();
-                mbb.getLong(); // skip nextOffset
-                mbb.getLong(); // skip prevOffset
+            // Load edges in chunks to avoid exceeding 2GB mapping limit
+            long MAX_MAPPING_SIZE = 1_500_000_000L;
+            int edgesPerChunk = (int)(MAX_MAPPING_SIZE / BYTES_PER_EDGE);
+            if (edgesPerChunk == 0) edgesPerChunk = 1;
+            
+            for (long i = 0; i < edgeCount; i += edgesPerChunk) {
+                long endIdx = Math.min(i + edgesPerChunk, edgeCount);
+                long chunkSize = (endIdx - i) * BYTES_PER_EDGE;
+                long chunkPosition = HEADER_SIZE + i * BYTES_PER_EDGE;
+                
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, chunkPosition, chunkSize);
+                mbb.order(ByteOrder.nativeOrder());
+                
+                for (long j = i; j < endIdx; j++) {
+                    int srcId = mbb.getInt();
+                    int dstId = mbb.getInt();
+                    int weight = mbb.getInt();
+                    mbb.getLong(); // skip nextOffset
+                    mbb.getLong(); // skip prevOffset
 
-                
-                // Create minimal nodes on-the-fly without Sequence data / Point data (reuse same instance for same ID)
-                // Note: MLST sequences are only relevant for the nearest neighbour algorithms
-                // and distance computations. It does not matter when we just want to load edges 
-                Node src = nodeCache.computeIfAbsent(srcId, id -> new Node(id));
-                Node dst = nodeCache.computeIfAbsent(dstId, id -> new Node(id));
-                
-                edges.add(new Edge(src, dst, weight));
+                    // Create minimal nodes on-the-fly without Sequence data / Point data (reuse same instance for same ID)
+                    // Note: MLST sequences are only relevant for the nearest neighbour algorithms
+                    // and distance computations. It does not matter when we just want to load edges 
+                    Node src = nodeCache.computeIfAbsent(srcId, id -> new Node(id));
+                    Node dst = nodeCache.computeIfAbsent(dstId, id -> new Node(id));
+                    
+                    edges.add(new Edge(src, dst, weight));
+                }
             }
         }
         
