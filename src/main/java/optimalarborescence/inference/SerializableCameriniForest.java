@@ -306,7 +306,10 @@ public class SerializableCameriniForest extends CameriniForest {
                     roots.add(0, rep); // Add representative to roots to be processed again
                     for (Integer node : contractionSet) { // Merge queues involved in the cycle
                         if (rep.getId() != node) {
-                            getQueue(rep).merge(getQueue(getNodes().get(node)));
+                            MergeableHeapInterface<HeapNode> nodeQueue = getQueue(getNodes().get(node));
+                            getQueue(rep).merge(nodeQueue);
+                            // Clear the merged queue to free memory
+                            clearQueue(nodeQueue, node);
                         }
                     }
                     updateMax(rep, dst);
