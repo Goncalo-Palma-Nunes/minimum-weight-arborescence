@@ -140,7 +140,11 @@ public class CameriniForest extends StaticAlgorithm {
     }
 
     private void addLeave(TarjanForestNode node, int index) {
-        leaves[index] = node;
+        // Only set the leaf if it hasn't been set yet
+        // This prevents overwriting when multiple edges to the same destination are processed
+        if (leaves[index] == null) {
+            leaves[index] = node;
+        }
     }
 
     protected TarjanForestNode createMinNode(Edge e) {  // Rever esta parte no paper
