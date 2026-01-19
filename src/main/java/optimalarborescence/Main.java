@@ -615,10 +615,10 @@ public class Main {
                     Node nodeK = batchNodes.get(k);
                     List<Edge> nodeKEdges = nodeEdgesMap.get(nodeK);
                     Edge e = buildEdge(nodeK, nodeJ, sequenceType, distanceFunction);
-                    if (e.getSource().equals(nodeK) && e.getDestination().equals(nodeJ)) {
-                        nodeKEdges.add(e);
-                    } else {
+                    if (e.getDestination().equals(nodeJ)) {
                         nodeJEdges.add(e);
+                    } else {
+                        nodeKEdges.add(e);
                     }
                 }
             }
