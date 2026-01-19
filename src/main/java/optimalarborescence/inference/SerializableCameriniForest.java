@@ -313,9 +313,8 @@ public class SerializableCameriniForest extends CameriniForest {
                     for (Integer node : contractionSet) { // Merge queues involved in the cycle
                         if (rep.getId() != node) {
                             MergeableHeapInterface<HeapNode> nodeQueue = getQueue(getNodes().get(node));
-                            int queueSizeBefore = nodeQueue.size();
                             getQueue(rep).merge(nodeQueue);
-                            System.out.println("DEBUG: Merged queue of node " + node + " (size: " + queueSizeBefore + ") into rep " + rep.getId());
+                            System.out.println("DEBUG: Merged queue of node " + node + " into rep " + rep.getId());
                             // Clear the merged queue to free memory
                             clearQueue(nodeQueue, node);
                         }
@@ -573,6 +572,41 @@ public class SerializableCameriniForest extends CameriniForest {
      */
     public String getBaseName() {
         return baseName;
+    }
+    
+    /**
+     * Override expansionPhase to add debug output.
+     */
+    @Override
+    protected List<Edge> expansionPhase() {
+        System.out.println("\nDEBUG: Starting expansion phase");
+        
+        // Count leaves
+        int leavesCount = 0;
+        for (int i = 0; i < leaves.length; i++) {
+            if (leaves[i] != null) {
+                leavesCount++;
+            }
+        }
+        System.out.println("DEBUG: Number of non-null leaves: " + leavesCount);
+        
+        // Get initial roots
+        List<TarjanForestNode> initialRoots = getRoots();
+        System.out.println("DEBUG: Initial roots count: " + initialRoots.size());
+        
+        int removedCount = 0;
+        for (TarjanForestNode node : initialRoots) {
+            if (node.isRemove()) {
+                removedCount++;
+            }
+        }
+        System.out.println("DEBUG: Roots marked for removal: " + removedCount);
+        
+        // Call parent's expansion
+        List<Edge> result = super.expansionPhase();
+        
+        System.out.println("DEBUG: Expansion phase returned " + result.size() + " edges\n");
+        return result;
     }
     
     /**

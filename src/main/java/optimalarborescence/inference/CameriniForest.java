@@ -29,7 +29,7 @@ public class CameriniForest extends StaticAlgorithm {
 
     /** array stores the leaf nodes of the forest */
     // List<TarjanForestNode> leaves;
-    private TarjanForestNode[] leaves;
+    protected TarjanForestNode[] leaves;
 
     /** A list of vertices to be processed. Initialized with all the vertices in 𝑉 */
     protected List<Node> roots;
