@@ -222,7 +222,7 @@ public class SerializableCameriniForest extends CameriniForest {
                     // no cycle formed
                     inEdgeNode.set(root.getId(), minNode);
                     edgesSelected++;
-                    System.out.println("DEBUG: Edge selected (no cycle): " + e + ", total selected: " + edgesSelected);
+                    // System.out.println("DEBUG: Edge selected (no cycle): " + e + ", total selected: " + edgesSelected);
                     wccUnion(u, v);
                     clearQueue(q, sccFind(root).getId()); // Clear the queue to free memory
                 }
@@ -267,7 +267,7 @@ public class SerializableCameriniForest extends CameriniForest {
 
                     Node rep = sccFind(maxWeightEdge.getDestination());
                     cyclesDetected++;
-                    System.out.println("DEBUG: Cycle detected #" + cyclesDetected + ", cycle size: " + edgeNodesInCycle.size() + ", rep: " + rep.getId());
+                    // System.out.println("DEBUG: Cycle detected #" + cyclesDetected + ", cycle size: " + edgeNodesInCycle.size() + ", rep: " + rep.getId());
                     
                     // Track SCC composition for lazy queue re-initialization
                     // Collect all original node IDs being merged into this SCC
@@ -315,7 +315,7 @@ public class SerializableCameriniForest extends CameriniForest {
                         if (rep.getId() != node) {
                             MergeableHeapInterface<HeapNode> nodeQueue = getQueue(getNodes().get(node));
                             getQueue(rep).merge(nodeQueue);
-                            System.out.println("DEBUG: Merged queue of node " + node + " into rep " + rep.getId());
+                            // System.out.println("DEBUG: Merged queue of node " + node + " into rep " + rep.getId());
                             // Clear the merged queue to free memory
                             clearQueue(nodeQueue, node);
                         }
@@ -324,10 +324,10 @@ public class SerializableCameriniForest extends CameriniForest {
                     cycleEdgeNodes.set(rep.getId(), edgeNodesInCycle);
                 }
             }
-        System.out.println("\nDEBUG: Contraction phase complete:");
-        System.out.println("  - Edges selected (no cycle): " + edgesSelected);
-        System.out.println("  - Cycles detected: " + cyclesDetected);
-        System.out.println("  - Nodes in rset: " + rset.size());
+        // System.out.println("\nDEBUG: Contraction phase complete:");
+        // System.out.println("  - Edges selected (no cycle): " + edgesSelected);
+        // System.out.println("  - Cycles detected: " + cyclesDetected);
+        // System.out.println("  - Nodes in rset: " + rset.size());
         
         // Count non-null entries in inEdgeNode
         int nonNullEdges = 0;
@@ -336,7 +336,7 @@ public class SerializableCameriniForest extends CameriniForest {
                 nonNullEdges++;
             }
         }
-        System.out.println("  - Non-null entries in inEdgeNode: " + nonNullEdges);
+        // System.out.println("  - Non-null entries in inEdgeNode: " + nonNullEdges);
     }
     
     /**
@@ -400,7 +400,7 @@ public class SerializableCameriniForest extends CameriniForest {
         // Find the SCC representative for this node
         Node rep = sccFind(v);
         int repId = rep.getId();
-        System.out.println("DEBUG: Initializing queue for node " + v.getId() + " (rep: " + repId + ")");
+        // System.out.println("DEBUG: Initializing queue for node " + v.getId() + " (rep: " + repId + ")");
         
         // Determine which nodes' edges need to be loaded
         Set<Integer> nodesToLoad;
@@ -422,7 +422,7 @@ public class SerializableCameriniForest extends CameriniForest {
         // Get the queue for the representative (this is the merged queue)
         MergeableHeapInterface<HeapNode> queue = queues.get(repId);
         
-        System.out.println("DEBUG:   - Loading edges for " + nodesToLoad.size() + " node(s): " + nodesToLoad);
+        // System.out.println("DEBUG:   - Loading edges for " + nodesToLoad.size() + " node(s): " + nodesToLoad);
         
         // Load and insert edges for all nodes in the SCC
         int totalEdgesLoaded = 0;
@@ -473,7 +473,7 @@ public class SerializableCameriniForest extends CameriniForest {
                 
                 if (offset < 0) {
                     // No incoming edges for this node (but the node exists)
-                    System.out.println("DEBUG:     Node " + nodeId + " has no incoming edges (offset < 0)");
+                    // System.out.println("DEBUG:     Node " + nodeId + " has no incoming edges (offset < 0)");
                     continue;
                 }
                 
@@ -484,7 +484,7 @@ public class SerializableCameriniForest extends CameriniForest {
                     // Fallback - should rarely happen
                     incomingEdges = GraphMapper.getIncomingEdges(baseName, nodeId, nodeMap);
                 }
-                System.out.println("DEBUG:     Node " + nodeId + " loaded " + incomingEdges.size() + " edges from file (offset: " + offset + ")");
+                // System.out.println("DEBUG:     Node " + nodeId + " loaded " + incomingEdges.size() + " edges from file (offset: " + offset + ")");
             }
             
             // Insert all edges into the representative's queue
@@ -493,7 +493,7 @@ public class SerializableCameriniForest extends CameriniForest {
             }
             totalEdgesLoaded += incomingEdges.size();
         }
-        System.out.println("DEBUG:   - Total edges inserted into queue for rep " + repId + ": " + totalEdgesLoaded);
+        // System.out.println("DEBUG:   - Total edges inserted into queue for rep " + repId + ": " + totalEdgesLoaded);
     }
     
     /**
@@ -584,33 +584,33 @@ public class SerializableCameriniForest extends CameriniForest {
      */
     @Override
     protected List<Edge> expansionPhase() {
-        System.out.println("\nDEBUG: Starting expansion phase");
+        // System.out.println("\nDEBUG: Starting expansion phase");
         
         // Count leaves
-        int leavesCount = 0;
-        for (int i = 0; i < leaves.length; i++) {
-            if (leaves[i] != null) {
-                leavesCount++;
-            }
-        }
-        System.out.println("DEBUG: Number of non-null leaves: " + leavesCount);
+        // int leavesCount = 0;
+        // for (int i = 0; i < leaves.length; i++) {
+        //     if (leaves[i] != null) {
+        //         leavesCount++;
+        //     }
+        // }
+        // System.out.println("DEBUG: Number of non-null leaves: " + leavesCount);
         
         // Get initial roots
-        List<TarjanForestNode> initialRoots = getRoots();
-        System.out.println("DEBUG: Initial roots count: " + initialRoots.size());
+        // List<TarjanForestNode> initialRoots = getRoots();
+        // System.out.println("DEBUG: Initial roots count: " + initialRoots.size());
         
-        int removedCount = 0;
-        for (TarjanForestNode node : initialRoots) {
-            if (node.isRemove()) {
-                removedCount++;
-            }
-        }
-        System.out.println("DEBUG: Roots marked for removal: " + removedCount);
+        // int removedCount = 0;
+        // for (TarjanForestNode node : initialRoots) {
+        //     if (node.isRemove()) {
+        //         removedCount++;
+        //     }
+        // }
+        // System.out.println("DEBUG: Roots marked for removal: " + removedCount);
         
         // Call parent's expansion
         List<Edge> result = super.expansionPhase();
         
-        System.out.println("DEBUG: Expansion phase returned " + result.size() + " edges\n");
+        // System.out.println("DEBUG: Expansion phase returned " + result.size() + " edges\n");
         return result;
     }
     
