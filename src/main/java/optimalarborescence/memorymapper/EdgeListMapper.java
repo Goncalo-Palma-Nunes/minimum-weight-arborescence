@@ -936,10 +936,6 @@ public class EdgeListMapper {
             // Pre-allocate file space
             raf.setLength(newFileSize);
             
-            // Map the region for all new edges at once
-            MappedByteBuffer edgeMbb = channel.map(FileChannel.MapMode.READ_WRITE, appendPosition, totalEdgeSize);
-            edgeMbb.order(ByteOrder.nativeOrder());
-            
             // Get existing offsets for all nodes that need updating
             Set<Integer> nodeIds = new HashSet<>();
             for (Node node : existingNodeNewEdges.keySet()) {
@@ -952,6 +948,14 @@ public class EdgeListMapper {
             Map<Long, Long> edgeUpdates = new HashMap<>(); // offset -> new prev value
             
             long currentOffset = appendPosition;
+            
+            // Use chunked writing to avoid Integer.MAX_VALUE limitation (2GB)
+            // Maximum safe chunk size: Integer.MAX_VALUE bytes (~2GB)
+            final long MAX_CHUNK_SIZE = Integer.MAX_VALUE - 1000; // Small safety margin
+            
+            long currentChunkStart = appendPosition;
+            MappedByteBuffer edgeMbb = null;
+            long currentChunkEnd = 0;
             
             // Write all new edges
             for (Map.Entry<Node, List<Edge>> entry : existingNodeNewEdges.entrySet()) {
@@ -978,7 +982,25 @@ public class EdgeListMapper {
                     // Link to next new edge, or to existing list at the end
                     long nextOffset = (i < edges.size() - 1) ? (currentOffset + BYTES_PER_EDGE) : existingFirstOffset;
                     
-                    // Write edge data
+                    // Check if we need to map a new chunk (or if this is the first edge)
+                    if (edgeMbb == null || currentOffset >= currentChunkEnd) {
+                        // Force previous chunk if it exists
+                        if (edgeMbb != null) {
+                            edgeMbb.force();
+                        }
+                        
+                        // Calculate size of new chunk: remaining bytes or MAX_CHUNK_SIZE, whichever is smaller
+                        long remainingBytes = newFileSize - currentOffset;
+                        long chunkSize = Math.min(remainingBytes, MAX_CHUNK_SIZE);
+                        
+                        // Map new chunk
+                        currentChunkStart = currentOffset;
+                        currentChunkEnd = currentChunkStart + chunkSize;
+                        edgeMbb = channel.map(FileChannel.MapMode.READ_WRITE, currentChunkStart, chunkSize);
+                        edgeMbb.order(ByteOrder.nativeOrder());
+                    }
+                    
+                    // Write edge data (position within current chunk)
                     edgeMbb.putInt(edge.getSource().getId());
                     edgeMbb.putInt(edge.getDestination().getId());
                     edgeMbb.putInt(edge.getWeight());
@@ -996,7 +1018,10 @@ public class EdgeListMapper {
                 }
             }
             
-            edgeMbb.force();
+            // Force final chunk
+            if (edgeMbb != null) {
+                edgeMbb.force();
+            }
             
             // Batch update prev pointers for existing edges
             if (!edgeUpdates.isEmpty()) {
