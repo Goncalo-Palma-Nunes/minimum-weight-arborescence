@@ -610,6 +610,124 @@ public class NodeIndexMapper {
     }
 
     /**
+     * Build a complete in-memory index of node ID to file position (byte offset).
+     * This index can be reused for multiple update operations to avoid repeated file scans.
+     * 
+     * @param fileName Path to the node data file
+     * @return Map of node ID to byte position in file where that node's data starts
+     * @throws IOException if file operations fail
+     */
+    public static Map<Integer, Long> buildNodePositionIndex(String fileName) throws IOException {
+        Map<Integer, Long> index = new HashMap<>();
+        
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
+             FileChannel channel = raf.getChannel()) {
+            
+            if (channel.size() < HEADER_SIZE) {
+                throw new IOException("Invalid file format: file too small for header");
+            }
+            
+            // Read header
+            MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
+            headerMbb.order(ByteOrder.nativeOrder());
+            int numNodes = headerMbb.getInt();
+            int mlstLength = headerMbb.getInt();
+            byte sequenceType = headerMbb.get();
+            
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
+            int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
+            
+            // Read nodes in chunks to avoid exceeding 2GB limit per mapping
+            int nodesPerChunk = (int)(MAX_MAPPING_SIZE / entrySize);
+            if (nodesPerChunk == 0) nodesPerChunk = 1;
+            
+            long fileSize = channel.size();
+            
+            for (int i = 0; i < numNodes; i += nodesPerChunk) {
+                int endIdx = Math.min(i + nodesPerChunk, numNodes);
+                int chunkSize = endIdx - i;
+                
+                long[] bounds = getChunkBounds(i, chunkSize, entrySize, fileSize);
+                long chunkStartPosition = bounds[0];
+                long size = bounds[1];
+                
+                MappedByteBuffer dataMbb = channel.map(FileChannel.MapMode.READ_ONLY, chunkStartPosition, size);
+                dataMbb.order(ByteOrder.nativeOrder());
+                
+                // Read node IDs and build index
+                for (int j = i; j < endIdx; j++) {
+                    int offsetInBuffer = (j - i) * entrySize;
+                    int nodeId = dataMbb.getInt(offsetInBuffer);
+                    long filePosition = chunkStartPosition + offsetInBuffer;
+                    index.put(nodeId, filePosition);
+                }
+            }
+        }
+        
+        return index;
+    }
+
+    /**
+     * Update multiple incoming edge offsets using a pre-built position index.
+     * This is much faster than the standard updateIncomingEdgeOffsets when nodes are scattered.
+     * 
+     * @param fileName Path to the node data file
+     * @param updatedOffsets Map of node ID to new offset value
+     * @param positionIndex Pre-built index from buildNodePositionIndex (or null to build on-the-fly)
+     * @throws IOException if file operations fail or if any node ID is not found
+     */
+    public static void updateIncomingEdgeOffsetsWithIndex(String fileName, Map<Integer, Long> updatedOffsets, 
+                                                           Map<Integer, Long> positionIndex) throws IOException {
+        if (updatedOffsets == null || updatedOffsets.isEmpty()) {
+            return;
+        }
+        
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
+             FileChannel channel = raf.getChannel()) {
+
+            if (channel.size() < HEADER_SIZE) {
+                throw new IOException("Invalid file format: file too small for header");
+            }
+            
+            // Read header to get mlstLength and sequenceType
+            MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
+            headerMbb.order(ByteOrder.nativeOrder());
+            headerMbb.getInt(); // skip numNodes
+            int mlstLength = headerMbb.getInt();
+            byte sequenceType = headerMbb.get();
+            
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
+            int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
+            
+            // Build index if not provided
+            Map<Integer, Long> index = positionIndex;
+            if (index == null) {
+                index = buildNodePositionIndex(fileName);
+            }
+            
+            // Use direct lookups to update each node's offset
+            for (Map.Entry<Integer, Long> entry : updatedOffsets.entrySet()) {
+                int nodeId = entry.getKey();
+                long newOffset = entry.getValue();
+                
+                Long nodePosition = index.get(nodeId);
+                if (nodePosition == null) {
+                    throw new IOException("Node ID " + nodeId + " not found in file");
+                }
+                
+                // Calculate offset field position: node position + node_id + mlst_data
+                long offsetFieldPosition = nodePosition + NODE_ID_BYTES + mlstLength * bytesPerElement;
+                
+                // Update the offset
+                MappedByteBuffer offsetMbb = channel.map(FileChannel.MapMode.READ_WRITE, offsetFieldPosition, Long.BYTES);
+                offsetMbb.order(ByteOrder.nativeOrder());
+                offsetMbb.putLong(newOffset);
+                offsetMbb.force();
+            }
+        }
+    }
+
+    /**
      * Update multiple incoming edge offsets in a single operation.
      * 
      * @param fileName Path to the node data file
@@ -639,8 +757,8 @@ public class NodeIndexMapper {
             int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
 
             // OPTIMIZATION: The nodes we're updating were typically just added at the END of the file
-            // So we first try to scan the last N entries. If we don't find all nodes, we fall back
-            // to scanning the entire file (needed when chunks are split).
+            // So we first try to scan the last N entries. If we don't find all nodes, we build a full index
+            // and use direct lookups (much faster than sequential scan for scattered nodes).
             int numToCheck = Math.min(updatedOffsets.size() + 1000, numNodes); // +1000 buffer for safety
             int startIndex = Math.max(0, numNodes - numToCheck);
             
@@ -684,45 +802,48 @@ public class NodeIndexMapper {
             
             regionMbb.force();
             
-            // If we didn't find all nodes in the optimized region, fall back to full file scan
+            // If we didn't find all nodes in the optimized region, use indexed approach
             if (foundNodes.size() < updatedOffsets.size()) {
                 System.out.println(String.format(
-                    "  NodeIndexMapper: Found only %d/%d nodes in last %d entries, falling back to full scan",
+                    "  NodeIndexMapper: Found only %d/%d nodes in last %d entries, using indexed lookup",
                     foundNodes.size(), updatedOffsets.size(), numToCheck));
                 
-                // Map the entire data region (from start to beginning of region we already scanned)
-                long fullDataSize = startPosition - HEADER_SIZE;
-                if (fullDataSize > 0) {
-                    MappedByteBuffer fullMbb = channel.map(FileChannel.MapMode.READ_WRITE, HEADER_SIZE, fullDataSize);
-                    fullMbb.order(ByteOrder.nativeOrder());
+                long indexBuildStart = System.currentTimeMillis();
+                Map<Integer, Long> positionIndex = buildNodePositionIndex(fileName);
+                long indexBuildTime = System.currentTimeMillis() - indexBuildStart;
+                System.out.println(String.format("  Built position index for %d nodes in %d ms", 
+                                                  positionIndex.size(), indexBuildTime));
+                
+                // Update remaining nodes using direct lookups
+                Map<Integer, Long> remainingUpdates = new HashMap<>();
+                for (Map.Entry<Integer, Long> entry : updatedOffsets.entrySet()) {
+                    if (!foundNodes.contains(entry.getKey())) {
+                        remainingUpdates.put(entry.getKey(), entry.getValue());
+                    }
+                }
+                
+                long updateStart = System.currentTimeMillis();
+                for (Map.Entry<Integer, Long> entry : remainingUpdates.entrySet()) {
+                    int nodeId = entry.getKey();
+                    long newOffset = entry.getValue();
                     
-                    offsetInRegion = 0;
-                    for (int i = 0; i < startIndex && offsetInRegion + entrySize <= fullDataSize; i++) {
-                        int currentNodeId = fullMbb.getInt(offsetInRegion);
-                        
-                        if (updatedOffsets.containsKey(currentNodeId) && !foundNodes.contains(currentNodeId)) {
-                            long newOffset = updatedOffsets.get(currentNodeId);
-                            int offsetFieldPosition = offsetInRegion + NODE_ID_BYTES + mlstLength * bytesPerElement;
-                            fullMbb.putLong(offsetFieldPosition, newOffset);
-                            foundNodes.add(currentNodeId);
-                            
-                            if (foundNodes.size() == updatedOffsets.size()) {
-                                break;
-                            }
-                        }
-                        
-                        offsetInRegion += entrySize;
+                    Long nodePosition = positionIndex.get(nodeId);
+                    if (nodePosition == null) {
+                        throw new IOException("Node ID " + nodeId + " not found in file");
                     }
                     
-                    fullMbb.force();
+                    // Calculate offset field position
+                    long offsetFieldPosition = nodePosition + NODE_ID_BYTES + mlstLength * bytesPerElement;
+                    
+                    // Update the offset
+                    MappedByteBuffer offsetMbb = channel.map(FileChannel.MapMode.READ_WRITE, offsetFieldPosition, Long.BYTES);
+                    offsetMbb.order(ByteOrder.nativeOrder());
+                    offsetMbb.putLong(newOffset);
+                    offsetMbb.force();
                 }
-            }
-            
-            // Check if any requested nodes were not found
-            for (Integer nodeId : updatedOffsets.keySet()) {
-                if (!foundNodes.contains(nodeId)) {
-                    throw new IOException("Node ID " + nodeId + " not found in file");
-                }
+                long updateTime = System.currentTimeMillis() - updateStart;
+                System.out.println(String.format("  Updated %d nodes using index in %d ms", 
+                                                  remainingUpdates.size(), updateTime));
             }
         }
     }

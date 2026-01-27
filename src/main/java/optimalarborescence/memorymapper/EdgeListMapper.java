@@ -1000,6 +1000,10 @@ public class EdgeListMapper {
                         edgeMbb.order(ByteOrder.nativeOrder());
                     }
                     
+                    // Calculate position within current chunk
+                    int positionInChunk = (int)(currentOffset - currentChunkStart);
+                    edgeMbb.position(positionInChunk);
+                    
                     // Write edge data (position within current chunk)
                     edgeMbb.putInt(edge.getSource().getId());
                     edgeMbb.putInt(edge.getDestination().getId());

@@ -545,10 +545,10 @@ public class CameriniForest extends StaticAlgorithm {
             // }
         }
 
-        System.out.println("Final set of edges (B): ");
-        for (Edge edge : B) {
-            System.out.println("\tEdge (" + edge.getSource().getId() + "," + edge.getDestination().getId() + "," + edge.getWeight() + ")");
-        }
+        // System.out.println("Final set of edges (B): ");
+        // for (Edge edge : B) {
+        //     System.out.println("\tEdge (" + edge.getSource().getId() + "," + edge.getDestination().getId() + "," + edge.getWeight() + ")");
+        // }
         return B;
     }
 
