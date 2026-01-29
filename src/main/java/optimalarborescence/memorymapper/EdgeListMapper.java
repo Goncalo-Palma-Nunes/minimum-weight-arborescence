@@ -983,7 +983,8 @@ public class EdgeListMapper {
                     long nextOffset = (i < edges.size() - 1) ? (currentOffset + BYTES_PER_EDGE) : existingFirstOffset;
                     
                     // Check if we need to map a new chunk (or if this is the first edge)
-                    if (edgeMbb == null || currentOffset >= currentChunkEnd) {
+                    // Also check if there's enough space for a complete edge (BYTES_PER_EDGE bytes)
+                    if (edgeMbb == null || currentOffset + BYTES_PER_EDGE > currentChunkEnd) {
                         // Force previous chunk if it exists
                         if (edgeMbb != null) {
                             edgeMbb.force();
