@@ -983,8 +983,9 @@ public class EdgeListMapper {
                     long nextOffset = (i < edges.size() - 1) ? (currentOffset + BYTES_PER_EDGE) : existingFirstOffset;
                     
                     // Check if we need to map a new chunk (or if this is the first edge)
-                    // Also check if there's enough space for a complete edge (BYTES_PER_EDGE bytes)
-                    if (edgeMbb == null || currentOffset + BYTES_PER_EDGE > currentChunkEnd) {
+                    // We need a new chunk if: we don't have a buffer yet, OR we're outside the current chunk, 
+                    // OR there's not enough space for a complete edge (BYTES_PER_EDGE bytes)
+                    if (edgeMbb == null || currentOffset < currentChunkStart || currentOffset + BYTES_PER_EDGE > currentChunkEnd) {
                         // Force previous chunk if it exists
                         if (edgeMbb != null) {
                             edgeMbb.force();
@@ -1003,6 +1004,16 @@ public class EdgeListMapper {
                     
                     // Calculate position within current chunk
                     int positionInChunk = (int)(currentOffset - currentChunkStart);
+                    
+                    // Sanity check: ensure position is valid
+                    if (positionInChunk < 0 || positionInChunk + BYTES_PER_EDGE > edgeMbb.limit()) {
+                        throw new IOException(String.format(
+                            "Buffer position error: positionInChunk=%d, bufferLimit=%d, BYTES_PER_EDGE=%d, " +
+                            "currentOffset=%d, currentChunkStart=%d, currentChunkEnd=%d",
+                            positionInChunk, edgeMbb.limit(), BYTES_PER_EDGE, 
+                            currentOffset, currentChunkStart, currentChunkEnd));
+                    }
+                    
                     edgeMbb.position(positionInChunk);
                     
                     // Write edge data (position within current chunk)
