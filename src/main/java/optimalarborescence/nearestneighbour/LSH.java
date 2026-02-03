@@ -28,28 +28,6 @@ import optimalarborescence.sequences.AllelicProfile;
 import optimalarborescence.graph.Node;
 import optimalarborescence.exception.NotImplementedException;
 
-/* TODO (importante) - Acho que há um bug com o parâmetero widthConcatenatedHashes
-   Com base no LSHTest.java, parece que se widthConcatenatedHashes for > que a hamming distance
-   entre as sequências, ele nunca os encontra como vizinhos, mesmo que estejam dentro de um
-   radius correto.
-
-   Pode ser só uma questão de probabilidades devido ao número de tabelas/hashes, mas não me parece
-*/
-
-
-// TODO - acho que isto também tem de ser serializável
-
-// TODO - as tabelas estão a usar array lists para os baldes. Talvez se poupe memória com linkedlists. Presumo que o ArrayList duplique a memória para amortizar as bounds
-
-// TODO - rever como parameterizar a 'capacity' e 'load factor' da HashTable da biblioteca java.util
-//        Se não definir isso, as tabelas podem ter de fazer resize + rehash muitas vezes
-
-/* TODO - perceber se a Hashtable com a List<Hash> como key funciona bem / em O(1) ou se convém ver
- * - randomized-algorithms-motwani-and-raghavan
- * - Michael L. Fredman, János Komlós, and Endre Szemerédi. 1984. Storing a Sparse Table with 0(1) Worst Case Access Time. J. ACM 31, 3 (July 1984), 538–544. https://doi.org/10.1145/828.1884
- * - CLRS intro to algorithms
- */
-
 public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
 
     /*
@@ -60,7 +38,6 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
      * Piotr Indyk and Rajeev Motwani. 1998. Approximate nearest neighbors: towards removing the curse of dimensionality. 
      * In Proceedings of the thirtieth annual ACM symposium on Theory of computing
      * 
-     * Wikipedia contributors. "Locality-sensitive hashing." Wikipedia, The Free Encyclopedia. Wikipedia, The Free Encyclopedia, 9 Aug. 2025. Web. 11 Aug. 2025. 
      */
 
     public static class Hash<T> implements Comparable<Hash<T>> {
@@ -128,7 +105,7 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
     private int minHashIndex = 0;
     private int maxHashIndex = 0;
     public List<Set<Hash<T>>> concatenatedHashes = new ArrayList<>();
-    private List<Hashtable<List<T>, List<Point<T>>>> tables = new ArrayList<>(); // TODO - rename to tables
+    private List<Hashtable<List<T>, List<Point<T>>>> tables = new ArrayList<>();
     // private DistanceFunction distanceFunction;
     private float radius;
 
@@ -202,9 +179,6 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
             }
 
             if (!uniqueHashes.contains(indices)) {
-                // System.out.println("Created concatenated hash " + (tablesCreated + 1) + ": " + hashes);
-                // System.out.println("Indices used: " + indices);
-                // System.out.println("");
                 uniqueHashes.add(indices);
                 concatenatedHashes.add(hashes);
                 tables.add(new Hashtable<>());
@@ -220,7 +194,7 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
     }
 
     @Override
-    public void storePoint(Point<T> p) { // Guarda-se o ponto em todas as tabelas?
+    public void storePoint(Point<T> p) {
         if (p.getSequence() == null) {
             throw new IllegalArgumentException("Point does not have a sequence.");
         }

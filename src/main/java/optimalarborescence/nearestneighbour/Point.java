@@ -6,7 +6,7 @@ import optimalarborescence.graph.Node;
 public class Point<T> {
     private int id;
     private Sequence<T> sequence;
-    private Node node; // Associated node
+    private Node node;
 
     // No-arg constructor for Kryo serialization
     private Point() {
@@ -49,9 +49,6 @@ public class Point<T> {
         if (this == obj) return true;
         if (!(obj instanceof Point<?>)) return false;
         Point<?> other = (Point<?>) obj;
-        System.out.println("Comparing Point " + id + " with Point " + other.id);
-        System.out.println("This sequence: " + sequence);
-        System.out.println("Other sequence: " + other.sequence);
 
         return id == other.id && sequence.equals(other.sequence);
     }

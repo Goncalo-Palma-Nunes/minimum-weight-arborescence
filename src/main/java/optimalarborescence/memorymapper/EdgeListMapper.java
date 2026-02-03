@@ -36,7 +36,7 @@ public class EdgeListMapper {
     public static final int BYTES_PER_EDGE = 28; // 3 ints + 2 longs per edge
     public static final long NO_OFFSET = -1L;
     
-    // Chunk size for batch memory mapping (2MB provides good balance between memory and I/O efficiency)
+    // Chunk size for batch memory mapping
     private static final long CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks
     
     /**
@@ -54,10 +54,6 @@ public class EdgeListMapper {
      * }
      * </pre>
      * 
-     * Benefits:
-     * - Reduces file open/close syscalls from O(n) to O(1)
-     * - Maintains lazy loading - only loads edges when requested
-     * - 2-5x performance improvement for algorithms that load many edge lists
      */
     public static class EdgeLoader implements AutoCloseable {
         private final RandomAccessFile raf;
@@ -96,8 +92,6 @@ public class EdgeListMapper {
                 }
                 
                 // Check if we need to map a new chunk
-                // We need a new chunk if: (1) we're outside the current chunk range, OR
-                // (2) there aren't enough bytes remaining in the buffer to read a full edge
                 int positionInChunk = (int) (currentOffset - currentChunkStart);
                 boolean needNewChunk = (currentOffset < currentChunkStart || currentOffset >= currentChunkEnd);
                 
@@ -138,7 +132,7 @@ public class EdgeListMapper {
                 long nextOffset = currentBuffer.getLong();
                 currentBuffer.getLong(); // skip prev offset
 
-                // Reuse Node objects from nodeMap if available (Solution C optimization)
+                // Reuse Node objects from nodeMap if available
                 Node source = nodeMap != null ? nodeMap.get(sourceId) : null;
                 Node dest = nodeMap != null ? nodeMap.get(destId) : null;
                 if (source == null) source = new Node(sourceId);
@@ -519,26 +513,15 @@ public class EdgeListMapper {
                 // Update node index to point to this first edge
                 NodeIndexMapper.updateIncomingEdgeOffset(nodeFileName, dest.getId(), newEdgeOffset);
             } else {
-                // Find the last edge in the chain for this destination
-                long currentOffset = firstEdgeOffset;
-                long lastEdgeOffset = currentOffset;
+                // Insert new edge as second element in the list (right after head)
+                // Read the head edge to get what comes after it
+                MappedByteBuffer headMbb = channel.map(FileChannel.MapMode.READ_ONLY, firstEdgeOffset, BYTES_PER_EDGE);
+                headMbb.order(ByteOrder.nativeOrder());
                 
-                while (currentOffset >= 0) {
-                    MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, currentOffset, BYTES_PER_EDGE);
-                    mbb.order(ByteOrder.nativeOrder());
-                    
-                    mbb.getInt();  // Skip source ID
-                    mbb.getInt();  // Skip dest ID
-                    mbb.getInt();  // Skip weight
-                    long nextOffset = mbb.getLong();
-                    
-                    if (nextOffset < 0) {
-                        // This is the last edge in the chain
-                        lastEdgeOffset = currentOffset;
-                        break;
-                    }
-                    currentOffset = nextOffset;
-                }
+                headMbb.getInt();  // Skip source ID
+                headMbb.getInt();  // Skip dest ID
+                headMbb.getInt();  // Skip weight
+                long headNextOffset = headMbb.getLong();
                 
                 // Write new edge at end of file
                 raf.setLength(fileSize + BYTES_PER_EDGE);
@@ -548,17 +531,26 @@ public class EdgeListMapper {
                 newEdgeMbb.putInt(edge.getSource().getId());
                 newEdgeMbb.putInt(edge.getDestination().getId());
                 newEdgeMbb.putInt(edge.getWeight());
-                newEdgeMbb.putLong(NO_OFFSET);  // No next edge
-                newEdgeMbb.putLong(lastEdgeOffset);  // Link back to previous edge
+                newEdgeMbb.putLong(headNextOffset);     // Points to what was the second edge
+                newEdgeMbb.putLong(firstEdgeOffset);    // Points back to head
                 
                 newEdgeMbb.force();
                 
-                // Update the previous last edge to point to this new edge
-                MappedByteBuffer lastEdgeMbb = channel.map(FileChannel.MapMode.READ_WRITE, 
-                    lastEdgeOffset + 12 + 8, 8);  // Position at nextOffset field (skip 3 ints + prev long)
-                lastEdgeMbb.order(ByteOrder.nativeOrder());
-                lastEdgeMbb.putLong(newEdgeOffset);
-                lastEdgeMbb.force();
+                // Update the head edge to point to this new edge as its next
+                MappedByteBuffer headUpdateMbb = channel.map(FileChannel.MapMode.READ_WRITE, 
+                    firstEdgeOffset + 12, 8);  // Position at nextOffset field (skip 3 ints)
+                headUpdateMbb.order(ByteOrder.nativeOrder());
+                headUpdateMbb.putLong(newEdgeOffset);
+                headUpdateMbb.force();
+                
+                // If there was a second edge, update its prevOffset to point to the new edge
+                if (headNextOffset >= 0) {
+                    MappedByteBuffer secondEdgeMbb = channel.map(FileChannel.MapMode.READ_WRITE, 
+                        headNextOffset + 20, 8);  // Position at prevOffset field (skip 3 ints + 1 long)
+                    secondEdgeMbb.order(ByteOrder.nativeOrder());
+                    secondEdgeMbb.putLong(newEdgeOffset);
+                    secondEdgeMbb.force();
+                }
             }
             
             // Update edge count in header
@@ -585,7 +577,6 @@ public class EdgeListMapper {
             return;
         }
         
-        // Simply add each edge one by one - they will be linked automatically
         for (Edge edge : edges) {
             addEdge(edge, fileName);
         }
@@ -593,7 +584,6 @@ public class EdgeListMapper {
     
     /**
      * Add multiple edges for multiple nodes in a single batch operation.
-     * This is MUCH more efficient than calling addEdges() multiple times.
      * Opens the file once, writes all edges, then closes.
      * 
      * If the batch is too large (>2GB), it will be automatically split into smaller chunks.
@@ -624,11 +614,6 @@ public class EdgeListMapper {
         final long MAX_EDGES_PER_CHUNK = 76_000_000L;
         
         if (totalNewEdges > MAX_EDGES_PER_CHUNK) {
-            System.out.println(String.format(
-                "EdgeListMapper.addEdgesBatch: Large batch detected (%d edges, %.2f GB). " +
-                "Splitting into chunks of %d edges...",
-                totalNewEdges, totalEdgeSize / (1024.0 * 1024.0 * 1024.0), MAX_EDGES_PER_CHUNK));
-            
             // Split into smaller batches
             Map<Node, List<Edge>> currentChunk = new HashMap<>();
             long currentChunkSize = 0;
@@ -710,24 +695,12 @@ public class EdgeListMapper {
             long appendPosition = HEADER_SIZE + (long) currentEdgeCount * BYTES_PER_EDGE;
             long totalEdgeSize = (long) totalNewEdges * BYTES_PER_EDGE;
             
-            // Sanity check - this should not happen if chunking logic is correct
-            if (totalEdgeSize > Integer.MAX_VALUE) {
-                throw new IOException(String.format(
-                    "Internal error: Batch still too large after chunking: totalNewEdges=%d, totalEdgeSize=%d bytes",
-                    totalNewEdges, totalEdgeSize));
-            }
-            
             long newFileSize = appendPosition + totalEdgeSize;
             if (newFileSize < 0) {
                 throw new IOException(String.format(
                     "File size overflow: appendPosition=%d + totalEdgeSize=%d would cause negative size",
                     appendPosition, totalEdgeSize));
             }
-            
-            System.out.println(String.format(
-                "EdgeListMapper.addEdgesBatch: totalNewEdges=%d, currentEdgeCount=%d, " +
-                "appendPosition=%d, totalEdgeSize=%d, newFileSize=%d",
-                totalNewEdges, currentEdgeCount, appendPosition, totalEdgeSize, newFileSize));
             
             // Pre-allocate file space to avoid filesystem reallocation overhead
             raf.setLength(newFileSize);
@@ -739,7 +712,7 @@ public class EdgeListMapper {
             // Track where each node's first edge is written (for updating node index)
             Map<Integer, Long> firstEdgeOffsets = new HashMap<>();
             
-            // OPTIMIZATION: Batch-load existing offsets for all nodes at once
+            // load existing offsets for all nodes at once
             Set<Integer> nodeIdsToCheck = new HashSet<>();
             for (Node destNode : nodeEdgesMap.keySet()) {
                 nodeIdsToCheck.add(destNode.getId());
@@ -871,10 +844,8 @@ public class EdgeListMapper {
                 if (!missingNodes.isEmpty()) {
                     // This is a critical error - nodes should have been added before edges
                     throw new IOException(String.format(
-                        "CRITICAL: %d destination nodes not found in node index file when updating offsets: %s. " +
+                        "%d destination nodes not found in node index file when updating offsets: %s. " +
                         "These nodes should have been added to the node index before adding edges. " +
-                        "This may indicate: (1) nodes were not added via addNodesBatch, " +
-                        "(2) file corruption, or (3) concurrent modification. " +
                         "Total nodes in this chunk: %d, Missing nodes: %s",
                         missingNodes.size(), nodeFileName, firstEdgeOffsets.size(),
                         missingNodes.size() <= 20 ? missingNodes.toString() : 
@@ -928,10 +899,6 @@ public class EdgeListMapper {
             long appendPosition = HEADER_SIZE + currentEdgeCount * BYTES_PER_EDGE;
             long totalEdgeSize = totalNewEdges * BYTES_PER_EDGE;
             long newFileSize = appendPosition + totalEdgeSize;
-            
-            System.out.println(String.format(
-                "EdgeListMapper.addEdgesToExistingNodes: totalNewEdges=%d, currentEdgeCount=%d, appendPosition=%d",
-                totalNewEdges, currentEdgeCount, appendPosition));
             
             // Pre-allocate file space
             raf.setLength(newFileSize);
@@ -1071,11 +1038,8 @@ public class EdgeListMapper {
      * Load a linked list of edges starting from a given offset in the file.
      * Follows the next pointers to retrieve all edges in the list.
      * 
-     * This method uses efficient chunked memory mapping: instead of mapping 28 bytes per edge
-     * (which causes massive OS overhead), it maps larger chunks (e.g., 2MB) and reads multiple
-     * edges from each chunk. This reduces memory mapping operations by orders of magnitude.
-     * 
-     * Performance improvement: 50-200x faster for large linked lists compared to per-edge mapping.
+     * Instead of mapping 28 bytes per edge, it maps larger chunks (e.g., 2MB) and reads multiple
+     * edges from each chunk.
      * 
      * @param filename Path to the edge list file
      * @param offset Byte offset of the first edge in the linked list
@@ -1094,7 +1058,7 @@ public class EdgeListMapper {
 
             long currentOffset = offset;
             while (currentOffset >= 0) {
-                // Bounds check: ensure offset is valid
+                // ensure offset is valid
                 if (currentOffset < 0 || currentOffset + BYTES_PER_EDGE > fileSize) {
                     System.err.println("Warning: Invalid offset " + currentOffset + 
                                      " in edge list (file size: " + fileSize + ")");
@@ -1102,8 +1066,6 @@ public class EdgeListMapper {
                 }
                 
                 // Check if we need to map a new chunk
-                // We need a new chunk if: (1) we're outside the current chunk range, OR
-                // (2) there aren't enough bytes remaining in the buffer to read a full edge
                 int positionInChunk = (int) (currentOffset - currentChunkStart);
                 boolean needNewChunk = (currentOffset < currentChunkStart || currentOffset >= currentChunkEnd);
                 
@@ -1116,9 +1078,7 @@ public class EdgeListMapper {
                 }
                 
                 if (needNewChunk) {
-                    // Calculate new chunk boundaries
                     currentChunkStart = currentOffset;
-                    // Map up to CHUNK_SIZE, but don't exceed file size
                     long remainingFileSize = fileSize - currentChunkStart;
                     long chunkSize = Math.min(CHUNK_SIZE, remainingFileSize);
                     currentChunkEnd = currentChunkStart + chunkSize;
@@ -1171,46 +1131,6 @@ public class EdgeListMapper {
             nextMbb.force();
         }
     }
-
-    // private static void updatePrevAndNextOffsets(FileChannel channel, long offset, long newNext, long newPrev) throws IOException {
-    //     MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, offset, BYTES_PER_EDGE);
-    //     mbb.order(ByteOrder.nativeOrder());
-
-    //     mbb.getInt(); // skip source ID
-    //     mbb.getInt(); // skip dest ID
-    //     mbb.getInt(); // skip weight
-    //     if (newNext != NO_CHANGE) {
-    //         mbb.putLong(newNext);
-    //     } else {
-    //         mbb.getLong(); // skip next
-    //     }
-    //     if (newPrev != NO_CHANGE) {
-    //         mbb.putLong(newPrev);
-    //     } else {
-    //         mbb.getLong(); // skip prev
-    //     }
-    //     mbb.force();
-    // }
-
-    // private static void maintainTargetListOffsetAndPointers(String filename, long targetOffset, int destId,
-    //                                                 long prevOffset, FileChannel channel) throws IOException {
-    //     if (prevOffset < 0) {
-    //         return; // Only one edge in the list
-    //     }
-    //     String nodeFileName = filename.replace("_edges.dat", "_nodes.dat");
-    //     long listHeadOffset = NodeIndexMapper.getIncomingEdgeOffset(nodeFileName, destId);
-    //     System.out.println("Current list head offset for node " + destId + " is " + listHeadOffset);
-    //     if (listHeadOffset > targetOffset) {
-    //         // New head of list
-    //         NodeIndexMapper.updateIncomingEdgeOffset(nodeFileName, destId, targetOffset);
-    //         System.out.println("Updated incoming edge offset for node " + destId + " to " + targetOffset);
-
-    //         System.out.println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-    //         updatePrevAndNextOffsets(channel, targetOffset, listHeadOffset, NO_OFFSET);
-    //         updatePrevAndNextOffsets(channel, listHeadOffset, NO_CHANGE, targetOffset);
-    //         updatePrevAndNextOffsets(channel, prevOffset, NO_OFFSET, NO_CHANGE);
-    //     }
-    // }
 
     /**
      * Maintain the target list offset and pointers when compacting the edge list file.
@@ -1486,10 +1406,6 @@ public class EdgeListMapper {
 
     /**
      * Remove all edges incident to a set of nodes in a single batch operation.
-     * This is much more efficient than calling removeEdge() multiple times.
-     * 
-     * The operation removes:
-     * - All edges where source OR destination is in the nodeIdsToRemove set
      * 
      * @param nodeIdsToRemove Set of node IDs whose incident edges should be removed
      * @param fileName Path to the edge list file
@@ -1614,8 +1530,6 @@ public class EdgeListMapper {
                 try {
                     NodeIndexMapper.updateIncomingEdgeOffsets(nodeFileName, newIncomingEdgeOffsets);
                 } catch (IOException e) {
-                    // Node file might not exist or be in an inconsistent state
-                    // This is acceptable during batch removal
                 }
             }
             

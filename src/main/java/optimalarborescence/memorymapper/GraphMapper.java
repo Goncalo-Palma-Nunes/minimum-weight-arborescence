@@ -15,8 +15,8 @@ import java.util.HashSet;
 
 /**
  * GraphMapper provides high-level methods to save and load entire graphs
- * using memory-mapped files. This class coordinates EdgeListMapper and NodeIndexMapper
- * to store graphs efficiently.
+ * using memory-mapped files. This class wraps EdgeListMapper and NodeIndexMapper
+ * to store and query graphs.
  * 
  * File Structure:
  * - {baseName}_edges.dat: Edge list sorted by destination
@@ -40,14 +40,14 @@ public class GraphMapper {
         Map<Integer, Long> incomingEdgeOffsets = EdgeListMapper.saveEdgesToMappedFile(
             graph.getEdges(), edgeFile);
         
-        // Save nodes with MLST data and offsets
+        // Save nodes with data and offsets
         NodeIndexMapper.saveGraph(graph, mlstLength, incomingEdgeOffsets, nodeFile);
     }
 
 
     /**
      * Save a graph with nodes but no edges to memory-mapped files. Useful for initializing empty graphs or
-     * when the edge weights are computed on-the-fly.
+     * when the edge weights are computed on-demand.
      * 
      * @param nodes List of nodes to save
      * @param mlstLength Fixed length for MLST data (in bytes)
@@ -94,21 +94,6 @@ public class GraphMapper {
         }
         
         return graph;
-    }
-
-    /**
-     * Load a directed graph from memory-mapped files.
-     * @param <T> Type of data in the graph nodes
-     * @param baseName Base name for input files
-     * @param nnAlgorithm Nearest neighbour search algorithm to use
-     * @param numNeighbors Maximum number of neighbours per node
-     * @return Loaded DirectedGraph object
-     * @throws IOException
-     */
-    public static <T> DirectedGraph<T> loadDirectedGraph(String baseName, NearestNeighbourSearchAlgorithm<T> nnAlgorithm, int numNeighbors) throws IOException {
-        Graph baseGraph = loadGraph(baseName); // TODO - refatorizar para não estar a criar 2 grafos
-        DirectedGraph<T> directedGraph = new DirectedGraph<>(nnAlgorithm, numNeighbors, baseGraph);
-        return directedGraph;
     }
 
     public static Map<Integer, Node> loadNodeMap(String baseName) throws IOException {
@@ -178,8 +163,6 @@ public class GraphMapper {
 
     /**
      * Add a single node and its incident edges to the graph files.
-     * This method handles both incoming edges (edges to the new node) and outgoing edges
-     * (edges from the new node to existing nodes).
      *
      * @param node Node to add
      * @param incomingEdges List of edges pointing TO the new node
@@ -207,7 +190,6 @@ public class GraphMapper {
     
     /**
      * Add a single node and its incoming edges to the graph files.
-     * Use this overload when there are no outgoing edges from the new node.
      *
      * @param node Node to add
      * @param incomingEdges List of edges pointing TO the new node
@@ -221,7 +203,6 @@ public class GraphMapper {
     
     /**
      * Add multiple nodes and their edges in a single batch operation.
-     * This is much more efficient than calling addNode() multiple times.
      * 
      * @param nodes List of nodes to add
      * @param nodeEdges Map of node to its incoming edges
@@ -242,7 +223,7 @@ public class GraphMapper {
         // Add edges for new nodes in one batch operation
         EdgeListMapper.addEdgesBatch(nodeEdges, edgeFile);
         
-        // Add edges to existing nodes (edges from new nodes TO existing nodes)
+        // Add edges incoming to existing nodes
         if (existingNodeNewEdges != null && !existingNodeNewEdges.isEmpty()) {
             EdgeListMapper.addEdgesToExistingNodes(existingNodeNewEdges, nodeFile, edgeFile);
         }
@@ -259,10 +240,6 @@ public class GraphMapper {
 
         List<Long> outgoingEdgeOffsets = EdgeListMapper.getOutgoingEdgeOffsets(edgeFile, node.getId());
 
-        // TODO - já que tenho de percorrer o ficheiro para obter as outgoing edges
-        // talvez seja melhor não usar removeLinkedList, mas simplesmente 
-        // criar um array das arestas sem incidências/fonte no nó e guardar isso
-
         int iterator = outgoingEdgeOffsets.size() - 1;
         while (iterator >= 0) {
             EdgeListMapper.removeEdgeAtOffset(edgeFile, outgoingEdgeOffsets.get(iterator));
@@ -274,11 +251,10 @@ public class GraphMapper {
 
     /**
      * Remove multiple nodes and their incident edges in a single batch operation.
-     * This is MUCH more efficient than calling removeNode() multiple times.
-     * 
+     * <p>
      * The operation removes:
-     * 1. All edges where source OR destination is in the nodes list
-     * 2. All node entries from the node index
+     * 1. All edges where the source or destination node is in the nodes list
+     * 2. All corresponding node entries from the node index
      * 
      * @param nodes List of nodes to remove
      * @param baseName Base name for files

@@ -185,10 +185,6 @@ public class Main {
                 phylogeny = runDynamicCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, operationType);
                 break;
             case NEIGHBOR_JOINING:
-                // outputFile += "_neighbor_joining";
-                // DistanceMatrix distanceMatrix = (DistanceMatrix) g;
-                // NeighbourJoining nj = new NeighbourJoining(distanceMatrix, distanceMatrix.getDistanceFunction());
-                // phylogeny = nj.inferPhylogeny(null).getEdges();
                 throw new NotImplementedException("Neighbor Joining algorithm is not implemented yet.");
                 // TODO - save the graph
 
@@ -343,21 +339,15 @@ public class Main {
                 List<SequenceTypingData> mlstData = Parser.processedCSVToTypingData(rawMLSTData);
                 for (int i = 0; i < mlstData.size(); i++) {
                     String identifier = Parser.getSTFromProcessedCSVLine(rawMLSTData.get(i));
-                    // TODO: IMPORTANT - Currently using loop index as Point ID instead of actual ST identifier
-                    // This is a workaround because ST identifiers can be large hexadecimal values that:
-                    //   1. Cannot fit in an int (Point requires non-negative int ID)
-                    //   2. hashCode() can overflow to negative values
-                    // This issue only occurs with specific datasets that use hex ST identifiers.
-                    // FUTURE REFACTORING: Extend Point class to support String IDs or store original ST separately
                     points.add(new Point<>(i, mlstData.get(i)));
                 }
                 break;
             case ALLELIC:
-                // TODO - implementar
+                // TO DO - implementar
                 throw new NotImplementedException("Handling of allelic sequences has not been implemented yet.");
                 // List<AllelicProfile> allelicProfiles = Parser.fastaToAllelicProfiles(inputFile);
 
-                // // TODO - estes IDs estão inválidos para os perfis alélicos
+                // // Nota - estes IDs estão inválidos para os perfis alélicos
                 // // - Criar IDs sequencialmete, se for a 1ª execução do algoritmo
                 // // - Ou extrair do grafo persistido, se for uma continuação
                 // for (int i = 0; i < allelicProfiles.size(); i++) {
@@ -406,7 +396,6 @@ public class Main {
 
         if (algorithmType.equals(NEIGHBOR_JOINING)) {
             // Create full DistanceMatrix from points
-            // return new DistanceMatrix(new HammingDistance(), points);
             throw new NotImplementedException("Building DistanceMatrix from scratch is not implemented yet.");
         }
         else { // exact graph
@@ -521,11 +510,8 @@ public class Main {
      * Generates an exact graph incrementally to avoid memory overflow.
      * Creates initial graph with 2 nodes, saves to memory-mapped file,
      * then adds remaining nodes in batches, computing and persisting edges incrementally.
-     * 
-     * Only stores upper triangle of distance matrix (edges from existing nodes to new nodes)
-     * to avoid redundant storage since distance(A,B) = distance(B,A).
-     * 
-     * Does NOT maintain an in-memory Graph - writes directly to memory-mapped files.
+     * <p>
+     * Writes directly to memory-mapped files.
      * 
      * @param points All points to include in the graph
      * @param outputFile Path for the memory-mapped graph file
@@ -539,34 +525,31 @@ public class Main {
         }
         
         int sequenceLength = points.get(0).getSequence().getLength();
-        // DistanceFunction distanceFunction = new HammingDistance();
         DistanceFunction distanceFunction = SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance();
         
-        // Step 1: Initialize with first 2 nodes
-        // System.out.println("Initializing graph with first 2 nodes...");
+        // Initialize with first 2 nodes
         List<Node> initialNodes = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             initialNodes.add(new Node(points.get(i).getSequence(), points.get(i).getId()));
         }
         
-        // Create minimal graph with just 2 nodes and 1 edge (upper triangle)
+        // Create minimal graph with just 2 nodes
         Graph graph = new Graph(new ArrayList<>());
         graph.addNode(initialNodes.get(0));
         graph.addNode(initialNodes.get(1));
         
         // Create first edge
         graph.addEdge(buildEdge(initialNodes.get(0), initialNodes.get(1), sequenceType, distanceFunction));
+        // TODO - ADICIONAR EDGE NA OUTRA DIREÇÃO TAMBÉM
         
         // Save initial graph to memory-mapped file
         ensureDirectoryExists(outputFile);
         GraphMapper.saveGraph(graph, sequenceLength, outputFile);
-        // System.out.println("Initial graph saved. Adding remaining nodes in batches...");
         
-        // Keep a lightweight cache of ALL nodes (just for distance computation)
-        // This avoids expensive file reloads for every batch
+        // Keep a cache of nodes
         List<Node> allNodes = new ArrayList<>(initialNodes);
         
-        // Step 2: Add remaining nodes in batches
+        // Add remaining nodes in batches
         int totalPoints = points.size();
         long startTime = System.currentTimeMillis();
         
@@ -584,7 +567,7 @@ public class Main {
                 batchNodes.add(new Node(point.getSequence(), point.getId()));
             }
             
-            // Prepare edges for all new nodes (UPPER TRIANGLE ONLY)
+            // Prepare edges for all new nodes
             // Use cached allNodes instead of reloading from file
             Map<Node, List<Edge>> nodeEdgesMap = new HashMap<>();
             
@@ -605,7 +588,7 @@ public class Main {
             long distEnd = System.currentTimeMillis();
             System.out.println("Distance computation: " + (distEnd - distStart) + " ms");
             
-            // Add intra-batch edges (upper triangle within batch)
+            // Add intra-batch edges
             System.out.println("Computing intra-batch edges...");
             for (int j = 0; j < batchNodes.size(); j++) {
                 Node nodeJ = batchNodes.get(j);
@@ -671,7 +654,7 @@ public class Main {
         // Maintain node map for efficiency
         Map<Integer, Node> nodeMap = new HashMap<>();
         
-        // Step 1: Initialize with first 2 nodes
+        // Initialize with first 2 nodes
         List<Node> initialNodes = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             Node node = new Node(points.get(i).getSequence(), points.get(i).getId());
@@ -679,11 +662,12 @@ public class Main {
             nodeMap.put(node.getId(), node);
         }
         
-        // Create minimal graph with 2 nodes and 1 edge
+        // Create minimal graph with 2 nodes
         Graph graph = new Graph(new ArrayList<>());
         graph.addNode(initialNodes.get(0));
         graph.addNode(initialNodes.get(1));
         graph.addEdge(buildEdge(initialNodes.get(0), initialNodes.get(1), sequenceType, distanceFunction));
+        // TODO - ADICIONAR EDGE NA OUTRA DIREÇÃO TAMBÉM
         
         // Add initial nodes to NN algorithm
         for (Node node : initialNodes) {
@@ -696,7 +680,7 @@ public class Main {
         ensureDirectoryExists(outputFile);
         GraphMapper.saveGraph(graph, sequenceLength, outputFile);
         
-        // Step 2: Add remaining nodes in batches
+        // Add remaining nodes in batches
         int totalPoints = points.size();
         long startTime = System.currentTimeMillis();
         
@@ -815,7 +799,7 @@ public class Main {
     /**
      * Adds nodes incrementally to an existing graph, computing and persisting edges in batches
      * to avoid memory overflow. Only stores upper triangle edges (from existing to new nodes).
-     * 
+     * <p>
      * Uses a memory cache of nodes to avoid expensive file reloads.
      * 
      * @param nodesToAdd List of nodes to add
@@ -832,13 +816,13 @@ public class Main {
         
         System.out.println("Adding " + nodesToAdd.size() + " nodes incrementally...");
         
-        // Load existing nodes from file ONCE
+        // Load existing nodes from file
         Map<Integer, Node> existingNodeMap = GraphMapper.loadNodeMap(outputFile);
         List<Node> existingNodes = new ArrayList<>(existingNodeMap.values());
         
         System.out.println("Loaded " + existingNodes.size() + " existing nodes from file.");
         
-        // Prepare edges for all new nodes (upper triangle only)
+        // Prepare edges for all new nodes
         Map<Node, List<Edge>> nodeEdgesMap = new HashMap<>();
         Map<Node, List<Edge>> existingNodeNewEdges = new HashMap<>();  // Track edges TO existing nodes
         
@@ -985,24 +969,18 @@ public class Main {
                 throw new IllegalArgumentException("Unsupported operation type: " + operationType);
         }
         
-        System.out.println("Instantiating Static algorithm with persisted graph, where persistedGraphFile = " + persistedGraphFile);
         if (persistedGraphFile == null) {
             throw new IllegalArgumentException("Persisted graph file must be provided for Static Camerini Algorithm.");
         }
         DistanceFunction distanceFunction = SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance();
         CameriniForest camerini = new SerializableCameriniForest(EDGE_COMPARATOR, persistedGraphFile, onDemand, nnAlgorithm, numNeighbors, distanceFunction, SYMMETRIC_DATA.contains(sequenceType));
         
-        System.out.println("Inferring phylogeny using Static Camerini Algorithm...");
         return camerini.inferPhylogeny(null).getEdges();
     }
 
     private static List<Edge> runDynamicCameriniAlgorithm(String sequenceType, String inputFile, String outputFile, int numNeighbors, List<Point<?>> points, String persistedGraphFile, String operationType) throws IOException {
         // Get sequence length from any point
         int sequenceLength = points.get(0).getSequence().getLength();
-
-        // TODO - estamos a adicionar/remover nós desnecessários
-        // TODO - em vez de carregar a linked list inteira
-        // TODO - devia escolher apenas as arestas necessárias
         
         // Convert points to nodes
         List<Node> nodesToProcess = points.stream()
@@ -1017,13 +995,13 @@ public class Main {
         
         switch (operationType) {
             case ADD:
-                // Step 1: Add nodes to persisted file using batch operation (without edges, they're already computed)
+                // Add nodes to persisted file using batch operation (without edges, they're already computed)
                 GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), new HashMap<>(), persistedGraphFile, sequenceLength);
                 
-                // Step 2: Reload node map to include newly added nodes
+                // Reload node map to include newly added nodes
                 nodeMap = GraphMapper.loadNodeMap(persistedGraphFile);
                 
-                // Step 3: For each new node, get its incoming edges and add them to the dynamic algorithm
+                // For each new node, get its incoming edges and add them to the dynamic algorithm
                 for (Node newNode : nodesToProcess) {
                     List<Edge> incomingEdges = GraphMapper.getIncomingEdges(persistedGraphFile, newNode.getId(), nodeMap);
                     
@@ -1035,7 +1013,7 @@ public class Main {
                 break;
                 
             case REMOVE:
-                // Step 1: Get edges that will be removed (edges incident to nodes being removed)
+                // Get edges that will be removed (edges incident to nodes being removed)
                 String edgeFile = persistedGraphFile + "_edges.dat";
                 
                 for (Node nodeToRemove : nodesToProcess) {
@@ -1058,12 +1036,12 @@ public class Main {
                     }
                 }
                 
-                // Step 2: Remove nodes from persisted file
+                // Remove nodes from persisted file
                 GraphMapper.removeNodesBatch(nodesToProcess, persistedGraphFile, sequenceLength);
                 break;
                 
             case UPDATE:
-                // Step 1: Remove old edges from dynamic algorithm
+                // Remove old edges from dynamic algorithm
                 edgeFile = persistedGraphFile + "_edges.dat";
                 
                 for (Node nodeToUpdate : nodesToProcess) {
@@ -1086,11 +1064,11 @@ public class Main {
                     }
                 }
                 
-                // Step 2: Remove and re-add nodes to persisted file
+                // Remove and re-add nodes to persisted file
                 GraphMapper.removeNodesBatch(nodesToProcess, persistedGraphFile, sequenceLength);
                 GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), new HashMap<>(), persistedGraphFile, sequenceLength);
                 
-                // Step 3: Reload node map and add new edges to dynamic algorithm
+                // Reload node map and add new edges to dynamic algorithm
                 nodeMap = GraphMapper.loadNodeMap(persistedGraphFile);
                 for (Node updatedNode : nodesToProcess) {
                     List<Edge> incomingEdges = GraphMapper.getIncomingEdges(persistedGraphFile, updatedNode.getId(), nodeMap);
@@ -1281,7 +1259,6 @@ public class Main {
         CameriniForest camerini = new SerializableCameriniForest(EDGE_COMPARATOR, tempGraphFile, onDemand, nnAlgorithm, numNeighbors,
                 SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance(),
                 SYMMETRIC_DATA.contains(sequenceType));
-        System.out.println("Inferring phylogeny using Static Camerini Algorithm...");
         List<Edge> phylogeny = camerini.inferPhylogeny(null).getEdges();
         
         // Save phylogeny
@@ -1318,7 +1295,6 @@ public class Main {
             
             // Initialize dynamic algorithm from persisted graph
             dynamicAlgorithm = new SerializableFullyDynamicArborescence(tempGraphFile);
-            System.out.println("Inferring phylogeny using Dynamic Camerini Algorithm...");
             dynamicAlgorithm.inferPhylogeny(null);
         } else {
             // Load dynamic algorithm from persisted graph
@@ -1390,7 +1366,6 @@ public class Main {
         
         // Infer phylogeny
         NeighbourJoining nj = new NeighbourJoining(distanceMatrix, distanceMatrix.getDistanceFunction());
-        System.out.println("Inferring phylogeny using Neighbor Joining...");
         List<Edge> phylogeny = nj.inferPhylogeny(null).getEdges();
         
         // Save phylogeny

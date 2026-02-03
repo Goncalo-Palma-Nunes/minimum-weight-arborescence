@@ -22,35 +22,12 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * A serializable version of CameriniForest that works with memory-mapped files.
- * 
+ * A serializable version of CameriniForest that works with memory-mapped files or on-demand edge weight computation.
+ * <p>
  * This class enables lazy-loading of edges from memory-mapped files, reducing memory
- * consumption for large graphs during the static Camerini algorithm execution.
- * 
- * Key features:
- * - Edge lazy-loading: Graph edges loaded on-demand per node (via queue initialization)
- * - Memory efficiency: Only loads edges for nodes being processed
- * - File-based operation: Reads from memory-mapped graph files created by GraphMapper
- * 
- * What is persisted:
- * - Graph structure (nodes + edges) via GraphMapper
- * 
- * What is NOT persisted:
- * - Queue state (initialized lazily during algorithm execution)
- * - Union-find structures
- * - Temporary algorithm data structures (leaves, roots, rset, etc.)
- * 
- * Usage patterns:
- * 1. In-memory mode (backward compatibility):
- *    SerializableCameriniForest algo = new SerializableCameriniForest(graph, comparator);
- * 
- * 2. File-based lazy-loading mode:
- *    SerializableCameriniForest algo = new SerializableCameriniForest(graph, comparator, graphFilePath, sequenceLength);
- * 
- * Performance notes:
- * - Lazy-loading reduces memory for large graphs by loading edges on-demand
- * - Trade-off: Slightly slower first access per node due to file I/O
- * - Ideal for graphs where memory is constrained but disk I/O is acceptable
+ * consumption for large graphs during the static Camerini algorithm execution. Alternatively, it can
+ * compute edge weights on-demand, avoiding the large amount of disk space required by the memory mapping approach,
+ * at the expense of increased computation time.
  */
 public class SerializableCameriniForest extends CameriniForest {
     
@@ -119,7 +96,7 @@ public class SerializableCameriniForest extends CameriniForest {
     }
     
     /**
-     * Constructor for memory-mapped file operation with full lazy loading.
+     * Constructor for memory-mapped file operation with full lazy loading and on-demand edge weight computation.
      * 
      * This constructor enables true lazy loading by loading only the node structure
      * from memory-mapped files. Edges are loaded on-demand when needed during
@@ -177,8 +154,7 @@ public class SerializableCameriniForest extends CameriniForest {
     }
 
     private void clearQueue(MergeableHeapInterface<HeapNode> q, int nodeId) {
-	System.out.println("!!!! Clearing queue for node " + nodeId + " to free memory. !!!!");
-  	q.clear();
+  	    q.clear();
         queueInitialized.put(nodeId, false);
     }
 
@@ -192,8 +168,6 @@ public class SerializableCameriniForest extends CameriniForest {
      * Note: This method essentially duplicates the code from the parent class with the addition of clearing the queue.
      */
     private void contractionPhase() {
-        int edgesSelected = 0;
-        int cyclesDetected = 0;
         while (!roots.isEmpty()) {
                 Node root = roots.remove(0);
                 MergeableHeapInterface<HeapNode> q = getQueue(sccFind(root)); // priority queue of edges entering r
@@ -221,8 +195,6 @@ public class SerializableCameriniForest extends CameriniForest {
                 if (wccFind(u) != wccFind(v)) {
                     // no cycle formed
                     inEdgeNode.set(root.getId(), minNode);
-                    edgesSelected++;
-                    // System.out.println("DEBUG: Edge selected (no cycle): " + e + ", total selected: " + edgesSelected);
                     wccUnion(u, v);
                     clearQueue(q, sccFind(root).getId()); // Clear the queue to free memory
                 }
@@ -266,8 +238,6 @@ public class SerializableCameriniForest extends CameriniForest {
                     }
 
                     Node rep = sccFind(maxWeightEdge.getDestination());
-                    cyclesDetected++;
-                    // System.out.println("DEBUG: Cycle detected #" + cyclesDetected + ", cycle size: " + edgeNodesInCycle.size() + ", rep: " + rep.getId());
                     
                     // Track SCC composition for lazy queue re-initialization
                     // Collect all original node IDs being merged into this SCC
@@ -315,7 +285,6 @@ public class SerializableCameriniForest extends CameriniForest {
                         if (rep.getId() != node) {
                             MergeableHeapInterface<HeapNode> nodeQueue = getQueue(getNodes().get(node));
                             getQueue(rep).merge(nodeQueue);
-                            // System.out.println("DEBUG: Merged queue of node " + node + " into rep " + rep.getId());
                             // Clear the merged queue to free memory
                             clearQueue(nodeQueue, node);
                         }
@@ -323,20 +292,8 @@ public class SerializableCameriniForest extends CameriniForest {
                     updateMax(rep, dst);
                     cycleEdgeNodes.set(rep.getId(), edgeNodesInCycle);
                 }
-            }
-        // System.out.println("\nDEBUG: Contraction phase complete:");
-        // System.out.println("  - Edges selected (no cycle): " + edgesSelected);
-        // System.out.println("  - Cycles detected: " + cyclesDetected);
-        // System.out.println("  - Nodes in rset: " + rset.size());
-        
-        // Count non-null entries in inEdgeNode
-        int nonNullEdges = 0;
-        for (int i = 0; i < inEdgeNode.size(); i++) {
-            if (inEdgeNode.get(i) != null) {
-                nonNullEdges++;
-            }
         }
-        // System.out.println("  - Non-null entries in inEdgeNode: " + nonNullEdges);
+        
     }
     
     /**
@@ -391,7 +348,7 @@ public class SerializableCameriniForest extends CameriniForest {
     /**
      * Initialize the queue for a specific node by loading its incoming edges from disk.
      * If the node is part of an SCC, loads edges for all nodes in the SCC.
-     * Uses preloaded offset cache and EdgeLoader for maximum efficiency.
+     * Uses preloaded offset cache and EdgeLoader.
      * 
      * @param v The node whose incoming edges to load
      * @throws IOException if file operations fail
@@ -400,32 +357,25 @@ public class SerializableCameriniForest extends CameriniForest {
         // Find the SCC representative for this node
         Node rep = sccFind(v);
         int repId = rep.getId();
-        // System.out.println("DEBUG: Initializing queue for node " + v.getId() + " (rep: " + repId + ")");
         
         // Determine which nodes' edges need to be loaded
         Set<Integer> nodesToLoad;
-	//System.out.println("Initializing queue for node " + repId);
         if (sccComposition.containsKey(repId)) {
             // This is an SCC representative with merged queues
-            // Load edges for ALL nodes in this SCC
+            // Load edges for all nodes in this SCC
             nodesToLoad = sccComposition.get(repId);
-	    //System.out.println("\tNodes in the SCC: " + nodesToLoad);
-	    //System.exit(1);
         } else {
             // This node is not part of any SCC (or is a singleton SCC)
             // Load only its own edges
             nodesToLoad = new HashSet<>();
             nodesToLoad.add(repId);
-	    //System.out.println("\tSingleton SCC");
         }
         
         // Get the queue for the representative (this is the merged queue)
         MergeableHeapInterface<HeapNode> queue = queues.get(repId);
         
-        // System.out.println("DEBUG:   - Loading edges for " + nodesToLoad.size() + " node(s): " + nodesToLoad);
         
         // Load and insert edges for all nodes in the SCC
-        int totalEdgesLoaded = 0;
         for (Integer nodeId : nodesToLoad) {
             List<Edge> incomingEdges = new ArrayList<>();
             if (onDemand) {
@@ -473,7 +423,6 @@ public class SerializableCameriniForest extends CameriniForest {
                 
                 if (offset < 0) {
                     // No incoming edges for this node (but the node exists)
-                    // System.out.println("DEBUG:     Node " + nodeId + " has no incoming edges (offset < 0)");
                     continue;
                 }
                 
@@ -484,16 +433,13 @@ public class SerializableCameriniForest extends CameriniForest {
                     // Fallback - should rarely happen
                     incomingEdges = GraphMapper.getIncomingEdges(baseName, nodeId, nodeMap);
                 }
-                // System.out.println("DEBUG:     Node " + nodeId + " loaded " + incomingEdges.size() + " edges from file (offset: " + offset + ")");
             }
             
             // Insert all edges into the representative's queue
             for (Edge edge : incomingEdges) {
                 queue.insert(new HeapNode(edge, null, null));
             }
-            totalEdgesLoaded += incomingEdges.size();
         }
-        // System.out.println("DEBUG:   - Total edges inserted into queue for rep " + repId + ": " + totalEdgesLoaded);
     }
     
     /**
@@ -508,7 +454,6 @@ public class SerializableCameriniForest extends CameriniForest {
             // Use parent's initialization for in-memory operation
             super.initializeDataStructures();
         }
-        // Otherwise do nothing - we initialize lazily via getQueue()
     }
     
     /**
@@ -584,34 +529,8 @@ public class SerializableCameriniForest extends CameriniForest {
      */
     @Override
     protected List<Edge> expansionPhase() {
-        // System.out.println("\nDEBUG: Starting expansion phase");
-        
-        // Count leaves
-        // int leavesCount = 0;
-        // for (int i = 0; i < leaves.length; i++) {
-        //     if (leaves[i] != null) {
-        //         leavesCount++;
-        //     }
-        // }
-        // System.out.println("DEBUG: Number of non-null leaves: " + leavesCount);
-        
-        // Get initial roots
-        // List<TarjanForestNode> initialRoots = getRoots();
-        // System.out.println("DEBUG: Initial roots count: " + initialRoots.size());
-        
-        // int removedCount = 0;
-        // for (TarjanForestNode node : initialRoots) {
-        //     if (node.isRemove()) {
-        //         removedCount++;
-        //     }
-        // }
-        // System.out.println("DEBUG: Roots marked for removal: " + removedCount);
-        
         // Call parent's expansion
-        List<Edge> result = super.expansionPhase();
-        
-        // System.out.println("DEBUG: Expansion phase returned " + result.size() + " edges\n");
-        return result;
+        return super.expansionPhase();
     }
     
     /**

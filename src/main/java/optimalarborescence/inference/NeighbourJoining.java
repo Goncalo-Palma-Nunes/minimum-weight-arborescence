@@ -1,7 +1,6 @@
 package optimalarborescence.inference;
 
 import optimalarborescence.distance.DistanceFunction;
-import optimalarborescence.exception.*;
 import optimalarborescence.graph.DistanceMatrix;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Node;
@@ -28,7 +27,7 @@ public class NeighbourJoining implements InferenceAlgorithm {
     private List<Node> activeNodes;
     private double[][] Q;
     private List<NJEdge> tree;
-    private int nextNodeId; // For creating new internal nodes
+    private int nextNodeId; // To create new internal nodes
     private DistanceFunction distanceFunction;
 
     public NeighbourJoining(DistanceMatrix distanceMatrix, DistanceFunction distanceFunction) {
@@ -46,7 +45,7 @@ public class NeighbourJoining implements InferenceAlgorithm {
     }
     
     // /**
-    //  * Legacy constructor for backwards compatibility.
+    //  * constructor for backwards compatibility.
     //  * @deprecated Use NeighbourJoining(DistanceMatrix) instead
     //  */
     // @Deprecated

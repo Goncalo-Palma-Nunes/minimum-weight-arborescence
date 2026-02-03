@@ -19,25 +19,6 @@ import java.util.Map;
  * A serializable version of DynamicTarjanArborescence that works with memory-mapped files.
  * 
  * This class enables lazy-loading of edges and ATrees from memory-mapped files.
- * 
- * Two lazy-loading modes:
- * 1. Edge lazy-loading: Modified graph edges loaded on-demand (via queue initialization)
- * 2. ATree lazy-loading: ATree nodes and children loaded on-demand (via getATreeChildren())
- * 
- * What is persisted:
- * - Original graph (nodes + edges) via GraphMapper - for reference
- * - Modified graph (nodes + edges with reduced costs) via GraphMapper - for algorithm execution
- * - ATree forest structure via ATreeMapper
- * - Current arborescence (the solution) - to be implemented
- * 
- * What is NOT persisted:
- * - Queue state (initialized lazily during algorithm execution)
- * - Temporary algorithm data structures
- * 
- * Performance notes:
- * - Edge lazy-loading: Reduces memory for large graphs during algorithm execution
- * - ATree lazy-loading: Reduces memory for deep/wide ATree forests during dynamic operations
- * - Future enhancement: Could add LRU cache eviction for loaded nodes/edges
  */
 public class SerializableDynamicTarjanArborescence extends DynamicTarjanArborescence {
 

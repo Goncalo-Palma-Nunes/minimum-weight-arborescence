@@ -20,12 +20,10 @@ import java.util.Comparator;
 
 public class FullyDynamicArborescence extends OnlineAlgorithm {
 
-    /* Note: A Digraph is another term for a directed graph */
-
     List<ATreeNode> roots;
     Comparator<Edge> edgeComparator;
     DynamicTarjanArborescence camerini;
-    List<Edge> currentArborescence; // TODO - formar eficiente de indexar as arestas para não percorrer linearmente durante o DELETE
+    List<Edge> currentArborescence;
 
     public FullyDynamicArborescence() {
         super();
@@ -50,8 +48,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
     }
 
     public List<ATreeNode> getRoots() {
-        System.out.println("GetRoots: roots size = " + roots.size());
-        System.out.println("GetRoots: roots = " + roots);
         return roots;
     }
 
@@ -102,7 +98,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         }
 
         List<ATreeNode> removedContractions = new LinkedList<>();
-        while (N != null && !N.isRoot()) { // TODO - não deveria incluir a raíz também?
+        while (N != null && !N.isRoot()) { // deveria incluir a raíz também?
 
             if (!N.isSimpleNode()) {
                 List<ATreeNode> children = N.getATreeChildren();
@@ -158,7 +154,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         Queue<ATreeNode> queue = new LinkedList<>();
         Map<ATreeNode, Integer> accumulatedCost = new HashMap<>();
         
-        // Start with root: accumulated cost is its own cost (or 0 if it's the root with no edge)
+        // accumulated cost is its own cost (or 0 if it's the root with no edge)
         queue.add(root);
         accumulatedCost.put(root, root.isRoot() ? 0 : root.getCost());
         
@@ -211,7 +207,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
      * 
      * When DynamicTarjanArborescence runs on the partially contracted graph, it returns
      * an arborescence with edges between contracted vertices (ATree nodes). To get the
-     * full arborescence on the original graph, we need to add back all the internal
+     * full arborescence on the original graph, add back all the internal
      * cycle edges that were contracted and stored in the ATree nodes.
      * 
      * @param partialArborescence The arborescence edges from the partially contracted graph
@@ -280,13 +276,9 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             // Check if ATree structure exists
             if (this.getRoots().isEmpty()) {
                 // No ATree structure - fallback to running full Tarjan
-                // Graph updatedArborescence = camerini.inferPhylogeny(this.getGraph());
-                // this.currentArborescence = updatedArborescence.getEdges();
-                // this.roots = camerini.getATreeRoots();
                 this.currentArborescence = firstStaticInference(this.getGraph());
             } else {
                 List<ATreeNode> removedContractions = decompose(edge); // set R in Joaquim's thesis
-                // TODO - não tenho a certeza quanto ao cálculo deste removeContractions - ler melhor o paper
 
                 List<ATreeNode> V = new LinkedList<>(this.getRoots()); // V' in Joaquim's thesis
                 List<Edge> edges = removedContractions.stream()
@@ -336,9 +328,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         // Check if leaves are initialized and accessible
         if (leaves == null || source.getId() >= leaves.length || destination.getId() >= leaves.length) {
             // Leaves not initialized - need to run full algorithm
-            // Graph updatedArborescence = camerini.inferPhylogeny(this.getGraph()); // TODO - isto não está a ter em conta a nova aresta, porque não se reinvocou o construtor
-            // this.currentArborescence = updatedArborescence.getEdges();
-            // this.roots = camerini.getATreeRoots();
             this.currentArborescence = firstStaticInference(this.getGraph());
             return this.getCurrentArborescence();
         }
@@ -349,9 +338,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         // Check if the specific leaves for these nodes are null
         if (sourceLeaf == null || destLeaf == null) {
             // Leaves not properly initialized for these nodes - run full algorithm
-            // Graph updatedArborescence = camerini.inferPhylogeny(this.getGraph());
-            // this.currentArborescence = updatedArborescence.getEdges();
-            // this.roots = camerini.getATreeRoots();
             this.currentArborescence = firstStaticInference(this.getGraph());
             return this.getCurrentArborescence();
         }
@@ -385,8 +371,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                 if (this.getRoots().isEmpty()) {
                     // No ATree structure - fallback to running full Tarjan
                     // Note: Must create a new Tarjan instance since it maintains internal state
-                    // Graph updatedArborescence = camerini.inferPhylogeny(this.getGraph());
-                    // this.roots = camerini.getATreeRoots();
                     this.currentArborescence = firstStaticInference(this.getGraph());
                 } else {
                     // Virtual deletion: recognize G(V', E') without actually removing the edge
@@ -493,16 +477,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         queue.add(rootNode);
         visited.add(rootNode);
         
-        int iterations = 0;
         while (!queue.isEmpty()) {
-            iterations++;
-            if (iterations > 10000) {
-                System.err.println("WARNING: isNodeInSubtree exceeded 10000 iterations - likely infinite loop!");
-                System.err.println("Target: " + targetNode);
-                System.err.println("Root: " + rootNode);
-                return false;
-            }
-            
             TarjanForestNode current = queue.poll();
             
             if (current.equals(targetNode)) {

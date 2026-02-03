@@ -18,23 +18,8 @@ import optimalarborescence.inference.TarjanForestNode;
  */
 public class ATreeNode extends TarjanForestNode {
 
-    /** The edge selected by the algorithm for the represented vertex. 
-     * If no edge was selected then this.edge = null and this is a root node.
-     * */
-    // private Edge edge;
-
     /** Cost of this.edge at the time it was selected for this ATreeNode */
     private int y; 
-
-    /** The parent of this ATreeNode in the ATree. 
-     * <p>
-     * this.parent = null, if this is the root node (if this.edge == null) */
-    // protected ATreeNode parent;
-
-    /** The children of this ATreeNode in the ATree. 
-     * NOTE: This shadows the parent class field intentionally since the parent field
-     * is package-private and not accessible. */
-    // protected List<ATreeNode> children;
 
     /** Whether this node is a simple node or a c-node.
      * <p>
@@ -71,10 +56,7 @@ public class ATreeNode extends TarjanForestNode {
 
     public ATreeNode(Edge edge, int y, ATreeNode parent, List<ATreeNode> children, boolean simpleNode, List<Edge> contractedEdges) {
         super(edge);
-        // this.edge = edge; // Set our shadowed field too
         this.y = y;
-        // this.parent = parent;
-        // this.children = children;
         this.simpleNode = simpleNode;
         this.contractedEdges = contractedEdges;
     }
@@ -107,14 +89,6 @@ public class ATreeNode extends TarjanForestNode {
         this.baseName = baseName;
         this.graphNodes = graphNodes;
     }
-
-    // public Edge getEdge() {
-    //     return edge;
-    // }
-
-    // public void setEdge(Edge edge) {
-    //     this.edge = edge;
-    // }
 
     public int getCost() {
         return y;

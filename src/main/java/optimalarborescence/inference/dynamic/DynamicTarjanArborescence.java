@@ -64,7 +64,7 @@ public class DynamicTarjanArborescence extends CameriniForest {
                                             Graph originalGraph) {
         List<Edge> modifiedEdges = new ArrayList<>();
         
-        // First, include all edges from the original graph to preserve node order
+        // include all edges from the original graph to preserve node order
         // This ensures the Graph constructor adds nodes in the correct order
         for (Edge edge : originalGraph.getEdges()) {
             // Check if this edge should have a reduced cost
@@ -82,8 +82,6 @@ public class DynamicTarjanArborescence extends CameriniForest {
 
     /**
      * Runs the Tarjan algorithm on the partially contracted graph with reduced costs.
-     * This is more efficient than running from scratch since the graph already has
-     * reduced costs applied from previous contractions.
      */
     @Override
     public Graph inferPhylogeny(Graph graph) {

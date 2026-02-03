@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The NodeIndexMapper class offers several static methods to save and load a graph's 
+ * The NodeIndexMapper class offers several methods to save and load a graph's 
  * nodes to and from a memory-mapped file.
  * <p>
  * 
@@ -32,8 +32,6 @@ import java.util.Set;
  * Sequence types:
  *    0 = AllelicProfile (1 byte per element - Character)
  *    1 = SequenceTypingData (8 bytes per element - Long)
- * 
- * Node IDs are now explicitly stored in the file.
  */
 public class NodeIndexMapper {
 
@@ -42,11 +40,11 @@ public class NodeIndexMapper {
     private static final byte SEQUENCE_TYPE_ALLELIC_PROFILE = 0;
     private static final byte SEQUENCE_TYPE_TYPING_DATA = 1;
     
-    // Chunked mapping constants to support files > 2GB
+    // Chunked mapping constants to support files > 2GB (Java MappedByteBuffer limit)
     private static final long MAX_MAPPING_SIZE = 1_500_000_000L; // 1.5GB safe limit per mapping
     
     /**
-     * Calculate which chunk (mapping region) a node belongs to based on entry size.
+     * Calculate which region a node belongs to based on entry size.
      */
     private static long getNodePosition(int nodeIndex, int entrySize) {
         return HEADER_SIZE + (long)nodeIndex * entrySize;
@@ -77,7 +75,7 @@ public class NodeIndexMapper {
     }
 
     /**
-     * Helper method to convert node sequence to bytes based on its type.
+     * Helper method to convert node sequence to bytes based on its sequence type.
      */
     private static byte[] sequenceToBytes(Node node, int mlstLength, byte sequenceType) {
         int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
@@ -138,7 +136,7 @@ public class NodeIndexMapper {
     } 
 
     /**
-     * Save graph nodes to a memory-mapped file.
+     * Save graph's nodes to a memory-mapped file.
      * 
      * @param nodes List of nodes to save
      * @param mlstLength Fixed length of MLST data for all nodes (number of elements)
@@ -170,7 +168,7 @@ public class NodeIndexMapper {
             headerBuf.put(sequenceType);        // sequence_type
             headerBuf.force();
             
-            // Write nodes in chunks to avoid exceeding 2GB limit per mapping
+            // Write nodes in chunks to avoid exceeding 2GB limit
             int nodesPerChunk = (int)(MAX_MAPPING_SIZE / entrySize);
             if (nodesPerChunk == 0) nodesPerChunk = 1; // Handle extremely large entries
             
@@ -209,6 +207,8 @@ public class NodeIndexMapper {
 
     /**
      * Save graph using Graph object.
+     * 
+     * Deprecated method kept around for the unit tests.
      * 
      * @param graph Graph to save
      * @param mlstLength Fixed length of MLST data
@@ -272,7 +272,7 @@ public class NodeIndexMapper {
             int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
             int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
             
-            // Read nodes in chunks to avoid exceeding 2GB limit per mapping
+            // Read nodes in chunks to avoid exceeding 2GB limit
             int nodesPerChunk = (int)(MAX_MAPPING_SIZE / entrySize);
             if (nodesPerChunk == 0) nodesPerChunk = 1;
             
@@ -369,7 +369,6 @@ public class NodeIndexMapper {
     
     /**
      * Get incoming edge offsets for multiple nodes in a single batch operation.
-     * Much more efficient than calling getIncomingEdgeOffset() multiple times.
      * 
      * @param fileName Path to the node data file
      * @param nodeIds Set of node IDs to query
@@ -442,7 +441,6 @@ public class NodeIndexMapper {
 
     /**
      * Add multiple nodes to the memory-mapped file in a single batch operation.
-     * This is more efficient than calling addNode() multiple times.
      * 
      * @param nodes List of nodes to add
      * @param fileName Path to the node data file
@@ -478,7 +476,7 @@ public class NodeIndexMapper {
             // Pre-allocate file space to avoid filesystem reallocation overhead
             raf.setLength(position + totalSize);
             
-            // Write nodes in chunks to avoid exceeding 2GB limit per mapping
+            // Write nodes in chunks to avoid exceeding 2GB limit
             int nodesPerChunk = (int)(MAX_MAPPING_SIZE / entrySize);
             if (nodesPerChunk == 0) nodesPerChunk = 1;
             
@@ -637,7 +635,7 @@ public class NodeIndexMapper {
             int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
             int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
             
-            // Read nodes in chunks to avoid exceeding 2GB limit per mapping
+            // Read nodes in chunks to avoid exceeding 2GB limit
             int nodesPerChunk = (int)(MAX_MAPPING_SIZE / entrySize);
             if (nodesPerChunk == 0) nodesPerChunk = 1;
             
@@ -668,8 +666,7 @@ public class NodeIndexMapper {
     }
 
     /**
-     * Update multiple incoming edge offsets using a pre-built position index.
-     * This is much faster than the standard updateIncomingEdgeOffsets when nodes are scattered.
+     * Update multiple incoming edge offsets using a position index (buildNodePositionIndex()).
      * 
      * @param fileName Path to the node data file
      * @param updatedOffsets Map of node ID to new offset value
@@ -756,13 +753,10 @@ public class NodeIndexMapper {
             int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
             int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
 
-            // OPTIMIZATION: The nodes we're updating were typically just added at the END of the file
-            // So we first try to scan the last N entries. If we don't find all nodes, we build a full index
-            // and use direct lookups (much faster than sequential scan for scattered nodes).
+
             int numToCheck = Math.min(updatedOffsets.size() + 1000, numNodes); // +1000 buffer for safety
             int startIndex = Math.max(0, numNodes - numToCheck);
             
-            // Map the region we need to check at ONCE (not one node at a time!)
             long startPosition = HEADER_SIZE + (long) startIndex * entrySize;
             long regionSize = (long) numToCheck * entrySize;
             
@@ -802,7 +796,7 @@ public class NodeIndexMapper {
             
             regionMbb.force();
             
-            // If we didn't find all nodes in the optimized region, use indexed approach
+            // If we didn't find all nodes in the previous region, use indexed approach
             if (foundNodes.size() < updatedOffsets.size()) {
                 System.out.println(String.format(
                     "  NodeIndexMapper: Found only %d/%d nodes in last %d entries, using indexed lookup",
@@ -929,13 +923,6 @@ public class NodeIndexMapper {
 
     /**
      * Remove multiple nodes from the memory-mapped file in a single batch operation.
-     * This is much more efficient than calling removeNode() multiple times.
-     * 
-     * The operation works by:
-     * 1. Finding all positions of nodes to remove
-     * 2. Compacting the file by moving non-removed entries forward
-     * 3. Truncating the file to the new size
-     * 4. Updating the header
      * 
      * @param nodes List of nodes to remove
      * @param fileName Path to the node data file

@@ -15,9 +15,6 @@ public class DirectedGraph<T> extends Graph {
 
     /** The maximum number of neighbours each node can have. */
     private int maxNumNeighbours;
-    
-    /** The file path to serialize the nearest neighbour search algorithm. */
-    // private String NNSearchSerializationFilePath = "nnsearch.dat"; // TODO - parameterizar
 
     /**
      * Constructs a directed graph using a nearest neighbour search algorithm to determine edges.
@@ -37,7 +34,6 @@ public class DirectedGraph<T> extends Graph {
     /**
      * Constructs a directed graph from a base graph, using a nearest neighbour search algorithm to determine edges.
      * @param searchAlgorithm the nearest neighbour search algorithm to use
-     * @param NNSearchFilePath the file path to serialize the nearest neighbour search algorithm
      * @param maxNumNeighbours the maximum number of neighbours each node can have
      * @param baseGraph the base graph from which to construct the directed graph
      */
@@ -47,7 +43,6 @@ public class DirectedGraph<T> extends Graph {
         for (Node node : baseGraph.getNodes()) {
             this.addNode(node);
         }
-        // this.NNSearchSerializationFilePath = NNSearchFilePath;
     }
 
     public DirectedGraph(NearestNeighbourSearchAlgorithm<T> searchAlgorithm, int maxNumNeighbours, List<Point<T>> points) {
@@ -90,9 +85,7 @@ public class DirectedGraph<T> extends Graph {
             if (neighborNode != null) {
                 // TODO - double ou int para a distância?
                 int distance = (int) nnSearch.getDistanceFunction().calculate(node.getMLSTdata(), neighborNode.getMLSTdata());
-                // node.addNeighbor(neighborNode, distance);
                 neighborNode.addNeighbor(node, distance);
-                // super.addEdge(new Edge(node, neighborNode, distance));
                 super.addEdge(new Edge(neighborNode, node, distance));
             }
         }

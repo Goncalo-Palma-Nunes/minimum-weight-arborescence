@@ -10,12 +10,12 @@ import java.util.List;
 public class TarjanForestNode implements Serializable, Comparable<TarjanForestNode> {
     protected Edge edge;
     protected TarjanForestNode parent;
-    protected List<TarjanForestNode> children; // TODO - passar a uma left child right sibling representation
+    protected List<TarjanForestNode> children;
     protected boolean remove; // Flag to mark nodes that should be removed during expansion phase
 
-        /** Auxiliary data structure for Tarjan's algorithm. TarjanForestNode is used to build the
-         * forest F described in Camerini's correction of Tarjan's optimum branching algorithm.
-         */
+    /** Auxiliary data structure for Tarjan's algorithm. TarjanForestNode is used to build the
+     * forest F described in Camerini's correction of Tarjan's optimum branching algorithm.
+     */
     public TarjanForestNode(Edge edge) {
         this.edge = edge;
         this.children = new ArrayList<>();
@@ -56,17 +56,11 @@ public class TarjanForestNode implements Serializable, Comparable<TarjanForestNo
     }
 
     public void addChild(TarjanForestNode child) {
-            // if (children == null) {
-            //     children = new ArrayList<>();
-            // }
         children.add(child);
     }
 
     @Override
     public String toString() {
-        // return "TarjanForestNode(\nedge=" + edge + 
-        // "\nparent=" + (parent != null ? parent.edge : null) + 
-        // "\nchildren=" + children + "\n)";
         return "(" + edge.getSource().getId() + ", " + edge.getDestination().getId() + ")";
     }
 
@@ -109,7 +103,7 @@ public class TarjanForestNode implements Serializable, Comparable<TarjanForestNo
             current = current.parent;
         }
         
-        return null; // No common ancestor (different trees)
+        return null;
     }
 
     public boolean isRemove() {

@@ -5,8 +5,6 @@ import java.util.Scanner;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
 
-import optimalarborescence.exception.NotImplementedException;
-
 import com.opencsv.CSVParserBuilder;
 
 import java.io.File;
@@ -126,9 +124,7 @@ public class Parser {
                     } catch (NumberFormatException e) {
                         typingDataSequence[i] = -1L; // or any other default value for missing data
                     }
-                    // typingDataSequence[i] = Long.parseLong(nextRecord[i]);
                 }
-                // typingDataList.add(new SequenceTypingData(typingDataSequence, typingDataSequence.length));
                 typingDataList.add(typingDataSequence);
             }
             csvReader.close();
@@ -147,11 +143,11 @@ public class Parser {
         List<SequenceTypingData> typingDataList = new ArrayList<>();
         for (int i = 0; i < rawData.size(); i++) {
             Object[] fullArray = rawData.get(i);
-            // Skip rows that don't have allele data (length must be > 1)
+            // Skip rows that don't have allelic data (length must be > 1)
             if (fullArray == null || fullArray.length < 2) {
                 continue;
             }
-            // Extract only the allele columns (skip ST at index 0)
+            // Extract only the allelic columns (skip ST at index 0)
             Long[] alleles = new Long[fullArray.length - 1];
             for (int j = 1; j < fullArray.length; j++) {
                 alleles[j - 1] = (Long) fullArray[j];
@@ -169,13 +165,11 @@ public class Parser {
     public static List<SequenceTypingData> parseCSVWithMissingData(String filepath) {
         List<SequenceTypingData> typingDataList = new ArrayList<>();
         try {
-            // First, detect the delimiter by reading the first line
             FileReader delimiterReader = new FileReader(filepath);
             CSVReader tempReader = new CSVReaderBuilder(delimiterReader).build();
             String[] firstLine = tempReader.readNext();
             tempReader.close();
             
-            // Detect delimiter: use tab if found, otherwise use comma
             char delimiter = ',';
             if (firstLine != null && firstLine.length == 1 && firstLine[0].contains("\t")) {
                 delimiter = '\t';
@@ -192,7 +186,7 @@ public class Parser {
             csvReader.readNext();
 
             while ((nextRecord = csvReader.readNext()) != null) {
-                // Skip ST column (index 0) and process only allele data (from index 1 onwards)
+                // Skip ST column (index 0) and process only allelic data (from index 1 onwards)
                 Long[] alleles = new Long[nextRecord.length - 1];
                 
                 for (int i = 1; i < nextRecord.length; i++) {
@@ -200,7 +194,6 @@ public class Parser {
                     if (nextRecord[i].trim().equals("?")) {
                         alleles[i - 1] = -1L; // Use -1 to represent missing data
                     } else {
-                        // Try to parse to long
                         try {
                             alleles[i - 1] = Long.parseLong(nextRecord[i].trim());
                         } catch (NumberFormatException e) {
