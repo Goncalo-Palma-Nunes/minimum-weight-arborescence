@@ -101,7 +101,16 @@ public class GraphMapper {
             }
         }
 
-        return new Graph(edges);
+        Graph graph = new Graph(edges);
+        
+        // Add isolated nodes (nodes not connected by any edge)
+        for (Node node : nodeMap.values()) {
+            if (!graph.getNodes().stream().anyMatch(n -> n.getId() == node.getId())) {
+                graph.addNode(node);
+            }
+        }
+        
+        return graph;
     }
 
     public static Map<Integer, Node> loadNodeMap(String baseName) throws IOException {
@@ -238,6 +247,11 @@ public class GraphMapper {
         
         // Remove all edges incident to these nodes in one batch
         EdgeListMapper.removeEdgesBatch(nodeIds, edgeFile);
+        
+        // Remove all outgoing edges from these nodes
+        for (Integer nodeId : nodeIds) {
+            EdgeListMapper.removeOutgoingEdges(edgeFile, nodeId);
+        }
         
         // Remove all nodes in one batch
         NodeIndexMapper.removeNodesBatch(nodes, nodeFile);
