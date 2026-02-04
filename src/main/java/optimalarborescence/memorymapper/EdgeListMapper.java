@@ -85,6 +85,12 @@ public class EdgeListMapper {
             edgeMbb.putInt(edge.getSource().getId());
             edgeMbb.putInt(edge.getDestination().getId());
             edgeMbb.putInt(edge.getWeight());
+            edgeMbb.force();
+            
+            // Update header with new count
+            headerMbb.position(0);
+            headerMbb.putLong(edgeCount + 1);
+            headerMbb.force();
         }
     }
 
@@ -129,6 +135,12 @@ public class EdgeListMapper {
                 edgeMbb.putInt(edge.getDestination().getId());
                 edgeMbb.putInt(edge.getWeight());
             }
+            edgeMbb.force();
+            
+            // Update header with new count
+            headerMbb.position(0);
+            headerMbb.putLong(edgeCount + edges.size());
+            headerMbb.force();
         }
     }
     

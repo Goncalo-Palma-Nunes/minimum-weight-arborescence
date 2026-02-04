@@ -429,7 +429,7 @@ public class NodeIndexMapper {
             byte sequenceType = headerMbb.get();
             
             int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
-            int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement + Long.BYTES;
+            int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement;
             
             // Read nodes in chunks to avoid exceeding 2GB limit
             int nodesPerChunk = (int)(MAX_MAPPING_SIZE / entrySize);
