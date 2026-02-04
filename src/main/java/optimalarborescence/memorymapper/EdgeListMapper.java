@@ -64,7 +64,7 @@ public class EdgeListMapper {
     public static void addEdge(Edge edge, String fileName) throws IOException {
         Node dest = edge.getDestination();
         String nodeFileName = fileName.replace("_edges.dat", "");
-        nodeFileName += "_node" + dest.getId() + ".dat";
+        nodeFileName += "_edges_node" + dest.getId() + ".dat";
         
         try (RandomAccessFile raf = new RandomAccessFile(nodeFileName, "rw");
             FileChannel channel = raf.getChannel()) {
@@ -105,7 +105,7 @@ public class EdgeListMapper {
         }
 
         String nodeFileName = fileName.replace("_edges.dat", "");
-        nodeFileName += "_node" + node.getId() + ".dat";
+        nodeFileName += "_edges_node" + node.getId() + ".dat";
 
         try (RandomAccessFile raf = new RandomAccessFile(nodeFileName, "rw");
              FileChannel channel = raf.getChannel()) {
@@ -314,7 +314,7 @@ public class EdgeListMapper {
 
     public static boolean edgeExists(String filename, int sourceId, int destId) throws IOException {
         String nodeFileName = filename.replace("_edges.dat", "");
-        nodeFileName += "_node" + destId + ".dat";
+        nodeFileName += "_edges_node" + destId + ".dat";
 
         try (RandomAccessFile raf = new RandomAccessFile(nodeFileName, "r");
             FileChannel channel = raf.getChannel()) {
@@ -344,7 +344,7 @@ public class EdgeListMapper {
 
     public static void removeEdge(String filename, int sourceId, int destId) throws IOException {
         String nodeFileName = filename.replace("_edges.dat", "");
-        nodeFileName += "_node" + destId + ".dat";
+        nodeFileName += "_edges_node" + destId + ".dat";
 
         try (RandomAccessFile raf = new RandomAccessFile(nodeFileName, "rw");
             FileChannel channel = raf.getChannel()) {
@@ -429,10 +429,10 @@ public class EdgeListMapper {
             return;
         }
 
-        // remove .dat from filename
-        String nodeFileName = fileName.replace(".dat", "");
+        // remove _edges.dat from filename
+        String baseFileName = fileName.replace("_edges.dat", "");
         for (Integer nodeId : nodeIdsToRemove) {
-            nodeFileName += "_node" + nodeId + ".dat";
+            String nodeFileName = baseFileName + "_edges_node" + nodeId + ".dat";
 
             // Delete file
             try {
@@ -447,12 +447,9 @@ public class EdgeListMapper {
         // Get node map
         Map<Integer, Node> map = NodeIndexMapper.loadNodes(filename.replace("_edges.dat", "_nodes.dat"));
 
-        // For node in the map
+        // For each node in the map, remove edges from sourceId to that node
         for (Node node : map.values()) {
-            String nodeFileName = filename.replace("_edges.dat", "");
-            nodeFileName += "_node" + node.getId() + ".dat";
-
-            removeEdge(nodeFileName, sourceId, node.getId());
+            removeEdge(filename, sourceId, node.getId());
         }
     }
 
@@ -466,7 +463,7 @@ public class EdgeListMapper {
         for (Node node : map.values()) {
             if (node.getId() == sourceId) continue;
             String nodeFileName = edgeFile.replace("_edges.dat", "");
-            nodeFileName += "_node" + node.getId() + ".dat";
+            nodeFileName += "_edges_node" + node.getId() + ".dat";
 
             List<Edge> nodeEdges = loadEdgeArray(nodeFileName);
             for (Edge edge : nodeEdges) {

@@ -68,8 +68,11 @@ public class SerializableDynamicTarjanArborescenceSimpleGraphTest {
     @After
     public void tearDown() throws IOException {
         // Clean up test files
-        Files.deleteIfExists(Paths.get(TEST_BASE_NAME + "_edges.dat"));
         Files.deleteIfExists(Paths.get(TEST_BASE_NAME + "_nodes.dat"));
+        // Clean up per-node edge files
+        for (int i = 0; i < 4; i++) {
+            Files.deleteIfExists(Paths.get(TEST_BASE_NAME + "_edges_node" + i + ".dat"));
+        }
     }
 
     @Test
@@ -147,11 +150,18 @@ public class SerializableDynamicTarjanArborescenceSimpleGraphTest {
         // Enable file-based mode - this should create the files
         algo.setBaseName(TEST_BASE_NAME, MLST_LENGTH);
 
-        // Verify files were created
-        Assert.assertTrue("Edge file should exist", 
-            Files.exists(Paths.get(TEST_BASE_NAME + "_edges.dat")));
+        // Verify files were created - check for per-node edge files
         Assert.assertTrue("Node file should exist", 
             Files.exists(Paths.get(TEST_BASE_NAME + "_nodes.dat")));
+        // At least one edge file should exist for one of the nodes
+        boolean edgeFileExists = false;
+        for (int i = 0; i < 4; i++) {
+            if (Files.exists(Paths.get(TEST_BASE_NAME + "_edges_node" + i + ".dat"))) {
+                edgeFileExists = true;
+                break;
+            }
+        }
+        Assert.assertTrue("At least one edge file should exist", edgeFileExists);
     }
 
     @Test

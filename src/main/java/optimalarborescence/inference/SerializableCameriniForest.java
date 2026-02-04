@@ -55,6 +55,7 @@ public class SerializableCameriniForest extends CameriniForest {
     public SerializableCameriniForest(Graph graph, Comparator<Edge> comparator) {
         super(graph, comparator);
         this.useMemoryMappedFiles = false;
+        this.queueInitialized = new HashMap<>();
         this.sccComposition = new HashMap<>();
     }
     

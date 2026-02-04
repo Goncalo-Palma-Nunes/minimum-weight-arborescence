@@ -54,9 +54,12 @@ public class SerializableFullyDynamicArborescenceIncrementalTest {
     @After
     public void tearDown() throws IOException {
         // Clean up test files
-        Files.deleteIfExists(Paths.get(TEST_BASE_NAME + "_edges.dat"));
         Files.deleteIfExists(Paths.get(TEST_BASE_NAME + "_nodes.dat"));
         Files.deleteIfExists(Paths.get(TEST_BASE_NAME + "_atree.dat"));
+        // Clean up per-node edge files (up to 8 nodes in larger tests)
+        for (int i = 0; i < 8; i++) {
+            Files.deleteIfExists(Paths.get(TEST_BASE_NAME + "_edges_node" + i + ".dat"));
+        }
     }
 
     @Test
@@ -111,11 +114,18 @@ public class SerializableFullyDynamicArborescenceIncrementalTest {
         // Save final state
         camerini.setBaseName(TEST_BASE_NAME, MLST_LENGTH);
         
-        // Verify files were created
-        Assert.assertTrue("Edge file should exist", 
-            Files.exists(Paths.get(TEST_BASE_NAME + "_edges.dat")));
+        // Verify files were created - check for per-node edge files
         Assert.assertTrue("Node file should exist", 
             Files.exists(Paths.get(TEST_BASE_NAME + "_nodes.dat")));
+        // At least one edge file should exist for one of the nodes
+        boolean edgeFileExists = false;
+        for (int i = 0; i < 4; i++) {
+            if (Files.exists(Paths.get(TEST_BASE_NAME + "_edges_node" + i + ".dat"))) {
+                edgeFileExists = true;
+                break;
+            }
+        }
+        Assert.assertTrue("At least one edge file should exist", edgeFileExists);
     }
 
     @Test
@@ -152,8 +162,18 @@ public class SerializableFullyDynamicArborescenceIncrementalTest {
         // Save final state
         camerini.setBaseName(TEST_BASE_NAME, MLST_LENGTH);
         
-        Assert.assertTrue("Files should be created", 
-            Files.exists(Paths.get(TEST_BASE_NAME + "_edges.dat")));
+        // Check that files were created
+        Assert.assertTrue("Node file should exist", 
+            Files.exists(Paths.get(TEST_BASE_NAME + "_nodes.dat")));
+        // At least one edge file should exist
+        boolean edgeFileExists = false;
+        for (int i = 0; i < 4; i++) {
+            if (Files.exists(Paths.get(TEST_BASE_NAME + "_edges_node" + i + ".dat"))) {
+                edgeFileExists = true;
+                break;
+            }
+        }
+        Assert.assertTrue("Files should be created", edgeFileExists);
     }
 
     @Test
@@ -257,8 +277,17 @@ public class SerializableFullyDynamicArborescenceIncrementalTest {
         // Save final state
         camerini.setBaseName(TEST_BASE_NAME, MLST_LENGTH);
         
-        Assert.assertTrue("Files should be created", 
-            Files.exists(Paths.get(TEST_BASE_NAME + "_edges.dat")));
+        // Check that files were created
+        Assert.assertTrue("Node file should exist", 
+            Files.exists(Paths.get(TEST_BASE_NAME + "_nodes.dat")));
+        boolean edgeFileExists = false;
+        for (int i = 0; i < 4; i++) {
+            if (Files.exists(Paths.get(TEST_BASE_NAME + "_edges_node" + i + ".dat"))) {
+                edgeFileExists = true;
+                break;
+            }
+        }
+        Assert.assertTrue("Files should be created", edgeFileExists);
     }
 
     @Test
@@ -316,8 +345,17 @@ public class SerializableFullyDynamicArborescenceIncrementalTest {
         // Save final state
         camerini.setBaseName(TEST_BASE_NAME, MLST_LENGTH);
         
-        Assert.assertTrue("Files should be created", 
-            Files.exists(Paths.get(TEST_BASE_NAME + "_edges.dat")));
+        // Check that files were created
+        Assert.assertTrue("Node file should exist", 
+            Files.exists(Paths.get(TEST_BASE_NAME + "_nodes.dat")));
+        boolean edgeFileExists = false;
+        for (int i = 0; i < 8; i++) {
+            if (Files.exists(Paths.get(TEST_BASE_NAME + "_edges_node" + i + ".dat"))) {
+                edgeFileExists = true;
+                break;
+            }
+        }
+        Assert.assertTrue("Files should be created", edgeFileExists);
     }
 
     @Test
@@ -393,10 +431,16 @@ public class SerializableFullyDynamicArborescenceIncrementalTest {
         camerini.setBaseName(TEST_BASE_NAME, MLST_LENGTH);
         
         // Verify files were created
-        Assert.assertTrue("Edge file should exist", 
-            Files.exists(Paths.get(TEST_BASE_NAME + "_edges.dat")));
         Assert.assertTrue("Node file should exist", 
             Files.exists(Paths.get(TEST_BASE_NAME + "_nodes.dat")));
+        boolean edgeFileExists = false;
+        for (int i = 0; i < 4; i++) {
+            if (Files.exists(Paths.get(TEST_BASE_NAME + "_edges_node" + i + ".dat"))) {
+                edgeFileExists = true;
+                break;
+            }
+        }
+        Assert.assertTrue("Edge file should exist", edgeFileExists);
         
         // Now load from the memory-mapped files
         Graph loadedGraph = optimalarborescence.memorymapper.GraphMapper.loadGraph(TEST_BASE_NAME);
@@ -479,10 +523,17 @@ public class SerializableFullyDynamicArborescenceIncrementalTest {
             outgoingEdgesFromNode4, TEST_BASE_NAME, MLST_LENGTH);
         
         // Verify the files still exist and are valid
-        Assert.assertTrue("Edge file should still exist after incremental update", 
-            Files.exists(Paths.get(TEST_BASE_NAME + "_edges.dat")));
         Assert.assertTrue("Node file should still exist after incremental update", 
             Files.exists(Paths.get(TEST_BASE_NAME + "_nodes.dat")));
+        // Check that at least one edge file exists
+        boolean anyEdgeFileExists = false;
+        for (int i = 0; i < 5; i++) {  // Now we have 5 nodes (0-4)
+            if (Files.exists(Paths.get(TEST_BASE_NAME + "_edges_node" + i + ".dat"))) {
+                anyEdgeFileExists = true;
+                break;
+            }
+        }
+        Assert.assertTrue("Edge file should still exist after incremental update", anyEdgeFileExists);
         
         // Load the graph again to verify the node was added to files
         Graph reloadedGraph = optimalarborescence.memorymapper.GraphMapper.loadGraph(TEST_BASE_NAME);

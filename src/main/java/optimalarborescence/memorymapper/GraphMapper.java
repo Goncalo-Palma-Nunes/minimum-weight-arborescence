@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.HashMap;
 
 /**
  * GraphMapper provides high-level methods to save and load entire graphs
@@ -39,8 +40,21 @@ public class GraphMapper {
         // Save node index
         NodeIndexMapper.saveGraph(graph.getNodes(), mlstLength, nodeFile);
 
-        // Save edges
-        EdgeListMapper.writeEdgeArray(edgeFile, graph.getEdges());
+        // Group edges by their destination node
+        Map<Integer, List<Edge>> edgesByDestination = new HashMap<>();
+        for (Edge edge : graph.getEdges()) {
+            int destId = edge.getDestination().getId();
+            edgesByDestination.computeIfAbsent(destId, k -> new ArrayList<>()).add(edge);
+        }
+
+        // Save edges to separate per-node files
+        // For nodes with edges, save them; for nodes without edges, create empty files
+        for (Node node : graph.getNodes()) {
+            int nodeId = node.getId();
+            List<Edge> nodeEdges = edgesByDestination.getOrDefault(nodeId, new ArrayList<>());
+            String nodeEdgeFile = baseName + "_edges_node" + nodeId + ".dat";
+            EdgeListMapper.writeEdgeArray(nodeEdgeFile, nodeEdges);
+        }
     }
 
 
@@ -80,7 +94,11 @@ public class GraphMapper {
 
         for (Node node : nodeMap.values()) {
             String filename = edgeFile.replace("_edges.dat", "_edges_node" + node.getId() + ".dat");
-            edges.addAll(EdgeListMapper.loadEdgeArray(filename));
+            // Check if file exists before trying to load (nodes with no incoming edges won't have a file)
+            java.io.File file = new java.io.File(filename);
+            if (file.exists()) {
+                edges.addAll(EdgeListMapper.loadEdgeArray(filename));
+            }
         }
 
         return new Graph(edges);
@@ -182,12 +200,13 @@ public class GraphMapper {
         String nodeFile = baseName + "_nodes.dat";
         String edgeFile = baseName + "_edges.dat";
 
-        // Remove all incident edges to this node
+        // Remove the edge file for this node (incoming edges)
         EdgeListMapper.removeEdges(edgeFile, node.getId());
 
-        // Remove all outgoing edges from this node
+        // Remove all outgoing edges from this node (edges in other nodes' files)
         EdgeListMapper.removeOutgoingEdges(edgeFile, node.getId());
 
+        // Remove the node from the node index
         NodeIndexMapper.removeNode(node, nodeFile);
     }
 
