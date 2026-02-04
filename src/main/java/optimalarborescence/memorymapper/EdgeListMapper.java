@@ -1,18 +1,19 @@
 package optimalarborescence.memorymapper;
 
-import optimalarborescence.graph.Edge;
-import optimalarborescence.graph.Node;
-
+import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.io.File;
 import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import optimalarborescence.graph.Edge;
+import optimalarborescence.graph.Node;
 
 /**
  * EdgeListMapper provides memory-mapped file operations for edge arrays.
@@ -180,8 +181,8 @@ public class EdgeListMapper {
         }
     }
 
-    private static Edge[] readEdgeArrayInChunks(FileChannel channel, long numEdges, long fileSize) throws IOException {
-        Edge[] edges = new Edge[(int) numEdges];
+    private static List<Edge> readEdgeArrayInChunks(FileChannel channel, long numEdges, long fileSize) throws IOException {
+        List<Edge> edges = new ArrayList<>((int) numEdges);
         Map<Integer, Node> nodeCache = new HashMap<>();
         
         long edgesRead = 0;
@@ -208,7 +209,7 @@ public class EdgeListMapper {
                 Node src = nodeCache.computeIfAbsent(srcId, id -> new Node(id));
                 Node dst = nodeCache.computeIfAbsent(destId, id -> new Node(id));
                 
-                edges[(int) edgesRead] = new Edge(src, dst, weight);
+                edges.add((int) edgesRead, new Edge(src, dst, weight));
                 edgesRead++;
             }
             
@@ -218,14 +219,14 @@ public class EdgeListMapper {
         return edges;
     }
 
-    public static Edge[] loadEdgeArray(String filename) {
+    public static List<Edge> loadEdgeArray(String filename) {
         try (RandomAccessFile raf = new RandomAccessFile(filename, "r")) {
 
             FileChannel channel = raf.getChannel();
             long fileSize = channel.size();
             long numEdges = (fileSize - HEADER_SIZE) / BYTES_PER_EDGE;
             
-            Edge[] edges = new Edge[(int) numEdges];
+            List<Edge> edges = new ArrayList<>((int) numEdges);
             if (numEdges > Integer.MAX_VALUE) {
                 throw new IOException("Edge list too large to fit in an array");
             }
@@ -246,11 +247,11 @@ public class EdgeListMapper {
         }
     }
 
-    public static void writeEdgeArray(String filename, Edge[] edges) {
+    public static void writeEdgeArray(String filename, List<Edge> edges) {
         try (RandomAccessFile raf = new RandomAccessFile(filename, "rw");
              FileChannel channel = raf.getChannel()) {
             
-            long totalEdges = edges.length;
+            long totalEdges = edges.size();
             long totalSize = HEADER_SIZE + totalEdges * BYTES_PER_EDGE;
             raf.setLength(totalSize);
             
@@ -277,7 +278,7 @@ public class EdgeListMapper {
                 edgeMbb.order(ByteOrder.nativeOrder());
                 
                 for (int i = 0; i < edgesInChunk; i++) {
-                    Edge edge = edges[edgesWritten];
+                    Edge edge = edges.get(edgesWritten);
                     edgeMbb.putInt(edge.getSource().getId());
                     edgeMbb.putInt(edge.getDestination().getId());
                     edgeMbb.putInt(edge.getWeight());
@@ -408,6 +409,14 @@ public class EdgeListMapper {
         }
     }
 
+    public static void removeEdges(String filename, int nodeId) throws IOException {
+        String nodeFileName = filename.replace("_edges.dat", "");
+        nodeFileName += "_edges" + "_node" + nodeId + ".dat";
+
+        // Delete file
+        deleteFileIfExists(nodeFileName);
+    }
+
     /**
      * Remove all edge arrays for a set of nodes in a single batch operation.
      * 
@@ -431,6 +440,19 @@ public class EdgeListMapper {
             } catch (IOException e) {
                 throw new IOException("Failed to delete node file: " + nodeFileName, e);
             }
+        }
+    }
+
+    public static void removeOutgoingEdges(String filename, int sourceId) throws IOException {
+        // Get node map
+        Map<Integer, Node> map = NodeIndexMapper.loadNodes(filename.replace("_edges.dat", "_nodes.dat"));
+
+        // For node in the map
+        for (Node node : map.values()) {
+            String nodeFileName = filename.replace("_edges.dat", "");
+            nodeFileName += "_node" + node.getId() + ".dat";
+
+            removeEdge(nodeFileName, sourceId, node.getId());
         }
     }
 }
