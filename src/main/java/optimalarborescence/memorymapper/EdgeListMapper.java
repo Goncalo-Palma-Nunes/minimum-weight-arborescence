@@ -455,4 +455,26 @@ public class EdgeListMapper {
             removeEdge(nodeFileName, sourceId, node.getId());
         }
     }
+
+    public static List<Edge> getOutgoingEdges(String filename, int sourceId) throws IOException {
+        // Get node map
+        String edgeFile = filename;
+        Map<Integer, Node> map = NodeIndexMapper.loadNodes(filename.replace("_edges.dat", "_nodes.dat"));
+
+        List<Edge> edges = new ArrayList<>();
+        // For node in the map
+        for (Node node : map.values()) {
+            if (node.getId() == sourceId) continue;
+            String nodeFileName = edgeFile.replace("_edges.dat", "");
+            nodeFileName += "_node" + node.getId() + ".dat";
+
+            List<Edge> nodeEdges = loadEdgeArray(nodeFileName);
+            for (Edge edge : nodeEdges) {
+                if (edge.getSource().getId() == sourceId) {
+                    edges.add(edge);
+                }
+            }
+        }
+        return edges;
+    }
 }

@@ -1003,7 +1003,7 @@ public class Main {
                 
                 // For each new node, get its incoming edges and add them to the dynamic algorithm
                 for (Node newNode : nodesToProcess) {
-                    List<Edge> incomingEdges = GraphMapper.getIncomingEdges(persistedGraphFile, newNode.getId(), nodeMap);
+                    List<Edge> incomingEdges = GraphMapper.getIncomingEdges(persistedGraphFile, newNode.getId());
                     
                     // Add each edge to the dynamic algorithm
                     for (Edge edge : incomingEdges) {
@@ -1018,26 +1018,24 @@ public class Main {
                 
                 for (Node nodeToRemove : nodesToProcess) {
                     // Get incoming edges
-                    List<Edge> incomingEdges = GraphMapper.getIncomingEdges(persistedGraphFile, nodeToRemove.getId(), nodeMap);
+                    List<Edge> incomingEdges = GraphMapper.getIncomingEdges(persistedGraphFile, nodeToRemove.getId());
                     for (Edge edge : incomingEdges) {
                         dynamicAlgorithm.removeEdge(edge);
                     }
-                    
-                    // Get outgoing edges using EdgeListMapper
-                    List<Long> outgoingOffsets = EdgeListMapper.getOutgoingEdgeOffsets(edgeFile, nodeToRemove.getId());
-                    for (Long offset : outgoingOffsets) {
-                        List<Edge> edgesAtOffset = EdgeListMapper.loadLinkedList(edgeFile, offset);
-                        // Filter to get only edges from this source
-                        for (Edge edge : edgesAtOffset) {
-                            if (edge.getSource().getId() == nodeToRemove.getId()) {
-                                dynamicAlgorithm.removeEdge(edge);
-                            }
-                        }
+                
+                    // Get outgoing edges
+                    List<Edge> outgoingEdges = GraphMapper.getOutgoingEdges(persistedGraphFile, nodeToRemove.getId());
+                    for (Edge edge : outgoingEdges) {
+                        dynamicAlgorithm.removeEdge(edge);
                     }
                 }
                 
-                // Remove nodes from persisted file
+                // Remove nodes from persisted file and the incoming edge files for each of them
                 GraphMapper.removeNodesBatch(nodesToProcess, persistedGraphFile, sequenceLength);
+                // Remove outgoing edges from edge file for each removed node
+                for (Node node: nodesToProcess) {
+                    GraphMapper.removeOutgoingEdges(persistedGraphFile, node.getId());
+                }
                 break;
                 
             case UPDATE:
@@ -1046,39 +1044,28 @@ public class Main {
                 
                 for (Node nodeToUpdate : nodesToProcess) {
                     // Get incoming edges
-                    List<Edge> incomingEdges = GraphMapper.getIncomingEdges(persistedGraphFile, nodeToUpdate.getId(), nodeMap);
+                    List<Edge> incomingEdges = GraphMapper.getIncomingEdges(persistedGraphFile, nodeToUpdate.getId());
                     for (Edge edge : incomingEdges) {
                         dynamicAlgorithm.removeEdge(edge);
                     }
                     
-                    // Get outgoing edges using EdgeListMapper
-                    List<Long> outgoingOffsets = EdgeListMapper.getOutgoingEdgeOffsets(edgeFile, nodeToUpdate.getId());
-                    for (Long offset : outgoingOffsets) {
-                        List<Edge> edgesAtOffset = EdgeListMapper.loadLinkedList(edgeFile, offset);
-                        // Filter to get only edges from this source
-                        for (Edge edge : edgesAtOffset) {
-                            if (edge.getSource().getId() == nodeToUpdate.getId()) {
-                                dynamicAlgorithm.removeEdge(edge);
-                            }
-                        }
+                    // Get outgoing edges
+                    List<Edge> outgoingEdges = GraphMapper.getOutgoingEdges(persistedGraphFile, nodeToUpdate.getId());
+                    for (Edge edge : outgoingEdges) {
+                        dynamicAlgorithm.removeEdge(edge);
                     }
                 }
                 
                 // Remove and re-add nodes to persisted file
                 GraphMapper.removeNodesBatch(nodesToProcess, persistedGraphFile, sequenceLength);
+                for (Node node: nodesToProcess) {
+                    GraphMapper.removeOutgoingEdges(persistedGraphFile, node.getId());
+                }
                 GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), new HashMap<>(), persistedGraphFile, sequenceLength);
                 
-                // Reload node map and add new edges to dynamic algorithm
-                nodeMap = GraphMapper.loadNodeMap(persistedGraphFile);
-                for (Node updatedNode : nodesToProcess) {
-                    List<Edge> incomingEdges = GraphMapper.getIncomingEdges(persistedGraphFile, updatedNode.getId(), nodeMap);
-                    
-                    // Add each edge to the dynamic algorithm
-                    for (Edge edge : incomingEdges) {
-                        dynamicAlgorithm.addEdge(edge);
-                    }
-                }
-                break;
+                // Atualizar com os pesos novos TODO
+                throw new NotImplementedException();
+                // break;
                 
             default:
                 throw new IllegalArgumentException("Unsupported operation type: " + operationType);
@@ -1318,7 +1305,7 @@ public class Main {
             
             // Load edges for new nodes and add to dynamic algorithm
             for (Node newNode : nodesToAdd) {
-                List<Edge> incomingEdges = GraphMapper.getIncomingEdges(tempGraphFile, newNode.getId(), nodeMap);
+                List<Edge> incomingEdges = GraphMapper.getIncomingEdges(tempGraphFile, newNode.getId());
                 
                 // Add each edge to the dynamic algorithm
                 for (Edge edge : incomingEdges) {

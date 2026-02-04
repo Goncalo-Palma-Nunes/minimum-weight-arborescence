@@ -6,7 +6,6 @@ import optimalarborescence.datastructure.heap.PairingHeap;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Node;
-import optimalarborescence.memorymapper.EdgeListMapper;
 import optimalarborescence.memorymapper.GraphMapper;
 import optimalarborescence.nearestneighbour.NearestNeighbourSearchAlgorithm;
 import optimalarborescence.nearestneighbour.Point;
@@ -40,8 +39,6 @@ public class SerializableCameriniForest extends CameriniForest {
     private boolean useMemoryMappedFiles;
     private Map<Integer, Node> nodeMap;
     private Map<Integer, Boolean> queueInitialized;
-    private EdgeListMapper.EdgeLoader edgeLoader;  // Keeps file channel open during algorithm execution
-    private Map<Integer, Long> nodeOffsetCache;  // Preloaded offsets to avoid repeated file opens
     /**
      * Maps SCC representative ID to the set of all node IDs that have been merged into this SCC.
      * Updated during contractionPhase when cycles are detected and nodes are unified.
@@ -85,9 +82,6 @@ public class SerializableCameriniForest extends CameriniForest {
         // Load node map for edge reconstruction during lazy loading
         this.nodeMap = GraphMapper.loadNodeMap(baseName);
         
-        // Preload all node offsets to avoid repeated file opens during lazy loading
-        this.nodeOffsetCache = preloadNodeOffsets(baseName);
-        
         // Mark all queues as uninitialized for lazy loading
         // Note: queues were already created by parent constructor
         for (int i = 0; i < queues.size(); i++) {
@@ -122,9 +116,6 @@ public class SerializableCameriniForest extends CameriniForest {
         
         // Load node map for edge reconstruction during lazy loading
         this.nodeMap = GraphMapper.loadNodeMap(baseName);
-        
-        // Preload all node offsets to avoid repeated file opens during lazy loading
-        this.nodeOffsetCache = preloadNodeOffsets(baseName);
         
         // Mark all queues as uninitialized for lazy loading
         // Note: queues were already created by parent constructor with empty graph
@@ -326,26 +317,6 @@ public class SerializableCameriniForest extends CameriniForest {
     }
     
     /**
-     * Preload all node offsets from the node file into a map.
-     * This eliminates the need to open the node file repeatedly during lazy loading.
-     * 
-     * @param baseName Base name for files
-     * @return Map of node ID to incoming edge offset
-     * @throws IOException if file operations fail
-     */
-    private Map<Integer, Long> preloadNodeOffsets(String baseName) throws IOException {
-        String nodeFile = baseName + "_nodes.dat";
-        
-        // Get all node IDs from nodeMap
-        Set<Integer> allNodeIds = nodeMap.keySet();
-        
-        // Load all offsets in one batch operation
-        return optimalarborescence.memorymapper.NodeIndexMapper.getIncomingEdgeOffsetsBatch(
-            nodeFile, allNodeIds);
-    }
-
-    
-    /**
      * Initialize the queue for a specific node by loading its incoming edges from disk.
      * If the node is part of an SCC, loads edges for all nodes in the SCC.
      * Uses preloaded offset cache and EdgeLoader.
@@ -411,28 +382,7 @@ public class SerializableCameriniForest extends CameriniForest {
 
             }
             else {
-                Long offset = nodeOffsetCache.get(nodeId);
-                
-                if (offset == null) {
-                    // This node doesn't exist in the original graph - this shouldn't happen
-                    System.err.println("WARNING: Node " + nodeId + " not found in nodeOffsetCache. " +
-                                    "This indicates an issue with SCC composition tracking.");
-                    System.err.println("Representative: " + repId + ", SCC composition: " + nodesToLoad);
-                    continue;
-                }
-                
-                if (offset < 0) {
-                    // No incoming edges for this node (but the node exists)
-                    continue;
-                }
-                
-                // Load incoming edges for this node
-                if (edgeLoader != null) {
-                    incomingEdges = edgeLoader.loadLinkedList(offset, nodeMap);
-                } else {
-                    // Fallback - should rarely happen
-                    incomingEdges = GraphMapper.getIncomingEdges(baseName, nodeId, nodeMap);
-                }
+                incomingEdges = GraphMapper.loadIncidentEdges(baseName, nodeId);
             }
             
             // Insert all edges into the representative's queue
@@ -466,6 +416,8 @@ public class SerializableCameriniForest extends CameriniForest {
      * @throws IOException if file operations fail
      */
     public void setBaseName(String baseName, int sequenceLength) throws IOException {
+        // TODO - este método não me parece que esteja a fazer um caralho
+        
         this.baseName = baseName;
         this.useMemoryMappedFiles = true;
         this.queueInitialized = new HashMap<>();
@@ -474,11 +426,8 @@ public class SerializableCameriniForest extends CameriniForest {
         // Save graph to memory-mapped files
         GraphMapper.saveGraph(graph, sequenceLength, baseName);
         
-        // Load node map from saved files
+        // Load node map from saved files - TODO acho que não preciso disto
         this.nodeMap = GraphMapper.loadNodeMap(baseName);
-        
-        // Preload all node offsets to avoid repeated file opens during lazy loading
-        this.nodeOffsetCache = preloadNodeOffsets(baseName);
         
         // Clear all queues and mark for lazy initialization
         for (int i = 0; i < queues.size(); i++) {
@@ -533,44 +482,10 @@ public class SerializableCameriniForest extends CameriniForest {
         return super.expansionPhase();
     }
     
-    /**
-     * Override inferPhylogeny to manage EdgeLoader lifecycle.
-     * Opens the EdgeLoader before inference and closes it afterwards,
-     * maintaining lazy loading while keeping the file channel open.
-     * 
-     * @param graph Unused parameter (for compatibility with parent interface)
-     * @return The inferred phylogenetic tree
-     */
     @Override
     public Graph inferPhylogeny(Graph graph) {
-        if (!useMemoryMappedFiles) {
-            // No EdgeLoader needed for in-memory operation
-            return super.inferPhylogeny(graph);
-        }
-        
-
-        if (onDemand) {
-            contractionPhase();
-            List<Edge> forest = expansionPhase();
-            return new Graph(forest);
-        }
-        else {
-            // Open EdgeLoader for efficient lazy loading during algorithm execution
-            String edgeFile = baseName + "_edges.dat";
-            try (EdgeListMapper.EdgeLoader loader = new EdgeListMapper.EdgeLoader(edgeFile)) {
-                this.edgeLoader = loader;
-                
-                // Run the algorithm with EdgeLoader active and custom contractionPhase
-                contractionPhase();
-                List<Edge> forest = expansionPhase();
-                return new Graph(forest);
-                
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to open EdgeLoader for inference", e);
-            } finally {
-                // Clean up reference
-                this.edgeLoader = null;
-            }
-        }
+        contractionPhase();
+        List<Edge> forest = expansionPhase();
+        return new Graph(forest);
     }
 }

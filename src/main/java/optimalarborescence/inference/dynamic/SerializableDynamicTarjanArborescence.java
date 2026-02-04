@@ -200,7 +200,7 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
      */
     private void initializeQueueForNode(Node v) throws IOException {
         // Load edges from the modified graph files (with reduced costs)
-        List<Edge> incomingEdges = GraphMapper.getIncomingEdges(baseName, v.getId(), nodeMap);
+        List<Edge> incomingEdges = GraphMapper.loadIncidentEdges(baseName, v.getId());
         
         MergeableHeapInterface<HeapNode> queue = queues.get(v.getId());
         for (Edge edge : incomingEdges) {

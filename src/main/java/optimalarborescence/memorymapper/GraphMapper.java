@@ -237,8 +237,23 @@ public class GraphMapper {
         EdgeListMapper.addEdge(edge, edgeFile);
     }
 
+    public static List<Edge> loadIncidentEdges(String baseName, int nodeId) throws IOException {
+        String edgeFile = baseName + "_edges_node" + nodeId + ".dat";
+        return EdgeListMapper.loadEdgeArray(edgeFile);
+    }
+
     public static void saveArborescence(List<Edge> phylogeny, String baseName) throws IOException {
         String edgeFile = baseName + "_phylogeny_edges.dat";
         EdgeListMapper.writeEdgeArray(edgeFile, phylogeny);
+    }
+
+    public static List<Edge> getOutgoingEdges(String baseName, int sourceId) throws IOException {
+        String edgeFile = baseName + "_edges.dat";
+        return EdgeListMapper.getOutgoingEdges(edgeFile, sourceId);
+    }
+
+    public static void removeOutgoingEdges(String baseName, int sourceId) throws IOException {
+        String edgeFile = baseName + "_edges.dat";
+        EdgeListMapper.removeOutgoingEdges(edgeFile, sourceId);
     }
 }
