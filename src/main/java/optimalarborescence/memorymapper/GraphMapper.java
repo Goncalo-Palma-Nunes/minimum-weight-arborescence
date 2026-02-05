@@ -2,21 +2,25 @@ package optimalarborescence.memorymapper;
 
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Graph;
-import optimalarborescence.graph.DirectedGraph;
 import optimalarborescence.graph.Node;
-import optimalarborescence.nearestneighbour.NearestNeighbourSearchAlgorithm;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.HashMap;
 
 /**
  * GraphMapper provides high-level methods to save and load entire graphs
- * using memory-mapped files. This class coordinates EdgeListMapper and NodeIndexMapper
- * to store graphs efficiently.
+ * using memory-mapped files. This class wraps EdgeListMapper and NodeIndexMapper
+ * to store and query graphs.
+ * <p>
+ * The graph is stored in |V| + 1 files: One index for the nodes and their sequence data;
+ * |V| files for the edges incident to each node. The files are named based on a provided base name:
  * 
- * File Structure:
- * - {baseName}_edges.dat: Edge list sorted by destination
+ * - {baseName}_edges_node{nodeId}.dat: Array of edges pointing to node with ID nodeId
  * - {baseName}_nodes.dat: Node data (header + MLST data and incoming edge offsets)
  */
 public class GraphMapper {
@@ -33,12 +37,41 @@ public class GraphMapper {
         String edgeFile = baseName + "_edges.dat";
         String nodeFile = baseName + "_nodes.dat";
         
-        // Save edges (sorted by destination) and get incoming edge offsets
-        Map<Integer, Long> incomingEdgeOffsets = EdgeListMapper.saveEdgesToMappedFile(
-            graph.getEdges(), edgeFile);
+        // Save node index
+        NodeIndexMapper.saveGraph(graph.getNodes(), mlstLength, nodeFile);
+
+        // Group edges by their destination node
+        Map<Integer, List<Edge>> edgesByDestination = new HashMap<>();
+        for (Edge edge : graph.getEdges()) {
+            int destId = edge.getDestination().getId();
+            edgesByDestination.computeIfAbsent(destId, k -> new ArrayList<>()).add(edge);
+        }
+
+        // Save edges to separate per-node files
+        // For nodes with edges, save them; for nodes without edges, create empty files
+        for (Node node : graph.getNodes()) {
+            int nodeId = node.getId();
+            List<Edge> nodeEdges = edgesByDestination.getOrDefault(nodeId, new ArrayList<>());
+            String nodeEdgeFile = baseName + "_edges_node" + nodeId + ".dat";
+            EdgeListMapper.writeEdgeArray(nodeEdgeFile, nodeEdges);
+        }
+    }
+
+
+    /**
+     * Save a graph with nodes but no edges to memory-mapped files. Useful for initializing empty graphs or
+     * when the edge weights are computed on-demand.
+     * 
+     * @param nodes List of nodes to save
+     * @param mlstLength Fixed length for MLST data (in bytes)
+     * @param baseName Base name for output files
+     * @throws IOException if file operations fail
+     */
+    public static void saveGraph(List<Node> nodes, int mlstLength, String baseName) throws IOException {
+        String nodeFile = baseName + "_nodes.dat";
         
-        // Save nodes with MLST data and offsets
-        NodeIndexMapper.saveGraph(graph, mlstLength, incomingEdgeOffsets, nodeFile);
+        // Save nodes with MLST data and no edges
+        NodeIndexMapper.saveGraph(nodes, mlstLength, nodeFile);
     }
     
 
@@ -57,13 +90,22 @@ public class GraphMapper {
         Map<Integer, Node> nodeMap = NodeIndexMapper.loadNodes(nodeFile);
         
         // Load edges
-        List<Edge> edges = EdgeListMapper.loadEdgesFromMappedFile(edgeFile, nodeMap);
-        
+        List<Edge> edges = new ArrayList<>();
+
+        for (Node node : nodeMap.values()) {
+            String filename = edgeFile.replace("_edges.dat", "_edges_node" + node.getId() + ".dat");
+            // Check if file exists before trying to load (nodes with no incoming edges won't have a file)
+            java.io.File file = new java.io.File(filename);
+            if (file.exists()) {
+                edges.addAll(EdgeListMapper.loadEdgeArray(filename));
+            }
+        }
+
         Graph graph = new Graph(edges);
         
-        // Add any isolated nodes (nodes that don't appear in any edges)
+        // Add isolated nodes (nodes not connected by any edge)
         for (Node node : nodeMap.values()) {
-            if (!graph.getNodes().contains(node)) {
+            if (!graph.getNodes().stream().anyMatch(n -> n.getId() == node.getId())) {
                 graph.addNode(node);
             }
         }
@@ -71,65 +113,26 @@ public class GraphMapper {
         return graph;
     }
 
-    /**
-     * Load a directed graph from memory-mapped files.
-     * @param <T> Type of data in the graph nodes
-     * @param baseName Base name for input files
-     * @param nnAlgorithm Nearest neighbour search algorithm to use
-     * @param numNeighbors Maximum number of neighbours per node
-     * @return Loaded DirectedGraph object
-     * @throws IOException
-     */
-    public static <T> DirectedGraph<T> loadDirectedGraph(String baseName, NearestNeighbourSearchAlgorithm<T> nnAlgorithm, int numNeighbors) throws IOException {
-        Graph baseGraph = loadGraph(baseName); // TODO - refatorizar para não estar a criar 2 grafos
-        DirectedGraph<T> directedGraph = new DirectedGraph<>(nnAlgorithm, numNeighbors, baseGraph);
-        return directedGraph;
-    }
-
     public static Map<Integer, Node> loadNodeMap(String baseName) throws IOException {
         String nodeFile = baseName + "_nodes.dat";
         return NodeIndexMapper.loadNodes(nodeFile);
     }
     
-    /**
-     * Get the incoming edge offset for a specific node without loading the entire graph.
-     * 
-     * @param baseName Base name for files
-     * @param nodeId Node ID to query
-     * @return Byte offset to first incoming edge, or -1 if none
-     * @throws IOException if file operations fail
-     */
-    public static long getIncomingEdgeOffset(String baseName, int nodeId) throws IOException {
-        String nodeFile = baseName + "_nodes.dat";
-        return NodeIndexMapper.getIncomingEdgeOffset(nodeFile, nodeId);
-    }
     
     /**
      * Read incoming edges for a specific node.
      * 
      * @param baseName Base name for files
      * @param nodeId Node ID to query
-     * @param nodeMap Map of all nodes (for edge reconstruction)
      * @return List of incoming edges for the node
      * @throws IOException if file operations fail
      */
-    public static List<Edge> getIncomingEdges(String baseName, int nodeId, 
-                                               Map<Integer, Node> nodeMap) throws IOException {
-        String edgeFile = baseName + "_edges.dat";
-        String nodeFile = baseName + "_nodes.dat";
-        
-        long offset = NodeIndexMapper.getIncomingEdgeOffset(nodeFile, nodeId);
-        if (offset < 0) {
-            return List.of(); // No incoming edges
-        }
-        
-        return EdgeListMapper.loadLinkedList(edgeFile, offset);
+    public static List<Edge> getIncomingEdges(String baseName, int nodeId) throws IOException {
+        return EdgeListMapper.loadEdgeArray(baseName + "_edges_node" + nodeId + ".dat");
     }
 
     /**
      * Add a single node and its incident edges to the graph files.
-     * This method handles both incoming edges (edges to the new node) and outgoing edges
-     * (edges from the new node to existing nodes).
      *
      * @param node Node to add
      * @param incomingEdges List of edges pointing TO the new node
@@ -151,18 +154,12 @@ public class GraphMapper {
         
         // Add outgoing edges (each needs to be added to its destination's linked list)
         for (Edge outgoingEdge : outgoingEdges) {
-            // Get the destination node's current incoming edge offset
-            long destOffset = NodeIndexMapper.getIncomingEdgeOffset(nodeFile, 
-                outgoingEdge.getDestination().getId());
-            
-            // Add this edge to the destination's incoming edge list
             EdgeListMapper.addEdge(outgoingEdge, edgeFile);
         }
     }
     
     /**
      * Add a single node and its incoming edges to the graph files.
-     * Use this overload when there are no outgoing edges from the new node.
      *
      * @param node Node to add
      * @param incomingEdges List of edges pointing TO the new node
@@ -173,73 +170,123 @@ public class GraphMapper {
     public static void addNode(Node node, List<Edge> incomingEdges, String baseName, int mlstLength) throws IOException {
         addNode(node, incomingEdges, List.of(), baseName, mlstLength);
     }
+    
+    /**
+     * Add multiple nodes and their edges in a single batch operation.
+     * 
+     * @param nodes List of nodes to add
+     * @param nodeEdges Map of node to its incoming edges
+     * @param existingNodeNewEdges Map of existing nodes to edges that should be added to them (edges from new nodes TO existing nodes)
+     * @param baseName Base name for files
+     * @param mlstLength Fixed length for MLST data
+     * @throws IOException if file operations fail
+     */
+    public static void addNodesBatch(List<Node> nodes, Map<Node, List<Edge>> nodeEdges, 
+                                     Map<Node, List<Edge>> existingNodeNewEdges,
+                                     String baseName, int mlstLength) throws IOException {
+        String nodeFile = baseName + "_nodes.dat";
+        String edgeFile = baseName + "_edges.dat";
+        
+        // Add all nodes at once
+        NodeIndexMapper.addNodesBatch(nodes, nodeFile, mlstLength);
+        
+        // Add edges for new nodes in one batch operation
+        EdgeListMapper.addEdgesBatch(nodeEdges, edgeFile);
+        
+        // Add edges incoming to existing nodes
+        if (existingNodeNewEdges != null && !existingNodeNewEdges.isEmpty()) {
+            EdgeListMapper.addEdgesToExistingNodes(existingNodeNewEdges, nodeFile, edgeFile);
+        }
+    }
 
-    public static void removeNode(Node node, String baseName, int mlstLength) throws IOException {
+    /**
+     * Remove a single node and all its incident and outgoing edges from the graph files.
+     * @param node Node to remove
+     * @param baseName Base name for files
+     * @throws IOException
+     */
+    public static void removeNode(Node node, String baseName) throws IOException {
         String nodeFile = baseName + "_nodes.dat";
         String edgeFile = baseName + "_edges.dat";
 
-        long incomingEdgeOffset = NodeIndexMapper.getIncomingEdgeOffset(nodeFile, node.getId());
-        if (incomingEdgeOffset >= 0) {
-            EdgeListMapper.removeLinkedList(edgeFile, incomingEdgeOffset);
-        }
+        // Remove the edge file for this node (incoming edges)
+        EdgeListMapper.removeEdges(edgeFile, node.getId());
 
-        List<Long> outgoingEdgeOffsets = EdgeListMapper.getOutgoingEdgeOffsets(edgeFile, node.getId());
+        // Remove all outgoing edges from this node (edges in other nodes' files)
+        EdgeListMapper.removeOutgoingEdges(edgeFile, node.getId());
 
-        // TODO - já que tenho de percorrer o ficheiro para obter as outgoing edges
-        // talvez seja melhor não usar removeLinkedList, mas simplesmente 
-        // criar um array das arestas sem incidências/fonte no nó e guardar isso
-
-        int iterator = outgoingEdgeOffsets.size() - 1;
-        while (iterator >= 0) {
-            EdgeListMapper.removeEdgeAtOffset(edgeFile, outgoingEdgeOffsets.get(iterator));
-            iterator--;
-        }
-
+        // Remove the node from the node index
         NodeIndexMapper.removeNode(node, nodeFile);
     }
 
-    public static boolean edgeExists(int sourceId, int destId, String baseName) throws IOException {
+    /**
+     * Remove multiple nodes and their incident edges in a single batch operation.
+     * <p>
+     * The operation removes:
+     * 1. All edges where the source or destination node is in the nodes list
+     * 2. All corresponding node entries from the node index
+     * 
+     * @param nodes List of nodes to remove
+     * @param baseName Base name for files
+     * @param mlstLength Fixed length for MLST data
+     * @throws IOException if file operations fail
+     */
+    public static void removeNodesBatch(List<Node> nodes, String baseName, int mlstLength) throws IOException {
+        if (nodes == null || nodes.isEmpty()) {
+            return;
+        }
+        
         String edgeFile = baseName + "_edges.dat";
         String nodeFile = baseName + "_nodes.dat";
-
-        try {
-            long incomingEdgeOffset = NodeIndexMapper.getIncomingEdgeOffset(nodeFile, destId);
-            if (incomingEdgeOffset < 0) {
-                return false;
-            }
-
-            return EdgeListMapper.edgeExists(edgeFile, sourceId, destId, incomingEdgeOffset);
-        } catch (IOException e) {
-            // If node doesn't exist (out of range), edge can't exist
-            if (e.getMessage() != null && e.getMessage().contains("out of range")) {
-                return false;
-            }
-            throw e;
+        
+        // Create set of node IDs for edge removal
+        Set<Integer> nodeIds = new HashSet<>();
+        for (Node node : nodes) {
+            nodeIds.add(node.getId());
         }
+        
+        // Remove all edges incident to these nodes in one batch
+        EdgeListMapper.removeEdgesBatch(nodeIds, edgeFile);
+        
+        // Remove all outgoing edges from these nodes
+        for (Integer nodeId : nodeIds) {
+            EdgeListMapper.removeOutgoingEdges(edgeFile, nodeId);
+        }
+        
+        // Remove all nodes in one batch
+        NodeIndexMapper.removeNodesBatch(nodes, nodeFile);
+    }
+
+    public static boolean edgeExists(int sourceId, int destId, String baseName) throws IOException {
+        return EdgeListMapper.edgeExists(baseName, sourceId, destId);
     }
 
     public static void removeEdge(int sourceId, int destId, String baseName) throws IOException {
+        EdgeListMapper.removeEdge(baseName, sourceId, destId);
+    }
+
+    public static void addEdge(Edge edge, String baseName) throws IOException {
         String edgeFile = baseName + "_edges.dat";
-        String nodeFile = baseName + "_nodes.dat";
+        EdgeListMapper.addEdge(edge, edgeFile);
+    }
 
-        try {
-            long incomingEdgeOffset = NodeIndexMapper.getIncomingEdgeOffset(nodeFile, destId);
-            if (incomingEdgeOffset < 0) {
-                return;
-            }
-
-            EdgeListMapper.removeEdge(edgeFile, sourceId, destId, incomingEdgeOffset);
-        } catch (IOException e) {
-            // If node doesn't exist (out of range), nothing to remove
-            if (e.getMessage() != null && e.getMessage().contains("out of range")) {
-                return;
-            }
-            throw e;
-        }
+    public static List<Edge> loadIncidentEdges(String baseName, int nodeId) throws IOException {
+        String edgeFile = baseName + "_edges_node" + nodeId + ".dat";
+        return EdgeListMapper.loadEdgeArray(edgeFile);
     }
 
     public static void saveArborescence(List<Edge> phylogeny, String baseName) throws IOException {
         String edgeFile = baseName + "_phylogeny_edges.dat";
-        EdgeListMapper.saveEdgesToMappedFile(phylogeny, edgeFile);
+        EdgeListMapper.writeEdgeArray(edgeFile, phylogeny);
+    }
+
+    public static List<Edge> getOutgoingEdges(String baseName, int sourceId) throws IOException {
+        String edgeFile = baseName + "_edges.dat";
+        return EdgeListMapper.getOutgoingEdges(edgeFile, sourceId);
+    }
+
+    public static void removeOutgoingEdges(String baseName, int sourceId) throws IOException {
+        String edgeFile = baseName + "_edges.dat";
+        EdgeListMapper.removeOutgoingEdges(edgeFile, sourceId);
     }
 }

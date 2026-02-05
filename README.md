@@ -2,9 +2,9 @@
 
 ## About
 
-This repository is part of an initial phase of a master's thesis in Computer Science at Instituto Superior Técnico (University of Lisbon). The thesis' title is "Online methods for analyzing core genomic relationships among 1 billion bacterial pathogens" and it is supervised by professors Alexandre Francisco and Cátia Vaz.
+This repository is part of a master's thesis in Computer Science at Instituto Superior Técnico (University of Lisbon). The thesis' title is "Online methods for analyzing core genomic relationships among 1 billion bacterial pathogens" and it is supervised by professors Alexandre Francisco and Cátia Vaz.
 
-The problem this thesis aims to tackle is **how to efficiently update a phylogenetic tree**.
+The goal of this thesis is to create a scalable implementation of Edmonds' algorithm for the static minimum weight arborescence problem, as well as a dynamic version of the same algorithm, based on the Augmented Tree data-structure, to efficiently compute and maintain phylogenetic trees for very large graphs.
 
 ## Compiling the project
 
@@ -48,9 +48,3 @@ You can also use wild cards to run a set of tests. For example, the following co
 - CSV (with tab delimitors) for typing data
 
 ## Infering or Updating a Phylogeny
-
-TODO - escrever esta secção
-
-flags para alterar a memória ram minima/máxima:
-
-MAVEN_OPTS="-Xms2g -Xmx6g" mvn exec:java -Dexec.mainClass="optimalarborescence.Main" -Dexec.args="mlst <path_to_input_file> <path_to_output_file> add"

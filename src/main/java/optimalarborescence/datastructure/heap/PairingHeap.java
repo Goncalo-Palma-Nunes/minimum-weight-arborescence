@@ -4,7 +4,6 @@ import java.util.Queue;
 import java.util.Comparator;
 import java.util.LinkedList;
 
-// TODO - a interface deve ser do tipo <HeapNode> ou outra coisa?
 public class PairingHeap implements MergeableHeapInterface<HeapNode> {
 
     HeapNode root;
@@ -33,9 +32,6 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         }
 
         PairingHeap otherHeap = (PairingHeap) other;
-        // if (this.isEmpty() || otherHeap.isEmpty()) {
-        //     throw new IllegalArgumentException("Neither heap should be empty");
-        // }
         if (this.isEmpty()) {
             this.root = otherHeap.root;
             return this;
@@ -59,9 +55,6 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
     }
 
     @Override
-    // public HeapNode insert(HeapNode node, int key) {
-    //     return meld(node, new HeapNode(key, null, null));
-    // }
     public void insert(HeapNode node) {
         if (this.isEmpty()) {
             this.root = node;
@@ -81,8 +74,6 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         parent.child = child;
     }
 
-
-    // Deveria receber HeapNodes ou PairingHeaps?
     private HeapNode meld(HeapNode p, HeapNode q) {
         if (comparator.compare(p, q) <= 0) {
             link(p, q);
@@ -197,7 +188,6 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
             visited.add(n1);
             n1.val = -Math.abs(n1.val);
             n1 = n1.brother;
-            // System.out.println("11111111111111111111111111111111");
         }
 
         // First pass left to right, joining two by two
@@ -212,7 +202,6 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         }
         while (n1 != null && n1 != r && !visited.contains(n1)) {
             visited.add(n1);
-            // System.out.println("222222222222222222222222222");
             n2 = n1.brother;
             if (n2 != null && n2 != r && !visited.contains(n2)) {
                 next = n2.brother;
@@ -234,7 +223,6 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         while (next != null && next != r && !visited.contains(next)) {
             n2 = next;
             visited.add(n2);
-            // System.out.println("33333333333333333333333333333");
             next = n2.brother;
             n1 = meld(n1, n2);
             n1.brother = null;
@@ -242,7 +230,6 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         }
         n1.brother = null;
 
-        // System.out.println("(extract min) new root: " + (n1 != null ? n1 : "null"));
         return n1;
     }
 
@@ -259,14 +246,12 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
         HeapNode oldRoot = this.root;
         this.root = extractMin(this.root);
 
-        // if (this.root == oldRoot) { // Last node in the heap
-        //     // otherwise it would loop forever
-        //     this.root = null;
-        // }
-        // System.out.println("(extract min) final root: " + (this.root != null ? this.root : "null"));
-        // System.out.println("(extract min) extracted root: " + (oldRoot != null ? oldRoot : "null"));
-
         return oldRoot;
+    }
+
+    @Override
+    public void clear() {
+        this.root = null;
     }
 
     @Override

@@ -18,9 +18,9 @@ import java.util.Queue;
 
 /**
  * ATreeMapper provides memory-mapped file operations for storing and loading ATree forests.
- * 
+ * <p>
  * An ATree forest consists of multiple ATree root nodes, where each ATree represents
- * a partially contracted subgraph in the fully dynamic arborescence algorithm.
+ * a partially contracted subgraph in the fully dynamic version of Edmonds' arborescence algorithm.
  * 
  * Single File Structure ({baseName}_atree.dat):
  * 
@@ -39,18 +39,6 @@ import java.util.Queue;
  *   - children_offsets[] (num_children × 8 bytes)
  *   - num_contracted_edges (4 bytes)
  *   - contracted_edges[] (num_contracted_edges × 12 bytes: src, dst, weight)
- * 
- * Design Notes:
- * - Uses offsets instead of IDs for parent references (direct O(1) access)
- * - Variable-length arrays stored inline (no separate files)
- * - Simple nodes have num_contracted_edges = 0
- * - Root nodes have parent_offset = -1
- * 
- * Lazy Loading:
- * - Supports lazy loading of ATree nodes and their children
- * - loadATreeRootsLazy() loads only root nodes without their children
- * - Children are loaded on-demand via loadChildren()
- * - All loaded nodes are kept in memory (future: could add LRU eviction policy)
  */
 public class ATreeMapper {
     
@@ -72,7 +60,7 @@ public class ATreeMapper {
                                        String baseName) throws IOException {
         String fileName = baseName + "_atree.dat";
         
-        // Step 1: Collect all nodes in the forest using BFS and calculate their sizes
+        // Collect all nodes in the forest using BFS and calculate their sizes
         List<ATreeNode> allNodes = new ArrayList<>();
         Map<ATreeNode, Long> nodeOffsets = new HashMap<>();
         Map<ATreeNode, Integer> nodeSizes = new HashMap<>();
@@ -95,7 +83,7 @@ public class ATreeMapper {
             }
         }
         
-        // Step 2: Calculate offsets for all nodes
+        // Calculate offsets for all nodes
         int numRoots = roots.size();
         long headerSize = 8 + ((long) numRoots * 8);
         long currentOffset = headerSize;
@@ -105,7 +93,7 @@ public class ATreeMapper {
             currentOffset += nodeSizes.get(node);
         }
         
-        // Step 3: Write everything to the single file
+        // Write everything to the single file
         long fileSize = currentOffset;
         
         try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
@@ -243,13 +231,12 @@ public class ATreeMapper {
             Map<Long, ATreeNode> loadedNodes = new HashMap<>();
             List<ATreeNode> roots = new ArrayList<>();
             
-            // First pass: create all nodes without parent/children links
+            // create all nodes without parent/children links
             for (Long rootOffset : rootOffsets) {
                 loadNodesFromRoot(mbb, rootOffset, graphNodes, loadedNodes);
             }
             
-            // Second pass: establish parent-child relationships for ALL nodes
-            // We need to do this carefully to avoid setting parent multiple times
+            // establish parent-child relationships for all nodes
             for (Map.Entry<Long, ATreeNode> entry : loadedNodes.entrySet()) {
                 long nodeOffset = entry.getKey();
                 ATreeNode node = entry.getValue();
@@ -298,7 +285,7 @@ public class ATreeMapper {
                 rootOffsets.add(mbb.getLong());
             }
             
-            // Load only root nodes (without children)
+            // Load only root nodes
             List<ATreeNode> roots = new ArrayList<>();
             for (Long rootOffset : rootOffsets) {
                 ATreeNode root = loadSingleNodeLazy(mbb, rootOffset, baseName, graphNodes);
@@ -334,7 +321,7 @@ public class ATreeMapper {
         mbb.getLong(); // parentOffset - skip for roots
         int numChildren = mbb.getInt();
         
-        // Skip children offsets (we'll load them lazily)
+        // Skip children offsets
         mbb.position(mbb.position() + numChildren * 8);
         
         // Read contracted edges
@@ -373,7 +360,6 @@ public class ATreeMapper {
     
     /**
      * Load the children of a lazy-loaded node.
-     * This is called automatically when getATreeChildren() is first accessed on a lazy node.
      * 
      * @param parent The parent node whose children should be loaded
      * @param baseName Base name for the file
@@ -515,12 +501,12 @@ public class ATreeMapper {
         mbb.position((int) offset);
         
         // Skip to parent offset field (skip edge data + cost)
-        mbb.position(mbb.position() + 16); // skip edge_src, edge_dst, edge_weight, cost
+        mbb.position(mbb.position() + 16);
         
         long parentOffset = mbb.getLong();
         int numChildren = mbb.getInt();
         
-        // Set parent ONLY if not already set (avoid UnsupportedOperationException)
+        // Set parent if not already set
         if (parentOffset != -1 && node.getParent() == null) {
             ATreeNode parent = loadedNodes.get(parentOffset);
             if (parent != null) {
@@ -535,7 +521,7 @@ public class ATreeMapper {
             ATreeNode child = loadedNodes.get(childOffset);
             if (child != null) {
                 children.add(child);
-                // Set child's parent to this node ONLY if not already set
+                // Set child's parent to this node if not already set
                 if (child.getParent() == null) {
                     child.setParent(node);
                 }

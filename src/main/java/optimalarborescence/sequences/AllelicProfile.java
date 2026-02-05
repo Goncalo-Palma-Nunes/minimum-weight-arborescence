@@ -1,7 +1,11 @@
 package optimalarborescence.sequences;
 
+import java.util.List;
+
 
 public class AllelicProfile extends Sequence<Character> {
+
+    private static final List<Character> MISSING_DATA_SYMBOLS = List.of('?', '-', ' ');
 
     public AllelicProfile(Character[] data, int length) {
         super(data, length);
@@ -31,6 +35,11 @@ public class AllelicProfile extends Sequence<Character> {
     }
 
     @Override
+    public boolean isMissingDataAt(int index) {
+        return MISSING_DATA_SYMBOLS.contains(getElementAt(index));
+    }
+
+    @Override
     public String toString() {
         return "AllelicProfile{data=" + getData() + "}";
     }
@@ -41,11 +50,13 @@ public class AllelicProfile extends Sequence<Character> {
         if (obj == null || getClass() != obj.getClass()) return false;
 
         AllelicProfile other = (AllelicProfile) obj;
+        if (getLength() != other.getLength()) return false;
+
         for (int i = 0; i < getLength(); i++) {
             if (!getData()[i].equals(other.getData()[i])) {
                 return false;
             }
         }
-        return getLength() == other.getLength();
+        return true;
     }
 }

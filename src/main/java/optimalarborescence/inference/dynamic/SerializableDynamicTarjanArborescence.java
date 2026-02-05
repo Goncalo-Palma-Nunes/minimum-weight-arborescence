@@ -19,25 +19,6 @@ import java.util.Map;
  * A serializable version of DynamicTarjanArborescence that works with memory-mapped files.
  * 
  * This class enables lazy-loading of edges and ATrees from memory-mapped files.
- * 
- * Two lazy-loading modes:
- * 1. Edge lazy-loading: Modified graph edges loaded on-demand (via queue initialization)
- * 2. ATree lazy-loading: ATree nodes and children loaded on-demand (via getATreeChildren())
- * 
- * What is persisted:
- * - Original graph (nodes + edges) via GraphMapper - for reference
- * - Modified graph (nodes + edges with reduced costs) via GraphMapper - for algorithm execution
- * - ATree forest structure via ATreeMapper
- * - Current arborescence (the solution) - to be implemented
- * 
- * What is NOT persisted:
- * - Queue state (initialized lazily during algorithm execution)
- * - Temporary algorithm data structures
- * 
- * Performance notes:
- * - Edge lazy-loading: Reduces memory for large graphs during algorithm execution
- * - ATree lazy-loading: Reduces memory for deep/wide ATree forests during dynamic operations
- * - Future enhancement: Could add LRU cache eviction for loaded nodes/edges
  */
 public class SerializableDynamicTarjanArborescence extends DynamicTarjanArborescence {
 
@@ -89,7 +70,8 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
         this.nodeMap = GraphMapper.loadNodeMap(baseName);
         
         // Clear queues that were initialized by parent constructor - we'll do it lazily
-        for (int i = 0; i < originalGraph.getNumNodes(); i++) {
+        // Note: queues size is based on maxNodeId + 1, not node count
+        for (int i = 0; i < queues.size(); i++) {
             queues.set(i, new PairingHeap(maxDisjointCmp));
             queueInitialized.put(i, false);
         }
@@ -128,15 +110,58 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
     }
     
     /**
+     * Constructor for full lazy loading from memory-mapped files without requiring a Graph instance.
+     * 
+     * This constructor loads the graph structure (nodes only) from memory-mapped files,
+     * then loads ATree roots lazily if they exist. If ATree files don't exist, creates empty ATrees.
+     * Edges and ATree children are loaded on-demand.
+     * This is the most memory-efficient mode and mirrors SerializableCameriniForest's behavior.
+     * 
+     * @param baseName Base name for memory-mapped files containing the saved state
+     * @throws IOException if file operations fail
+     */
+    public SerializableDynamicTarjanArborescence(String baseName) throws IOException {
+        this(baseName, 0, createMinimalGraph(baseName));
+    }
+    
+    /**
+     * Create a minimal graph with only nodes (no edges) from memory-mapped files.
+     * This allows the algorithm to operate without loading all edges into memory.
+     * 
+     * @param baseName Base name for memory-mapped files
+     * @return Graph with nodes but no edges
+     * @throws IOException if file operations fail
+     */
+    private static Graph createMinimalGraph(String baseName) throws IOException {
+        Map<Integer, Node> nodeMap = GraphMapper.loadNodeMap(baseName);
+        Graph graph = new Graph(new ArrayList<>());  // Empty edges list
+        
+        // Add all nodes to the graph
+        for (Node node : nodeMap.values()) {
+            graph.addNode(node);
+        }
+        
+        return graph;
+    }
+    
+    /**
      * Helper method to load ATree roots lazily.
      * 
      * Note: This loads the modified graph's node map since ATrees reference
      * nodes from the modified (partially contracted) graph, not the original graph.
+     * If ATree files don't exist, returns an empty list (useful for fresh graphs).
      */
     private static List<ATreeNode> loadATreeRootsLazy(String baseName, Graph graph) throws IOException {
         // Load node map from the modified graph (saved during setBaseName)
         Map<Integer, Node> graphNodes = GraphMapper.loadNodeMap(baseName);
-        return ATreeMapper.loadATreeRootsLazy(baseName, graphNodes);
+        
+        // Try to load ATrees; if they don't exist, return empty list
+        try {
+            return ATreeMapper.loadATreeRootsLazy(baseName, graphNodes);
+        } catch (java.io.FileNotFoundException e) {
+            // ATree files don't exist yet - return empty list for fresh graph
+            return new ArrayList<>();
+        }
     }
     
     /**
@@ -175,7 +200,7 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
      */
     private void initializeQueueForNode(Node v) throws IOException {
         // Load edges from the modified graph files (with reduced costs)
-        List<Edge> incomingEdges = GraphMapper.getIncomingEdges(baseName, v.getId(), nodeMap);
+        List<Edge> incomingEdges = GraphMapper.loadIncidentEdges(baseName, v.getId());
         
         MergeableHeapInterface<HeapNode> queue = queues.get(v.getId());
         for (Edge edge : incomingEdges) {
@@ -230,7 +255,8 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
         this.nodeMap = GraphMapper.loadNodeMap(baseName);
         
         // Clear queues for lazy initialization
-        for (int i = 0; i < getModifiedGraph().getNumNodes(); i++) {
+        // Note: queues size is based on maxNodeId + 1, not node count
+        for (int i = 0; i < queues.size(); i++) {
             queues.set(i, new PairingHeap(maxDisjointCmp));
             queueInitialized.put(i, false);
         }

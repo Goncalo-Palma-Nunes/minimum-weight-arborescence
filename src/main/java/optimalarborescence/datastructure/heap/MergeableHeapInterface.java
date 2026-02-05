@@ -46,4 +46,9 @@ public interface MergeableHeapInterface<T> {
      * @return true if the heap is empty, false otherwise
      */
     boolean isEmpty();
+
+    /**
+     * Clears the heap.
+     */
+    void clear();
 }

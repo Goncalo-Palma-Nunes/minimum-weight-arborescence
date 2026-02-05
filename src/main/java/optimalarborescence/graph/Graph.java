@@ -5,7 +5,6 @@ import java.io.*;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 
 public class Graph implements Serializable, PhylogeneticData {
     
@@ -78,12 +77,6 @@ public class Graph implements Serializable, PhylogeneticData {
         }
     }
 
-    // public void addNode(Node node) {
-    //     if (node != null) {
-    //         numNodes++;
-    //     }
-    // }
-
     public void addEdge(Edge edge) {
         if (edge != null) {
             edges.add(edge);
@@ -95,7 +88,6 @@ public class Graph implements Serializable, PhylogeneticData {
     public List<Node> cloneNodeList() {
         List<Node> clonedList = new ArrayList<>();
         for (Node node : nodes) {
-            // clonedList.add(new Node(node.getMLSTdata(), node.getId()));
             clonedList.add(new Node(node.getId()));
         }
         return clonedList;

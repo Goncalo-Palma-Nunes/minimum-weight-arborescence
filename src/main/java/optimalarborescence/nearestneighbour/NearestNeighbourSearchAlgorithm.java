@@ -8,7 +8,7 @@ import java.util.List;
 public abstract class NearestNeighbourSearchAlgorithm<T> implements Serializable {
 
     private DistanceFunction distanceFunction;
-    private static final long serialVersionUID = 129348938L; // TODO - UID para serialização. Pesquisar mais sobre isto
+    private static final long serialVersionUID = 129348938L; // TODO - remover este atributo
 
     public NearestNeighbourSearchAlgorithm(DistanceFunction distanceFunction) {
         this.distanceFunction = distanceFunction;

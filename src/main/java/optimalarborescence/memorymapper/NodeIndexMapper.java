@@ -11,11 +11,13 @@ import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * The NodeIndexMapper class offers several static methods to save and load a graph's 
+ * The NodeIndexMapper class offers several methods to save and load a graph's 
  * nodes to and from a memory-mapped file.
  * <p>
  * 
@@ -24,20 +26,39 @@ import java.util.Map;
  * Header:
  *    [num_nodes (4 bytes), mlst_length (4 bytes), sequence_type (1 byte)]
  * 
- * For each node (ordered by node ID from 0 to maxNodeId):
- *    [mlst_data (variable size based on type), incoming_edge_offset (8 bytes)]
+ * For each node:
+ *    [node_id (4 bytes), mlst_data (variable size based on type)]
  * 
  * Sequence types:
  *    0 = AllelicProfile (1 byte per element - Character)
- *    1 = SequenceTypingData (4 bytes per element - Integer)
- * 
- * Node IDs are implicit based on position in the file.
+ *    1 = SequenceTypingData (8 bytes per element - Long)
  */
 public class NodeIndexMapper {
 
     private static final int HEADER_SIZE = 2 * Integer.BYTES + 1; // num_nodes + mlst_length + sequence_type
+    private static final int NODE_ID_BYTES = Integer.BYTES; // 4 bytes for node ID
     private static final byte SEQUENCE_TYPE_ALLELIC_PROFILE = 0;
     private static final byte SEQUENCE_TYPE_TYPING_DATA = 1;
+    
+    // Chunked mapping constants to support files > 2GB (Java MappedByteBuffer limit)
+    private static final long MAX_MAPPING_SIZE = 1_500_000_000L; // 1.5GB safe limit per mapping
+    
+    /**
+     * Calculate which region a node belongs to based on entry size.
+     */
+    private static long getNodePosition(int nodeIndex, int entrySize) {
+        return HEADER_SIZE + (long)nodeIndex * entrySize;
+    }
+    
+    /**
+     * Calculate the start position and size for mapping a chunk of nodes.
+     */
+    private static long[] getChunkBounds(int startNodeIndex, int numNodesToMap, int entrySize, long fileSize) {
+        long startPos = getNodePosition(startNodeIndex, entrySize);
+        long maxSize = (long)numNodesToMap * entrySize;
+        long actualSize = Math.min(maxSize, fileSize - startPos);
+        return new long[]{startPos, actualSize};
+    }
 
     /**
      * Detect sequence type from the first non-null node.
@@ -54,10 +75,10 @@ public class NodeIndexMapper {
     }
 
     /**
-     * Helper method to convert node sequence to bytes based on its type.
+     * Helper method to convert node sequence to bytes based on its sequence type.
      */
     private static byte[] sequenceToBytes(Node node, int mlstLength, byte sequenceType) {
-        int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+        int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
         byte[] bytes = new byte[mlstLength * bytesPerElement];
         
         if (node.getMLSTdata() instanceof AllelicProfile) {
@@ -68,12 +89,16 @@ public class NodeIndexMapper {
         } else if (node.getMLSTdata() instanceof SequenceTypingData) {
             SequenceTypingData typingData = (SequenceTypingData) node.getMLSTdata();
             for (int i = 0; i < Math.min(mlstLength, typingData.getLength()); i++) {
-                int value = typingData.getElementAt(i);
-                int offset = i * Integer.BYTES;
-                bytes[offset] = (byte) (value >> 24);
-                bytes[offset + 1] = (byte) (value >> 16);
-                bytes[offset + 2] = (byte) (value >> 8);
-                bytes[offset + 3] = (byte) value;
+                long value = typingData.getElementAt(i);
+                int offset = i * Long.BYTES;
+                bytes[offset] = (byte) (value >> 56);
+                bytes[offset + 1] = (byte) (value >> 48);
+                bytes[offset + 2] = (byte) (value >> 40);
+                bytes[offset + 3] = (byte) (value >> 32);
+                bytes[offset + 4] = (byte) (value >> 24);
+                bytes[offset + 5] = (byte) (value >> 16);
+                bytes[offset + 6] = (byte) (value >> 8);
+                bytes[offset + 7] = (byte) value;
             }
         }
         
@@ -92,95 +117,100 @@ public class NodeIndexMapper {
             }
             return new Node(new AllelicProfile(data, mlstLength), nodeId);
         } else {
-            // SequenceTypingData: 4 bytes per integer
+            // SequenceTypingData: 8 bytes per long
             int numElements = mlstLength;
-            Integer[] data = new Integer[numElements];
+            Long[] data = new Long[numElements];
             for (int i = 0; i < numElements; i++) {
-                int offset = i * Integer.BYTES;
-                data[i] = ((bytes[offset] & 0xFF) << 24) |
-                         ((bytes[offset + 1] & 0xFF) << 16) |
-                         ((bytes[offset + 2] & 0xFF) << 8) |
-                         (bytes[offset + 3] & 0xFF);
+                int offset = i * Long.BYTES;
+                data[i] = ((long)(bytes[offset] & 0xFF) << 56) |
+                         ((long)(bytes[offset + 1] & 0xFF) << 48) |
+                         ((long)(bytes[offset + 2] & 0xFF) << 40) |
+                         ((long)(bytes[offset + 3] & 0xFF) << 32) |
+                         ((long)(bytes[offset + 4] & 0xFF) << 24) |
+                         ((long)(bytes[offset + 5] & 0xFF) << 16) |
+                         ((long)(bytes[offset + 6] & 0xFF) << 8) |
+                         (long)(bytes[offset + 7] & 0xFF);
             }
             return new Node(new SequenceTypingData(data, numElements), nodeId);
         }
     } 
 
     /**
-     * Save graph nodes to a memory-mapped file.
+     * Save graph's nodes to a memory-mapped file.
      * 
      * @param nodes List of nodes to save
      * @param mlstLength Fixed length of MLST data for all nodes (number of elements)
-     * @param incomingEdgeOffsets Map of node ID to byte offset of first incoming edge
      * @param fileName Path to the output file
      * @throws IOException if file operations fail
      */
-    public static void saveGraph(List<Node> nodes, int mlstLength, Map<Integer, Long> incomingEdgeOffsets, 
-                                  String fileName) throws IOException {
-        // Find max node ID to determine array size
-        int maxNodeId = -1;
-        Map<Integer, Node> nodeMap = new HashMap<>();
-        for (Node node : nodes) {
-            maxNodeId = Math.max(maxNodeId, node.getId());
-            nodeMap.put(node.getId(), node);
-        }
-        
+    public static void saveGraph(List<Node> nodes, int mlstLength, String fileName) throws IOException {
         // Detect sequence type
         byte sequenceType = detectSequenceType(nodes);
-        int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+        int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
         
         // Calculate file size: header + entries
-        int entrySize = mlstLength * bytesPerElement + Long.BYTES;
-        long fileSize = HEADER_SIZE + (long) (maxNodeId + 1) * entrySize;
+        // Each entry: node_id (4 bytes) + mlst_data
+        int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement;
+        long fileSize = HEADER_SIZE + (long) nodes.size() * entrySize;
         
         try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
              FileChannel channel = raf.getChannel()) {
             
             raf.setLength(fileSize);
-            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, fileSize);
-            mbb.order(ByteOrder.nativeOrder());
             
             // Write header
-            mbb.putInt(nodes.size());     // num_nodes
-            mbb.putInt(mlstLength);       // mlst_length (number of elements)
-            mbb.put(sequenceType);        // sequence_type
+            MappedByteBuffer headerBuf = channel.map(FileChannel.MapMode.READ_WRITE, 0, HEADER_SIZE);
+            headerBuf.order(ByteOrder.nativeOrder());
+            headerBuf.putInt(nodes.size());     // num_nodes
+            headerBuf.putInt(mlstLength);       // mlst_length (number of elements)
+            headerBuf.put(sequenceType);        // sequence_type
+            // headerBuf.force(); // Removed: OS will flush efficiently
             
-            // Write data for each node ID from 0 to maxNodeId
-            for (int nodeId = 0; nodeId <= maxNodeId; nodeId++) {
-                Node node = nodeMap.get(nodeId);
+            // Write nodes in chunks to avoid exceeding 2GB limit
+            int nodesPerChunk = (int)(MAX_MAPPING_SIZE / entrySize);
+            if (nodesPerChunk == 0) nodesPerChunk = 1; // Handle extremely large entries
+            
+            for (int i = 0; i < nodes.size(); i += nodesPerChunk) {
+                int endIdx = Math.min(i + nodesPerChunk, nodes.size());
+                int chunkSize = endIdx - i;
                 
-                // Write MLST data
-                if (node != null && node.getMLSTdata() != null) {
+                long[] bounds = getChunkBounds(i, chunkSize, entrySize, fileSize);
+                long position = bounds[0];
+                long size = bounds[1];
+                
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, position, size);
+                mbb.order(ByteOrder.nativeOrder());
+                
+                // Write data for nodes in this chunk
+                for (int j = i; j < endIdx; j++) {
+                    Node node = nodes.get(j);
+                    int nodeId = node.getId();
+                    
+                    // Write node ID
+                    mbb.putInt(nodeId);
+                    
+                    // Write MLST data
                     byte[] mlstBytes = sequenceToBytes(node, mlstLength, sequenceType);
                     mbb.put(mlstBytes);
-                } else {
-                    // Write zeros for missing nodes
-                    for (int i = 0; i < mlstLength * bytesPerElement; i++) {
-                        mbb.put((byte) 0);
-                    }
                 }
                 
-                // Write incoming edge offset (-1 if no incoming edges)
-                Long offset = incomingEdgeOffsets.get(nodeId);
-                mbb.putLong(offset != null ? offset : -1L);
+                mbb.force();
             }
-            
-            mbb.force();
         }
     }
 
     /**
      * Save graph using Graph object.
      * 
+     * Deprecated method kept around for the unit tests.
+     * 
      * @param graph Graph to save
      * @param mlstLength Fixed length of MLST data
-     * @param incomingEdgeOffsets Map of node ID to incoming edge offset
-     * @param fileName Path to output file
+      * @param fileName Path to output file
      * @throws IOException if file operations fail
      */
-    public static void saveGraph(Graph graph, int mlstLength, Map<Integer, Long> incomingEdgeOffsets,
-                                  String fileName) throws IOException {
-        saveGraph(graph.getNodes(), mlstLength, incomingEdgeOffsets, fileName);
+    public static void saveGraph(Graph graph, int mlstLength, String fileName) throws IOException {
+        saveGraph(graph.getNodes(), mlstLength, fileName);
     }
     
     
@@ -224,40 +254,41 @@ public class NodeIndexMapper {
                 throw new IOException("Invalid file format: file too small for header");
             }
             
-            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, fileSize);
-            mbb.order(ByteOrder.nativeOrder());
-            
             // Read header
-            mbb.getInt(); // skip num_nodes
-            int mlstLength = mbb.getInt();
-            byte sequenceType = mbb.get();
+            MappedByteBuffer headerBuf = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
+            headerBuf.order(ByteOrder.nativeOrder());
+            int numNodes = headerBuf.getInt();
+            int mlstLength = headerBuf.getInt();
+            byte sequenceType = headerBuf.get();
             
-            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
+            int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement;
             
-            // Calculate maxNodeId from file size
-            int entrySize = mlstLength * bytesPerElement + Long.BYTES;
-            int maxNodeId = (int) ((fileSize - HEADER_SIZE) / entrySize) - 1;
+            // Read nodes in chunks to avoid exceeding 2GB limit
+            int nodesPerChunk = (int)(MAX_MAPPING_SIZE / entrySize);
+            if (nodesPerChunk == 0) nodesPerChunk = 1;
             
-            // Read data for each node ID
-            for (int nodeId = 0; nodeId <= maxNodeId; nodeId++) {
-                // Read MLST data
-                byte[] mlstBytes = new byte[mlstLength * bytesPerElement];
-                mbb.get(mlstBytes);
+            for (int i = 0; i < numNodes; i += nodesPerChunk) {
+                int endIdx = Math.min(i + nodesPerChunk, numNodes);
+                int chunkSize = endIdx - i;
                 
-                // Read incoming edge offset (we don't use it during loading, but consume it)
-                long offset = mbb.getLong();
+                long[] bounds = getChunkBounds(i, chunkSize, entrySize, fileSize);
+                long position = bounds[0];
+                long size = bounds[1];
                 
-                // Check if node has data (non-zero bytes)
-                boolean hasData = false;
-                for (byte b : mlstBytes) {
-                    if (b != 0) {
-                        hasData = true;
-                        break;
-                    }
-                }
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, position, size);
+                mbb.order(ByteOrder.nativeOrder());
                 
-                // Only create nodes that have MLST data or have incoming edges
-                if (hasData || offset >= 0) {
+                // Read data for each node entry in this chunk
+                for (int j = i; j < endIdx; j++) {
+                    // Read node ID
+                    int nodeId = mbb.getInt();
+                    
+                    // Read MLST data
+                    byte[] mlstBytes = new byte[mlstLength * bytesPerElement];
+                    mbb.get(mlstBytes);
+                    
+                    // Create node from the data
                     nodeMap.put(nodeId, createNodeFromBytes(mlstBytes, sequenceType, nodeId, mlstLength));
                 }
             }
@@ -265,49 +296,73 @@ public class NodeIndexMapper {
         
         return nodeMap;
     }
-    
 
-    
     /**
-     * Get the incoming edge offset for a specific node.
+     * Add multiple nodes to the memory-mapped file in a single batch operation.
      * 
+     * @param nodes List of nodes to add
      * @param fileName Path to the node data file
-     * @param nodeId Node ID to query
-     * @return Byte offset to first incoming edge, or -1 if none
+     * @param mlstLength Fixed length of MLST data
      * @throws IOException if file operations fail
      */
-    public static long getIncomingEdgeOffset(String fileName, int nodeId) throws IOException {
-        try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
+    public static void addNodesBatch(List<Node> nodes, String fileName, int mlstLength) throws IOException {
+        if (nodes == null || nodes.isEmpty()) {
+            return;
+        }
+        
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
              FileChannel channel = raf.getChannel()) {
             
-            if (channel.size() < HEADER_SIZE) {
-                throw new IOException("Invalid file format: file too small for header");
-            }
-            
-            // Read mlstLength from header
-            MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
+            // Update num_nodes in header
+            MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, Integer.BYTES);
             headerMbb.order(ByteOrder.nativeOrder());
-            headerMbb.getInt(); // skip num_nodes
-            int mlstLength = headerMbb.getInt();
+            int currentNumNodes = headerMbb.getInt();
+            headerMbb.position(0);
+            headerMbb.putInt(currentNumNodes + nodes.size());
+            // headerMbb.force(); // Removed: OS will flush efficiently
             
-            // Calculate position of the offset field for this node
-            int entrySize = mlstLength + Long.BYTES;
-            long position = HEADER_SIZE + (long) nodeId * entrySize + mlstLength;
+            // Read sequence type from header
+            MappedByteBuffer headerReadMbb = channel.map(FileChannel.MapMode.READ_ONLY, 2 * Integer.BYTES, 1);
+            byte sequenceType = headerReadMbb.get();
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
             
-            if (position + Long.BYTES > channel.size()) {
-                throw new IOException("Node ID " + nodeId + " out of range");
+            // Calculate entry size and total size needed
+            int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement;
+            long position = channel.size();
+            long totalSize = (long) nodes.size() * entrySize;
+            
+            // Pre-allocate file space to avoid filesystem reallocation overhead
+            raf.setLength(position + totalSize);
+            
+            // Write nodes in chunks to avoid exceeding 2GB limit
+            int nodesPerChunk = (int)(MAX_MAPPING_SIZE / entrySize);
+            if (nodesPerChunk == 0) nodesPerChunk = 1;
+            
+            for (int i = 0; i < nodes.size(); i += nodesPerChunk) {
+                int endIdx = Math.min(i + nodesPerChunk, nodes.size());
+                int chunkSize = endIdx - i;
+                long chunkBytes = (long)chunkSize * entrySize;
+                
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, 
+                                                    position + (long)i * entrySize, 
+                                                    chunkBytes);
+                mbb.order(ByteOrder.nativeOrder());
+                
+                // Write nodes in this chunk
+                for (int j = i; j < endIdx; j++) {
+                    Node node = nodes.get(j);
+                    mbb.putInt(node.getId());
+                    byte[] mlstBytes = sequenceToBytes(node, mlstLength, sequenceType);
+                    mbb.put(mlstBytes);
+                }
+                
+                // mbb.force(); // Removed: OS will flush efficiently
             }
-            
-            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, position, Long.BYTES);
-            mbb.order(ByteOrder.nativeOrder());
-            
-            return mbb.getLong();
         }
     }
-
+    
     /**
      * Add a single node to the memory-mapped file.
-     * Note: This appends a node entry at the end. The node ID is implicit based on position.
      * 
      * @param node The node to add
      * @param fileName Path to the node data file
@@ -324,112 +379,90 @@ public class NodeIndexMapper {
             int currentNumNodes = headerMbb.getInt();
             headerMbb.position(0);
             headerMbb.putInt(currentNumNodes + 1);
-            headerMbb.force();
+            // headerMbb.force(); // Removed: OS will flush efficiently
             
             // Read sequence type from header
             MappedByteBuffer headerReadMbb = channel.map(FileChannel.MapMode.READ_ONLY, 2 * Integer.BYTES, 1);
             byte sequenceType = headerReadMbb.get();
-            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
             
-            // Append MLST data and offset at the end of file
+            // Append node entry at the end of file: node_id + mlst_data
             long position = channel.size();
-            int dataSize = mlstLength * bytesPerElement;
-            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, position, dataSize + Long.BYTES);
+            int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement;
+            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, position, entrySize);
             mbb.order(ByteOrder.nativeOrder());
             
+            // Write node ID
+            mbb.putInt(node.getId());
+            
+            // Write MLST data
             byte[] mlstBytes = sequenceToBytes(node, mlstLength, sequenceType);
             mbb.put(mlstBytes);
             
-            mbb.putLong(-1L); // New node has no incoming edges initially
-            mbb.force();
+            // mbb.force(); // Removed: OS will flush efficiently
         }
     }
 
     /**
-     * Update the incoming edge offset for a specific node.
+     * Build a complete in-memory index of node ID to file position (byte offset).
+     * This index can be reused for multiple update operations to avoid repeated file scans.
      * 
      * @param fileName Path to the node data file
-     * @param nodeId Node ID to update
-     * @param newOffset New offset value
+     * @return Map of node ID to byte position in file where that node's data starts
      * @throws IOException if file operations fail
      */
-    public static void updateIncomingEdgeOffset(String fileName, int nodeId, long newOffset) throws IOException {
-        try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
+    public static Map<Integer, Long> buildNodePositionIndex(String fileName) throws IOException {
+        Map<Integer, Long> index = new HashMap<>();
+        
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
              FileChannel channel = raf.getChannel()) {
-
+            
             if (channel.size() < HEADER_SIZE) {
                 throw new IOException("Invalid file format: file too small for header");
             }
             
-            // Read mlstLength and sequenceType from header
+            // Read header
             MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
             headerMbb.order(ByteOrder.nativeOrder());
-            headerMbb.getInt(); // skip num_nodes
+            int numNodes = headerMbb.getInt();
             int mlstLength = headerMbb.getInt();
             byte sequenceType = headerMbb.get();
             
-            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
+            int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement;
             
-            // Calculate position of the offset field for this node
-            int entrySize = mlstLength * bytesPerElement + Long.BYTES;
-            long position = HEADER_SIZE + (long) nodeId * entrySize + (mlstLength * bytesPerElement);
-
-            if (position + Long.BYTES > channel.size()) { 
-                throw new IOException("Node ID " + nodeId + " out of range"); 
-            }
-
-            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, position, Long.BYTES);
-            mbb.order(ByteOrder.nativeOrder());
-            mbb.putLong(newOffset);
-            mbb.force();
-        }
-    }
-
-    /**
-     * Update multiple incoming edge offsets in a single operation.
-     * 
-     * @param fileName Path to the node data file
-     * @param updatedOffsets Map of node ID to new offset value
-     * @throws IOException if file operations fail
-     */
-    public static void updateIncomingEdgeOffsets(String fileName, Map<Integer, Long> updatedOffsets) throws IOException {
-        try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
-             FileChannel channel = raf.getChannel()) {
-
-            if (channel.size() < HEADER_SIZE) {
-                throw new IOException("Invalid file format: file too small for header");
-            }
+            // Read nodes in chunks to avoid exceeding 2GB limit
+            int nodesPerChunk = (int)(MAX_MAPPING_SIZE / entrySize);
+            if (nodesPerChunk == 0) nodesPerChunk = 1;
             
-            // Read mlstLength and sequenceType from header once
-            MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
-            headerMbb.order(ByteOrder.nativeOrder());
-            headerMbb.getInt(); // skip num_nodes
-            int mlstLength = headerMbb.getInt();
-            byte sequenceType = headerMbb.get();
+            long fileSize = channel.size();
             
-            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
-            int entrySize = mlstLength * bytesPerElement + Long.BYTES;
-
-            for (Map.Entry<Integer, Long> entry : updatedOffsets.entrySet()) {
-                int nodeId = entry.getKey();
-                long newOffset = entry.getValue();
+            for (int i = 0; i < numNodes; i += nodesPerChunk) {
+                int endIdx = Math.min(i + nodesPerChunk, numNodes);
+                int chunkSize = endIdx - i;
                 
-                long position = HEADER_SIZE + (long) nodeId * entrySize + (mlstLength * bytesPerElement);
-
-                if (position + Long.BYTES > channel.size()) { 
-                    throw new IOException("Node ID " + nodeId + " out of range"); 
+                long[] bounds = getChunkBounds(i, chunkSize, entrySize, fileSize);
+                long chunkStartPosition = bounds[0];
+                long size = bounds[1];
+                
+                MappedByteBuffer dataMbb = channel.map(FileChannel.MapMode.READ_ONLY, chunkStartPosition, size);
+                dataMbb.order(ByteOrder.nativeOrder());
+                
+                // Read node IDs and build index
+                for (int j = i; j < endIdx; j++) {
+                    int offsetInBuffer = (j - i) * entrySize;
+                    int nodeId = dataMbb.getInt(offsetInBuffer);
+                    long filePosition = chunkStartPosition + offsetInBuffer;
+                    index.put(nodeId, filePosition);
                 }
-
-                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, position, Long.BYTES);
-                mbb.order(ByteOrder.nativeOrder());
-                mbb.putLong(newOffset);
-                mbb.force();
             }
         }
+        
+        return index;
     }
 
     /**
-     * Remove a node from the memory-mapped file and places the last node entry into its position.
+     * Remove a node from the memory-mapped file by replacing it with the last entry.
      * 
      * @param node The node to remove
      * @param fileName Path to the node data file
@@ -443,29 +476,51 @@ public class NodeIndexMapper {
                 throw new IOException("Invalid file format: file too small for header");
             }
             
-            // Read mlstLength and sequenceType from header
+            // Read header
             MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
             headerMbb.order(ByteOrder.nativeOrder());
             int numNodes = headerMbb.getInt();
             int mlstLength = headerMbb.getInt();
             byte sequenceType = headerMbb.get();
             
-            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Integer.BYTES;
-            int entrySize = mlstLength * bytesPerElement + Long.BYTES;
-            int maxNodeId = (int) ((channel.size() - HEADER_SIZE) / entrySize) - 1;
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
+            int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement;
 
             int nodeIdToRemove = node.getId();
-            if (nodeIdToRemove < 0 || nodeIdToRemove > maxNodeId) {
-                throw new IOException("Node ID " + nodeIdToRemove + " out of range");
+            
+            // Find the position of the node to remove
+            long removePosition = -1;
+            long position = HEADER_SIZE;
+            int entryIndex = 0;
+            
+            for (int i = 0; i < numNodes; i++) {
+                if (position + entrySize > channel.size()) {
+                    break;
+                }
+                
+                MappedByteBuffer entryMbb = channel.map(FileChannel.MapMode.READ_ONLY, position, Integer.BYTES);
+                entryMbb.order(ByteOrder.nativeOrder());
+                int currentNodeId = entryMbb.getInt();
+                
+                if (currentNodeId == nodeIdToRemove) {
+                    removePosition = position;
+                    entryIndex = i;
+                    break;
+                }
+                
+                position += entrySize;
+            }
+            
+            if (removePosition == -1) {
+                throw new IOException("Node ID " + nodeIdToRemove + " not found in file");
             }
 
-            if (nodeIdToRemove != maxNodeId) {
-                // Move last node entry into the removed node's position
-                long lastNodePosition = HEADER_SIZE + (long) maxNodeId * entrySize;
-                long removeNodePosition = HEADER_SIZE + (long) nodeIdToRemove * entrySize;
+            // If not the last entry, copy the last entry into this position
+            if (entryIndex != numNodes - 1) {
+                long lastNodePosition = HEADER_SIZE + (long) (numNodes - 1) * entrySize;
 
                 MappedByteBuffer lastNodeMbb = channel.map(FileChannel.MapMode.READ_ONLY, lastNodePosition, entrySize);
-                MappedByteBuffer removeNodeMbb = channel.map(FileChannel.MapMode.READ_WRITE, removeNodePosition, entrySize);
+                MappedByteBuffer removeNodeMbb = channel.map(FileChannel.MapMode.READ_WRITE, removePosition, entrySize);
 
                 byte[] buffer = new byte[entrySize];
                 lastNodeMbb.get(buffer);
@@ -481,6 +536,96 @@ public class NodeIndexMapper {
             headerMbb.order(ByteOrder.nativeOrder());
             headerMbb.position(0);
             headerMbb.putInt(numNodes - 1);
+            headerMbb.force();
+        }
+    }
+
+    /**
+     * Remove multiple nodes from the memory-mapped file in a single batch operation.
+     * 
+     * @param nodes List of nodes to remove
+     * @param fileName Path to the node data file
+     * @throws IOException if file operations fail
+     */
+    public static void removeNodesBatch(List<Node> nodes, String fileName) throws IOException {
+        if (nodes == null || nodes.isEmpty()) {
+            return;
+        }
+        
+        // Create a set of node IDs for faster lookup
+        Set<Integer> nodeIdsToRemove = new HashSet<>();
+        for (Node node : nodes) {
+            nodeIdsToRemove.add(node.getId());
+        }
+        
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "rw");
+             FileChannel channel = raf.getChannel()) {
+            
+            if (channel.size() < HEADER_SIZE) {
+                throw new IOException("Invalid file format: file too small for header");
+            }
+            
+            // Read header
+            MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
+            headerMbb.order(ByteOrder.nativeOrder());
+            int numNodes = headerMbb.getInt();
+            int mlstLength = headerMbb.getInt();
+            byte sequenceType = headerMbb.get();
+            
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
+            int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement;
+            
+            // Calculate total data size
+            long dataSize = channel.size() - HEADER_SIZE;
+            
+            // Map the entire data region
+            MappedByteBuffer dataMbb = channel.map(FileChannel.MapMode.READ_WRITE, HEADER_SIZE, dataSize);
+            dataMbb.order(ByteOrder.nativeOrder());
+            
+            // Compact the file by moving entries that should be kept
+            int writeIndex = 0;  // Index in the buffer where we write the next kept entry
+            int removedCount = 0;
+            
+            byte[] entryBuffer = new byte[entrySize];
+            
+            for (int i = 0; i < numNodes; i++) {
+                int readOffset = i * entrySize;
+                
+                // Read the node ID
+                dataMbb.position(readOffset);
+                int nodeId = dataMbb.getInt();
+                
+                // Check if this node should be removed
+                if (nodeIdsToRemove.contains(nodeId)) {
+                    removedCount++;
+                    continue;  // Skip this entry
+                }
+                
+                // If write position differs from read position, we need to move the entry
+                if (writeIndex != i) {
+                    // Read the entire entry
+                    dataMbb.position(readOffset);
+                    dataMbb.get(entryBuffer);
+                    
+                    // Write it to the correct position
+                    dataMbb.position(writeIndex * entrySize);
+                    dataMbb.put(entryBuffer);
+                }
+                
+                writeIndex++;
+            }
+            
+            dataMbb.force();
+            
+            // Truncate the file to remove unused space
+            long newSize = HEADER_SIZE + (long) (numNodes - removedCount) * entrySize;
+            channel.truncate(newSize);
+            
+            // Update num_nodes in header
+            headerMbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, Integer.BYTES);
+            headerMbb.order(ByteOrder.nativeOrder());
+            headerMbb.position(0);
+            headerMbb.putInt(numNodes - removedCount);
             headerMbb.force();
         }
     }

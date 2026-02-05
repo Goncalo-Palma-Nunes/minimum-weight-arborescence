@@ -1,12 +1,16 @@
 package optimalarborescence.sequences;
 
+import java.util.List;
+
 /**
  * SequenceTypingData represents a sequence of typing data, typically used in bioinformatics.
- * It extends the generic Sequence class with an integer array as its data type.
+ * It extends the generic Sequence class with a long array as its data type.
  */
-public class SequenceTypingData extends Sequence<Integer> {
+public class SequenceTypingData extends Sequence<Long> {
 
-    public SequenceTypingData(Integer[] data, int length) {
+    private static final List<Long> MISSING_DATA_SYMBOLS = List.of(-1L, 0L);
+
+    public SequenceTypingData(Long[] data, int length) {
         super(data, length);
     }
 
@@ -14,7 +18,7 @@ public class SequenceTypingData extends Sequence<Integer> {
      * Gets the element at the specified index in the sequence.
      */
     @Override
-    public Integer getElementAt(int index) {
+    public Long getElementAt(int index) {
         if (index < 0 || index >= getLength()) {
             throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + getLength());
         }
@@ -28,16 +32,21 @@ public class SequenceTypingData extends Sequence<Integer> {
             throw new IllegalArgumentException("Cannot compare SequenceTypingData with different Sequence type");
         }
 
-        Integer thisElement = getElementAt(index);
-        Integer otherElement = (Integer) other.getElementAt(index);
+        Long thisElement = getElementAt(index);
+        Long otherElement = (Long) other.getElementAt(index);
         return thisElement.compareTo(otherElement);
+    }
+
+    @Override
+    public boolean isMissingDataAt(int index) {
+        return MISSING_DATA_SYMBOLS.contains(getElementAt(index));
     }
 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("SequenceTypingData{data=[");;
-        Integer[] data = getData();
+        Long[] data = getData();
         for (int i = 0; i < data.length; i++) {
             sb.append(data[i]);
             if (i < data.length - 1) {
@@ -56,8 +65,8 @@ public class SequenceTypingData extends Sequence<Integer> {
         SequenceTypingData other = (SequenceTypingData) obj;
         if (getLength() != other.getLength()) return false;
 
-        Integer[] data1 = getData();
-        Integer[] data2 = other.getData();
+        Long[] data1 = getData();
+        Long[] data2 = other.getData();
         for (int i = 0; i < getLength(); i++) {
             if (!data1[i].equals(data2[i])) {
                 return false;

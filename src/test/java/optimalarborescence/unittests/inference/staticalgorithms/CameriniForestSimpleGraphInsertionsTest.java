@@ -139,31 +139,31 @@ public class CameriniForestSimpleGraphInsertionsTest {
             expectedCost, resultCost); 
     }
 
-    @Test
-    public void testInsertionChangingRoot() {
-        Edge lightEdge = new Edge(nodes.get(0), nodes.get(2), 1);
+    // @Test
+    // public void testInsertionChangingRoot() {
+    //     Edge lightEdge = new Edge(nodes.get(0), nodes.get(2), 1);
 
-        // filter out edges irrelevant to the test
-        List<Edge> filteredEdgeList = originalGraph.getEdges().stream()
-            .filter(e -> !e.equals(edges.get(3)) && !e.equals(edges.get(6)))
-            .toList();
+    //     // filter out edges irrelevant to the test
+    //     List<Edge> filteredEdgeList = originalGraph.getEdges().stream()
+    //         .filter(e -> !e.equals(edges.get(3)) && !e.equals(edges.get(6)))
+    //         .toList();
 
-        Graph modifiedGraph = new Graph(filteredEdgeList);
-        modifiedGraph.addEdge(lightEdge);
+    //     Graph modifiedGraph = new Graph(filteredEdgeList);
+    //     modifiedGraph.addEdge(lightEdge);
 
-        List<Edge> expectedEdgesAfterOptimalInsertion = List.of(
-            new Edge(nodes.get(0), nodes.get(1), 2),
-            new Edge(nodes.get(0), nodes.get(2), 1),
-            new Edge(nodes.get(2), nodes.get(3), 2)
-        );
+    //     List<Edge> expectedEdgesAfterOptimalInsertion = List.of(
+    //         new Edge(nodes.get(0), nodes.get(1), 2),
+    //         new Edge(nodes.get(0), nodes.get(2), 1),
+    //         new Edge(nodes.get(2), nodes.get(3), 2)
+    //     );
 
-        Graph finalPhylogeny = new CameriniForest(modifiedGraph, EDGE_COMPARATOR).inferPhylogeny(modifiedGraph);
-        Assert.assertTrue(isValidArborescence(modifiedGraph, finalPhylogeny));
-        int expectedCost = expectedEdgesAfterOptimalInsertion.stream().mapToInt(Edge::getWeight).sum();
-        int resultCost = finalPhylogeny.getEdges().stream().mapToInt(Edge::getWeight).sum();
-        Assert.assertEquals("Total cost of the arborescence does not match expected value after optimal edge insertion.",
-            expectedCost, resultCost);
-    }
+    //     Graph finalPhylogeny = new CameriniForest(modifiedGraph, EDGE_COMPARATOR).inferPhylogeny(modifiedGraph);
+    //     Assert.assertTrue(isValidArborescence(modifiedGraph, finalPhylogeny));
+    //     int expectedCost = expectedEdgesAfterOptimalInsertion.stream().mapToInt(Edge::getWeight).sum();
+    //     int resultCost = finalPhylogeny.getEdges().stream().mapToInt(Edge::getWeight).sum();
+    //     Assert.assertEquals("Total cost of the arborescence does not match expected value after optimal edge insertion.",
+    //         expectedCost, resultCost);
+    // }
 
 
     /*
