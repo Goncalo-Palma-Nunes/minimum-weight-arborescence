@@ -829,33 +829,19 @@ public class Main {
             
             // Create edges between all existing nodes and new node
             for (Node existingNode : existingNodes) {
-                Edge edge = buildEdge(existingNode, newNode, sequenceType, distanceFunction);
-                
-                if (edge.getDestination().equals(newNode)) {
-                    // Edge points TO new node (incoming to new node)
-                    incomingEdges.add(edge);
-                } else {
-                    // Edge points FROM new node TO existing node
-                    // Need to add this to the existing node's incoming edges
-                    existingNodeNewEdges.computeIfAbsent(existingNode, k -> new ArrayList<>()).add(edge);
-                }
+                Edge incoming = buildEdge(existingNode, newNode, sequenceType, distanceFunction);
+                Edge outgoing = new Edge(newNode, existingNode, incoming.getWeight());
+                incomingEdges.add(incoming);
+                existingNodeNewEdges.computeIfAbsent(existingNode, k -> new ArrayList<>()).add(outgoing);
             }
             
             // Create edges between previously added nodes in this batch and new node
             for (int j = 0; j < i; j++) {
                 Node previousNode = nodesToAdd.get(j);
-                Edge edge = buildEdge(previousNode, newNode, sequenceType, distanceFunction);
-                
-                if (edge.getDestination().equals(newNode)) {
-                    // Edge points TO new node
-                    incomingEdges.add(edge);
-                } else {
-                    // Edge points TO previous node in batch
-                    List<Edge> prevNodeEdges = nodeEdgesMap.get(previousNode);
-                    if (prevNodeEdges != null) {
-                        prevNodeEdges.add(edge);
-                    }
-                }
+                Edge incoming = buildEdge(previousNode, newNode, sequenceType, distanceFunction);
+                Edge outgoing = new Edge(newNode, previousNode, incoming.getWeight());
+                incomingEdges.add(incoming);
+                existingNodeNewEdges.computeIfAbsent(previousNode, k -> new ArrayList<>()).add(outgoing);
             }
             
             nodeEdgesMap.put(newNode, incomingEdges);
@@ -1297,7 +1283,7 @@ public class Main {
             }
             
             // Load node map for edge reconstruction
-            Map<Integer, Node> nodeMap = GraphMapper.loadNodeMap(tempGraphFile);
+            // Map<Integer, Node> nodeMap = GraphMapper.loadNodeMap(tempGraphFile);
             
             // Load edges for new nodes and add to dynamic algorithm
             for (Node newNode : nodesToAdd) {
