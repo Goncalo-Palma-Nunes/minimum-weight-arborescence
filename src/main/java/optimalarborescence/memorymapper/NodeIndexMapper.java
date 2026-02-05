@@ -164,7 +164,7 @@ public class NodeIndexMapper {
             headerBuf.putInt(nodes.size());     // num_nodes
             headerBuf.putInt(mlstLength);       // mlst_length (number of elements)
             headerBuf.put(sequenceType);        // sequence_type
-            headerBuf.force();
+            // headerBuf.force(); // Removed: OS will flush efficiently
             
             // Write nodes in chunks to avoid exceeding 2GB limit
             int nodesPerChunk = (int)(MAX_MAPPING_SIZE / entrySize);
@@ -319,7 +319,7 @@ public class NodeIndexMapper {
             int currentNumNodes = headerMbb.getInt();
             headerMbb.position(0);
             headerMbb.putInt(currentNumNodes + nodes.size());
-            headerMbb.force();
+            // headerMbb.force(); // Removed: OS will flush efficiently
             
             // Read sequence type from header
             MappedByteBuffer headerReadMbb = channel.map(FileChannel.MapMode.READ_ONLY, 2 * Integer.BYTES, 1);
@@ -356,7 +356,7 @@ public class NodeIndexMapper {
                     mbb.put(mlstBytes);
                 }
                 
-                mbb.force();
+                // mbb.force(); // Removed: OS will flush efficiently
             }
         }
     }
@@ -379,7 +379,7 @@ public class NodeIndexMapper {
             int currentNumNodes = headerMbb.getInt();
             headerMbb.position(0);
             headerMbb.putInt(currentNumNodes + 1);
-            headerMbb.force();
+            // headerMbb.force(); // Removed: OS will flush efficiently
             
             // Read sequence type from header
             MappedByteBuffer headerReadMbb = channel.map(FileChannel.MapMode.READ_ONLY, 2 * Integer.BYTES, 1);
@@ -399,7 +399,7 @@ public class NodeIndexMapper {
             byte[] mlstBytes = sequenceToBytes(node, mlstLength, sequenceType);
             mbb.put(mlstBytes);
             
-            mbb.force();
+            // mbb.force(); // Removed: OS will flush efficiently
         }
     }
 

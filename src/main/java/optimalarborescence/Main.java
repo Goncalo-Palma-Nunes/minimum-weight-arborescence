@@ -487,22 +487,8 @@ public class Main {
 
 
     private static Edge buildEdge(Node u, Node v, String sequenceType, DistanceFunction distanceFunction) {
-        if (SYMMETRIC_DATA.contains(sequenceType)) {
-            int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
-            return new Edge(u, v, dist);
-        }
-        else {
-            Edge e;
-            if (u.getPoint().getSequence().getPositionsWithMissingData().size() <= v.getPoint().getSequence().getPositionsWithMissingData().size()) {
-                int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
-                e = new Edge(u, v, dist);
-            }
-            else {
-                int dist = (int) distanceFunction.calculate(v.getPoint().getSequence(), u.getPoint().getSequence());
-                e = new Edge(v, u, dist);
-            }
-            return e;
-        }
+        int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
+        return new Edge(u, v, dist);
     }
 
 
@@ -538,9 +524,9 @@ public class Main {
         graph.addNode(initialNodes.get(0));
         graph.addNode(initialNodes.get(1));
         
-        // Create first edge
+        // Create first two edges
         graph.addEdge(buildEdge(initialNodes.get(0), initialNodes.get(1), sequenceType, distanceFunction));
-        // TODO - ADICIONAR EDGE NA OUTRA DIREÇÃO TAMBÉM
+        graph.addEdge(buildEdge(initialNodes.get(1), initialNodes.get(0), sequenceType, distanceFunction));
         
         // Save initial graph to memory-mapped file
         ensureDirectoryExists(outputFile);
@@ -552,7 +538,6 @@ public class Main {
         // Add remaining nodes in batches
         int totalPoints = points.size();
         long startTime = System.currentTimeMillis();
-        
         for (int i = 2; i < totalPoints; i += BATCH_SIZE) {
             int endIdx = Math.min(i + BATCH_SIZE, totalPoints);
             List<Point<?>> batchPoints = points.subList(i, endIdx);
@@ -577,9 +562,11 @@ public class Main {
             for (Node newNode : batchNodes) {
                 List<Edge> incomingEdges = new ArrayList<>();
                 
-                // Create edges FROM existing nodes TO new node
+                // Create edges between existing nodes and new node
                 for (Node existingNode : allNodes) {
                     incomingEdges.add(buildEdge(existingNode, newNode, sequenceType, distanceFunction));
+                    Edge outgoingEdge = buildEdge(newNode, existingNode, sequenceType, distanceFunction);
+                    nodeEdgesMap.computeIfAbsent(existingNode, k -> new ArrayList<>()).add(outgoingEdge);
                 }
                 
                 nodeEdgesMap.put(newNode, incomingEdges);
@@ -588,21 +575,30 @@ public class Main {
             long distEnd = System.currentTimeMillis();
             System.out.println("Distance computation: " + (distEnd - distStart) + " ms");
             
+            List<List<Edge>> batchEdgeLists = new ArrayList<>(batchNodes.size());
+            for (Node node : batchNodes) {
+                batchEdgeLists.add(nodeEdgesMap.get(node));
+            }
+        
             // Add intra-batch edges
             System.out.println("Computing intra-batch edges...");
             for (int j = 0; j < batchNodes.size(); j++) {
                 Node nodeJ = batchNodes.get(j);
-                List<Edge> nodeJEdges = nodeEdgesMap.get(nodeJ);
+                // List<Edge> nodeJEdges = nodeEdgesMap.get(nodeJ);
+                List<Edge> nodeJEdges = batchEdgeLists.get(j);
                 
                 for (int k = 0; k < j; k++) {
                     Node nodeK = batchNodes.get(k);
-                    List<Edge> nodeKEdges = nodeEdgesMap.get(nodeK);
-                    Edge e = buildEdge(nodeK, nodeJ, sequenceType, distanceFunction);
-                    if (e.getDestination().equals(nodeJ)) {
-                        nodeJEdges.add(e);
-                    } else {
-                        nodeKEdges.add(e);
+                    // List<Edge> nodeKEdges = nodeEdgesMap.get(nodeK);
+                    List<Edge> nodeKEdges = batchEdgeLists.get(k);
+                    Edge incoming = buildEdge(nodeK, nodeJ, sequenceType, distanceFunction);
+                    if (!SYMMETRIC_DATA.contains(sequenceType)) {
+                        // For directional data, add edges in both directions
+                         Edge outgoing = buildEdge(nodeJ, nodeK, sequenceType, distanceFunction);
+                            nodeKEdges.add(outgoing);
                     }
+                    else nodeKEdges.add(new Edge(nodeJ, nodeK, incoming.getWeight())); // For symmetric data, use same weight for both directions
+                    nodeJEdges.add(buildEdge(nodeK, nodeJ, sequenceType, distanceFunction)); // Incoming
                 }
             }
             

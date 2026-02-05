@@ -85,12 +85,12 @@ public class EdgeListMapper {
             edgeMbb.putInt(edge.getSource().getId());
             edgeMbb.putInt(edge.getDestination().getId());
             edgeMbb.putInt(edge.getWeight());
-            edgeMbb.force();
+            // edgeMbb.force(); // Removed: OS will flush efficiently
             
             // Update header with new count
             headerMbb.position(0);
             headerMbb.putLong(edgeCount + 1);
-            headerMbb.force();
+            // headerMbb.force(); // Removed: OS will flush efficiently
         }
     }
 
@@ -126,21 +126,39 @@ public class EdgeListMapper {
             long totalEdgeSize = (long) edges.size() * BYTES_PER_EDGE;
             long newFileSize = appendPosition + totalEdgeSize;
             raf.setLength(newFileSize);
-            MappedByteBuffer edgeMbb = channel.map(FileChannel.MapMode.READ_WRITE, appendPosition, totalEdgeSize);
-            edgeMbb.order(ByteOrder.nativeOrder());
-
-            // Write all edges
-            for (Edge edge : edges) {
-                edgeMbb.putInt(edge.getSource().getId());
-                edgeMbb.putInt(edge.getDestination().getId());
-                edgeMbb.putInt(edge.getWeight());
+            
+            // Write edges in chunks to avoid exceeding 2GB mapping limit
+            long currentOffset = appendPosition;
+            int edgesWritten = 0;
+            while (edgesWritten < edges.size()) {
+                long remainingEdges = edges.size() - edgesWritten;
+                long remainingBytes = newFileSize - currentOffset;
+                long chunkSize = Math.min(remainingBytes, CHUNK_SIZE);
+                long edgesInChunk = chunkSize / BYTES_PER_EDGE;
+                if (edgesInChunk > remainingEdges) {
+                    edgesInChunk = remainingEdges;
+                    chunkSize = edgesInChunk * BYTES_PER_EDGE;
+                }
+                
+                MappedByteBuffer edgeMbb = channel.map(FileChannel.MapMode.READ_WRITE, currentOffset, chunkSize);
+                edgeMbb.order(ByteOrder.nativeOrder());
+                
+                for (int i = 0; i < edgesInChunk; i++) {
+                    Edge edge = edges.get(edgesWritten);
+                    edgeMbb.putInt(edge.getSource().getId());
+                    edgeMbb.putInt(edge.getDestination().getId());
+                    edgeMbb.putInt(edge.getWeight());
+                    edgesWritten++;
+                }
+                
+                currentOffset += chunkSize;
             }
-            edgeMbb.force();
+            // OS will flush efficiently
             
             // Update header with new count
             headerMbb.position(0);
             headerMbb.putLong(edgeCount + edges.size());
-            headerMbb.force();
+            // headerMbb.force(); // Removed: OS will flush efficiently
         }
     }
     
@@ -271,7 +289,7 @@ public class EdgeListMapper {
             MappedByteBuffer headerMbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, HEADER_SIZE);
             headerMbb.order(ByteOrder.nativeOrder());
             headerMbb.putLong(totalEdges);
-            headerMbb.force();
+            // headerMbb.force(); // Removed: OS will flush efficiently
             
             // Write edges in chunks
             long currentOffset = HEADER_SIZE;
@@ -297,7 +315,7 @@ public class EdgeListMapper {
                     edgesWritten++;
                 }
                 
-                edgeMbb.force();
+                // edgeMbb.force(); // Removed: OS will flush efficiently
                 currentOffset += chunkSize;
             }
         } 

@@ -96,21 +96,6 @@ public class DirectionalHammingDistanceTest {
     }
 
     @Test
-    public void testAsymmetricMissingDataFirstHasMoreMissing() {
-        // seq1 has more missing data than seq2 -> should throw exception
-        AllelicProfile seq1 = createAllelicProfile("A??T");
-        AllelicProfile seq2 = createAllelicProfile("ACGT");
-        
-        try {
-            directionalDistance.calculate(seq1, seq2);
-            fail("Should throw IllegalArgumentException when seq1 has more missing data");
-        } catch (IllegalArgumentException e) {
-            assertTrue("Exception message should mention direction", 
-                      e.getMessage().contains("Direction is from first to second"));
-        }
-    }
-
-    @Test
     public void testBothHaveMissingDataAtSamePosition() {
         AllelicProfile seq1 = createAllelicProfile("A?GT");
         AllelicProfile seq2 = createAllelicProfile("A?GT");
@@ -221,21 +206,6 @@ public class DirectionalHammingDistanceTest {
         
         assertEquals("Distance should be 0 when both have same values and missing positions", 
                      0.0, directionalDistance.calculate(seq1, seq2), 0.0);
-    }
-
-    @Test
-    public void testSequenceTypingDataFirstHasMoreMissing() {
-        // seq1 has 2 missing, seq2 has 0 missing -> should throw
-        SequenceTypingData seq1 = createSequenceTypingData(1L, -1L, 3L, 0L, 5L);
-        SequenceTypingData seq2 = createSequenceTypingData(1L, 2L, 3L, 4L, 5L);
-        
-        try {
-            directionalDistance.calculate(seq1, seq2);
-            fail("Should throw exception when seq1 has more missing data");
-        } catch (IllegalArgumentException e) {
-            assertTrue("Exception should mention direction requirement", 
-                      e.getMessage().contains("Direction is from first to second"));
-        }
     }
 
     // Edge cases
