@@ -794,7 +794,7 @@ public class Main {
 
     /**
      * Adds nodes incrementally to an existing graph, computing and persisting edges in batches
-     * to avoid memory overflow. Only stores upper triangle edges (from existing to new nodes).
+     * to avoid memory overflow.
      * <p>
      * Uses a memory cache of nodes to avoid expensive file reloads.
      * 

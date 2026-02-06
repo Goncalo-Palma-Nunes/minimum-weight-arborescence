@@ -45,6 +45,22 @@ public class SerializableCameriniForest extends CameriniForest {
      * Used during queue re-initialization to load edges for all nodes in the SCC.
      */
     private Map<Integer, Set<Integer>> sccComposition;
+
+    /**
+     * Tracks the number of edges examined for each node when running with lazy loading with on-demand edge computation.
+     * If a node's numExaminedEdges reaches the numNeighbors limit, no more nearest neighbor searches will be
+     * performed for that node and instead we compute the entire list of incoming edges
+     */
+    private int[] numExaminedEdges;
+
+    /**
+     * Used to track if a SCC has been previously initialized with on-demand edge computation and 
+     * with nearest neighbor search. If it has and it failed to find an adequate edge during the
+     * contraction phase, prevFailure[root] is set to true and the queue must be re-initialized
+     * with the complete list of incoming edges to that SCC
+     */
+    private boolean[] prevFailure = null;
+
     
     /**
      * Constructor for in-memory operation (backward compatibility).
@@ -57,6 +73,8 @@ public class SerializableCameriniForest extends CameriniForest {
         this.useMemoryMappedFiles = false;
         this.queueInitialized = new HashMap<>();
         this.sccComposition = new HashMap<>();
+        this.numExaminedEdges = new int[graph.getNodes().size()];
+        this.prevFailure = new boolean[graph.getNodes().size()];
     }
     
     /**
@@ -79,6 +97,8 @@ public class SerializableCameriniForest extends CameriniForest {
         this.useMemoryMappedFiles = true;
         this.queueInitialized = new HashMap<>();
         this.sccComposition = new HashMap<>();
+        this.numExaminedEdges = new int[graph.getNodes().size()];
+        this.prevFailure = new boolean[graph.getNodes().size()];
         
         // Load node map for edge reconstruction during lazy loading
         this.nodeMap = GraphMapper.loadNodeMap(baseName);
@@ -114,6 +134,11 @@ public class SerializableCameriniForest extends CameriniForest {
         this.useMemoryMappedFiles = true;
         this.queueInitialized = new HashMap<>();
         this.sccComposition = new HashMap<>();
+        this.numExaminedEdges = new int[graph.getNodes().size()];
+
+        if (numNeighbors > 0) {
+            this.prevFailure = new boolean[graph.getNodes().size()];
+        }
         
         // Load node map for edge reconstruction during lazy loading
         this.nodeMap = GraphMapper.loadNodeMap(baseName);
@@ -150,6 +175,23 @@ public class SerializableCameriniForest extends CameriniForest {
         queueInitialized.put(nodeId, false);
     }
 
+
+    private Edge extractMinEdge(MergeableHeapInterface<HeapNode> q) {
+        if (emptyQueue(q)) {
+            return null;
+        }
+        Edge e = q.extractMin().getEdge();
+        while (!emptyQueue(q) && sccFind(e.getSource()) == sccFind(e.getDestination())) {
+            e = q.extractMin().getEdge();
+            this.numExaminedEdges[e.getDestination().getId()]++; // Increment the count of examined edges for the destination node
+        }
+        return e;
+    }
+
+    private boolean isApproximatedOnDemand() {
+        return onDemand && numNeighbors > 0;
+    }
+
     /**
      * Override contractionPhase to clear queues after processing a node. A cleared queue is 
      * re-initialized if the node is accessed again (this only happens if it is part of a contraction),
@@ -168,10 +210,15 @@ public class SerializableCameriniForest extends CameriniForest {
                     rset.add(root);
                     continue;
                 }
-                Edge e = q.extractMin().getEdge();
-                while (!emptyQueue(q) && sccFind(e.getSource()) == sccFind(e.getDestination())) {
-                    e = q.extractMin().getEdge();
+                Edge e = extractMinEdge(q);
+
+                if (isApproximatedOnDemand() && emptyQueue(q) && sccFind(e.getSource()) == sccFind(e.getDestination())) {
+                    this.prevFailure[root.getId()] = true; // Mark this node as having failed to find an edge in this iteration
+                    clearQueue(q, sccFind(root).getId()); // Clear the queue to free memory and mark for re-initialization
+                    q = getQueue(sccFind(root)); // Re-initialize the queue for this node with the entire list of incoming edges
+                    e = extractMinEdge(q); // Extract the minimum edge again after re-initialization
                 }
+
 
                 if (sccFind(e.getSource()) == sccFind(e.getDestination())) {
                     // Both ends of the edge are in the same SCC, skip this edge
@@ -348,17 +395,23 @@ public class SerializableCameriniForest extends CameriniForest {
         
         
         // Load and insert edges for all nodes in the SCC
+        List<Edge> incomingEdges = new ArrayList<>();
         for (Integer nodeId : nodesToLoad) {
-            List<Edge> incomingEdges = new ArrayList<>();
+            // List<Edge> incomingEdges = new ArrayList<>();
             if (onDemand) {
-                if (numNeighbors > 0) {
+                Node node = nodeMap.get(nodeId);
+                if (numNeighbors > 0 && this.numExaminedEdges[nodeId] < numNeighbors && !prevFailure[sccFind(node).getId()]) {
                     // Compute incoming edges on-the-fly using nearest neighbor search
-                    Node node = nodeMap.get(nodeId);
+
+                    // Slack to add to the number of neighbors, in case the number of examined edges
+                    // is already close to the limit, to ensure we get a reasonable number of edges
+                    // to examine
+                    int slack = numNeighbors - this.numExaminedEdges[nodeId];
                     
                     // NNSearch
                     @SuppressWarnings("unchecked")
                     List<Point<Object>> neighbors = ((NearestNeighbourSearchAlgorithm<Object>) nnAlgorithm)
-                        .neighbourSearch((Point<Object>) node.getPoint(), numNeighbors);
+                        .neighbourSearch((Point<Object>) node.getPoint(), numNeighbors + slack);
 
                     for (Point<?> neighbor : neighbors) {
                         Node otherNode = new Node(neighbor);
@@ -370,7 +423,6 @@ public class SerializableCameriniForest extends CameriniForest {
                 }
                 else {
                     // Complete graph. Compute all distances to other nodes
-                    Node node = nodeMap.get(nodeId);
                     for (Node otherNode : nodeMap.values()) {
                         if (otherNode.getId() != nodeId) {
                             Edge edge = buildEdge(otherNode, node, distanceFunction);
