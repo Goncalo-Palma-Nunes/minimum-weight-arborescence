@@ -395,10 +395,9 @@ public class SerializableCameriniForest extends CameriniForest {
         
         
         // Load and insert edges for all nodes in the SCC
-        List<Edge> incomingEdges = new ArrayList<>();
         for (Integer nodeId : nodesToLoad) {
-            // List<Edge> incomingEdges = new ArrayList<>();
             if (onDemand) {
+                // List<Edge> incomingEdges = new ArrayList<>();
                 Node node = nodeMap.get(nodeId);
                 if (numNeighbors > 0 && this.numExaminedEdges[nodeId] < numNeighbors && !prevFailure[sccFind(node).getId()]) {
                     // Compute incoming edges on-the-fly using nearest neighbor search
@@ -417,7 +416,8 @@ public class SerializableCameriniForest extends CameriniForest {
                         Node otherNode = new Node(neighbor);
                         Edge edge = buildEdge(otherNode, node, distanceFunction);
                         if (edge.getDestination().getId() == nodeId) {
-                            incomingEdges.add(edge);
+                            // incomingEdges.add(edge);
+                            queue.insert(new HeapNode(edge, null, null)); // Insert directly into queue
                         }
                     }
                 }
@@ -427,20 +427,17 @@ public class SerializableCameriniForest extends CameriniForest {
                         if (otherNode.getId() != nodeId) {
                             Edge edge = buildEdge(otherNode, node, distanceFunction);
                             if (edge.getDestination().getId() == nodeId) {
-                                incomingEdges.add(edge);
+                                // incomingEdges.add(edge);
+                                queue.insert(new HeapNode(edge, null, null)); // Insert directly into queue
                             }
                         }
                     }
                 }
-
             }
             else {
-                incomingEdges = GraphMapper.loadIncidentEdges(baseName, nodeId);
-            }
-            
-            // Insert all edges into the representative's queue
-            for (Edge edge : incomingEdges) {
-                queue.insert(new HeapNode(edge, null, null));
+                GraphMapper.streamIncidentEdges(baseName, nodeId, edge -> {
+                    queue.insert(new HeapNode(edge, null, null));
+                });
             }
         }
     }

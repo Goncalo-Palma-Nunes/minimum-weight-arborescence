@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
@@ -34,6 +35,8 @@ public class EdgeListMapper {
     
     // Chunk size for batch memory mapping
     private static final long CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks
+
+    private static final int NODE_CACHE_THRESHOLD = 100000; // Threshold to clear node cache during streaming
 
     /**
      * Get the number of edges stored in the edge list file.
@@ -243,6 +246,99 @@ public class EdgeListMapper {
         }
         
         return edges;
+    }
+
+    /**
+     * Stream edges from file directly to a consumer without loading all into memory.
+     * This method reads edges in chunks and processes them immediately via the provided
+     * consumer function, avoiding the memory overhead of storing all edges in a List.
+     * 
+     * @param filename Path to the edge list file
+     * @param edgeConsumer Function to process each edge as it's read (e.g., insert into queue)
+     * @throws RuntimeException wrapping IOException if file operations fail
+     */
+    public static void streamEdges(String filename, Consumer<Edge> edgeConsumer) {
+        try (RandomAccessFile raf = new RandomAccessFile(filename, "r");
+             FileChannel channel = raf.getChannel()) {
+            
+            long fileSize = channel.size();
+            long numEdges = (fileSize - HEADER_SIZE) / BYTES_PER_EDGE;
+            
+            if (numEdges == 0) {
+                return; // No edges to stream
+            }
+            
+            if (fileSize < HEADER_SIZE) {
+                throw new IOException("Invalid edge file format");
+            }
+            
+            if ((fileSize - HEADER_SIZE) % BYTES_PER_EDGE != 0) {
+                throw new IOException("Corrupted edge file: size does not align with edge record size");
+            }
+            
+            // Stream edges in chunks without accumulating them in memory
+            streamEdgesInChunks(channel, numEdges, fileSize, edgeConsumer);
+            
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException("Failed to stream edges from file: " + filename, e);
+        }
+    }
+    
+    /**
+     * Internal method to stream edges in chunks to a consumer.
+     * Uses memory-mapped I/O to read chunks of edges and immediately pass them to the consumer.
+     * 
+     * @param channel FileChannel to read from
+     * @param numEdges Total number of edges to stream
+     * @param fileSize Total file size in bytes
+     * @param edgeConsumer Function to process each edge
+     * @throws IOException if file operations fail
+     */
+    private static void streamEdgesInChunks(FileChannel channel, long numEdges, long fileSize,
+                                            Consumer<Edge> edgeConsumer) throws IOException {
+        Map<Integer, Node> nodeCache = new HashMap<>();
+        
+        long edgesRead = 0;
+        long currentOffset = HEADER_SIZE;
+        
+        while (edgesRead < numEdges) {
+            long remainingEdges = numEdges - edgesRead;
+            long remainingBytes = fileSize - currentOffset;
+            long chunkSize = Math.min(remainingBytes, CHUNK_SIZE);
+            long edgesInChunk = chunkSize / BYTES_PER_EDGE;
+            
+            if (edgesInChunk > remainingEdges) {
+                edgesInChunk = remainingEdges;
+                chunkSize = edgesInChunk * BYTES_PER_EDGE;
+            }
+            
+            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, currentOffset, chunkSize);
+            mbb.order(ByteOrder.nativeOrder());
+            
+            for (int i = 0; i < edgesInChunk; i++) {
+                int srcId = mbb.getInt();
+                int destId = mbb.getInt();
+                int weight = mbb.getInt();
+                
+                Node src = nodeCache.computeIfAbsent(srcId, id -> new Node(id));
+                Node dst = nodeCache.computeIfAbsent(destId, id -> new Node(id));
+                
+                Edge edge = new Edge(src, dst, weight);
+                
+                // Immediately pass to consumer
+                edgeConsumer.accept(edge);
+                
+                edgesRead++;
+            }
+            
+            currentOffset += chunkSize;
+            
+            // Clear node cache periodically to prevent unbounded memory growth
+            if (nodeCache.size() > NODE_CACHE_THRESHOLD) {
+                nodeCache.clear();
+            }
+        }
     }
 
     public static List<Edge> loadEdgeArray(String filename) {

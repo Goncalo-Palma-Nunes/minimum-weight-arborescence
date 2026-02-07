@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.HashMap;
+import java.util.function.Consumer;
 
 /**
  * GraphMapper provides high-level methods to save and load entire graphs
@@ -273,6 +274,18 @@ public class GraphMapper {
     public static List<Edge> loadIncidentEdges(String baseName, int nodeId) throws IOException {
         String edgeFile = baseName + "_edges_node" + nodeId + ".dat";
         return EdgeListMapper.loadEdgeArray(edgeFile);
+    }
+    
+    /**
+     * Stream edges incident to a specific node directly to a consumer.
+     * 
+     * @param baseName Base name for the graph files
+     * @param nodeId ID of the node whose incident edges to stream
+     * @param edgeConsumer Function to process each edge as it's read
+     */
+    public static void streamIncidentEdges(String baseName, int nodeId, Consumer<Edge> edgeConsumer) {
+        String edgeFile = baseName + "_edges_node" + nodeId + ".dat";
+        EdgeListMapper.streamEdges(edgeFile, edgeConsumer);
     }
 
     public static void saveArborescence(List<Edge> phylogeny, String baseName) throws IOException {
