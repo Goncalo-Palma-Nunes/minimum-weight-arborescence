@@ -100,8 +100,7 @@ public class SerializableCameriniForest extends CameriniForest {
         this.numExaminedEdges = new int[graph.getNodes().size()];
         this.prevFailure = new boolean[graph.getNodes().size()];
         
-        // Load node map for edge reconstruction during lazy loading
-        this.nodeMap = GraphMapper.loadNodeMap(baseName);
+        this.nodeMap = GraphMapper.loadNodeIdsOnly(baseName);
         
         // Mark all queues as uninitialized for lazy loading
         // Note: queues were already created by parent constructor
@@ -123,7 +122,7 @@ public class SerializableCameriniForest extends CameriniForest {
      * @throws IOException if file operations fail
      */
     public SerializableCameriniForest(Comparator<Edge> comparator, String baseName, boolean onDemand, NearestNeighbourSearchAlgorithm<?> nnAlgorithm, int numNeighbors, DistanceFunction distanceFunction, boolean symmetric) throws IOException {
-        super(createMinimalGraph(baseName), comparator);
+        super(createMinimalGraph(baseName, onDemand), comparator);
         
         this.baseName = baseName;
         this.onDemand = onDemand;
@@ -140,8 +139,13 @@ public class SerializableCameriniForest extends CameriniForest {
             this.prevFailure = new boolean[graph.getNodes().size()];
         }
         
-        // Load node map for edge reconstruction during lazy loading
-        this.nodeMap = GraphMapper.loadNodeMap(baseName);
+        // If onDemand=true: Need full sequences for edge weight computation
+        // If onDemand=false: Only need node IDs (edges pre-computed on disk)
+        if (onDemand) {
+            this.nodeMap = GraphMapper.loadNodeMap(baseName);
+        } else {
+            this.nodeMap = GraphMapper.loadNodeIdsOnly(baseName);
+        }
         
         // Mark all queues as uninitialized for lazy loading
         // Note: queues were already created by parent constructor with empty graph
@@ -153,13 +157,18 @@ public class SerializableCameriniForest extends CameriniForest {
     /**
      * Create a minimal graph with only nodes (no edges) from memory-mapped files.
      * This allows the parent constructor to set up data structures without loading edges.
+     * Nodes are loaded with or without sequences depending on whether onDemand mode is enabled.
      * 
      * @param baseName Base name for memory-mapped files
+     * @param onDemand If true, load full sequences; if false, load only IDs
      * @return Graph with nodes but no edges
      * @throws IOException if file operations fail
      */
-    private static Graph createMinimalGraph(String baseName) throws IOException {
-        Map<Integer, Node> nodeMap = GraphMapper.loadNodeMap(baseName);
+    private static Graph createMinimalGraph(String baseName, boolean onDemand) throws IOException {
+        // Load nodes with or without sequences based on whether we need them
+        Map<Integer, Node> nodeMap = onDemand ? 
+            GraphMapper.loadNodeMap(baseName) : 
+            GraphMapper.loadNodeIdsOnly(baseName);
         Graph graph = new Graph(new ArrayList<>());  // Empty edges list
         
         // Add all nodes to the graph
@@ -476,8 +485,12 @@ public class SerializableCameriniForest extends CameriniForest {
         // Save graph to memory-mapped files
         GraphMapper.saveGraph(graph, sequenceLength, baseName);
         
-        // Load node map from saved files - TODO acho que não preciso disto
-        this.nodeMap = GraphMapper.loadNodeMap(baseName);
+        // Load node map - only load full sequences if onDemand mode requires them
+        if (onDemand) {
+            this.nodeMap = GraphMapper.loadNodeMap(baseName);
+        } else {
+            this.nodeMap = GraphMapper.loadNodeIdsOnly(baseName);
+        }
         
         // Clear all queues and mark for lazy initialization
         for (int i = 0; i < queues.size(); i++) {

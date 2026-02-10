@@ -119,6 +119,20 @@ public class GraphMapper {
         return NodeIndexMapper.loadNodes(nodeFile);
     }
     
+    /**
+     * Load only node IDs without sequence data from memory-mapped file.
+     * Much more memory-efficient when sequences are not needed for computation.
+     * Use this when edges are pre-computed and stored on disk.
+     * 
+     * @param baseName Base name for files
+     * @return Map of node ID to lightweight Node object (ID only)
+     * @throws IOException if file operations fail
+     */
+    public static Map<Integer, Node> loadNodeIdsOnly(String baseName) throws IOException {
+        String nodeFile = baseName + "_nodes.dat";
+        return NodeIndexMapper.loadNodeIdsOnly(nodeFile);
+    }
+    
     
     /**
      * Read incoming edges for a specific node.
