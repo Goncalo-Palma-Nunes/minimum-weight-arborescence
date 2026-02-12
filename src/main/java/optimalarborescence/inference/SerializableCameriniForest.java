@@ -399,9 +399,26 @@ public class SerializableCameriniForest extends CameriniForest {
             nodesToLoad.add(repId);
         }
         
+        // DIAGNOSTIC: Log SCC size and memory estimate
+        long estimatedEdges = nodesToLoad.size() * 100000L; // Assume 100k edges per node
+        long estimatedMemoryMB = (estimatedEdges * 150) / (1024 * 1024); // ~150 bytes per HeapNode
+        if (nodesToLoad.size() > 1 || repId % 10000 == 0) {
+            System.err.println(String.format("[MEMORY] Initializing queue for node %d (SCC size: %d nodes, ~%d edges, ~%d MB)",
+                repId, nodesToLoad.size(), estimatedEdges, estimatedMemoryMB));
+            
+            // Log current memory state
+            Runtime runtime = Runtime.getRuntime();
+            long usedMemoryMB = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
+            long maxMemoryMB = runtime.maxMemory() / (1024 * 1024);
+            System.err.println(String.format("[MEMORY] Heap usage: %d MB / %d MB (%.1f%%)",
+                usedMemoryMB, maxMemoryMB, (usedMemoryMB * 100.0 / maxMemoryMB)));
+        }
+        
         // Get the queue for the representative (this is the merged queue)
         MergeableHeapInterface<HeapNode> queue = queues.get(repId);
         
+        // Track total edges loaded for diagnostic purposes
+        final long[] totalEdgesLoaded = {0};
         
         // Load and insert edges for all nodes in the SCC
         for (Integer nodeId : nodesToLoad) {
@@ -427,6 +444,7 @@ public class SerializableCameriniForest extends CameriniForest {
                         if (edge.getDestination().getId() == nodeId) {
                             // incomingEdges.add(edge);
                             queue.insert(new HeapNode(edge, null, null)); // Insert directly into queue
+                            totalEdgesLoaded[0]++;
                         }
                     }
                 }
@@ -438,16 +456,35 @@ public class SerializableCameriniForest extends CameriniForest {
                             if (edge.getDestination().getId() == nodeId) {
                                 // incomingEdges.add(edge);
                                 queue.insert(new HeapNode(edge, null, null)); // Insert directly into queue
+                                totalEdgesLoaded[0]++;
                             }
                         }
                     }
                 }
             }
             else {
+                // DIAGNOSTIC: Track edge loading per node
+                final long[] edgeCount = {0};
+                long startTime = System.currentTimeMillis();
+                
                 GraphMapper.streamIncidentEdges(baseName, nodeId, edge -> {
                     queue.insert(new HeapNode(edge, null, null));
+                    edgeCount[0]++;
+                    totalEdgesLoaded[0]++;
                 });
+                
+                long elapsed = System.currentTimeMillis() - startTime;
+                if (nodesToLoad.size() > 1 || elapsed > 1000) {
+                    System.err.println(String.format("[MEMORY] Node %d: loaded %d edges in %d ms",
+                        nodeId, edgeCount[0], elapsed));
+                }
             }
+        }
+        
+        // DIAGNOSTIC: Log final edge count loaded into queue
+        if (nodesToLoad.size() > 1) {
+            System.err.println(String.format("[MEMORY] Queue for SCC %d: loaded %d total edges",
+                repId, totalEdgesLoaded[0]));
         }
     }
     
