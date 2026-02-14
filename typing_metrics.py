@@ -5,13 +5,26 @@ from itertools import combinations
 
 # Helper: Read CSV and return list of lists (skip header)
 def read_csv(filepath):
+    # Detect delimiter (tab or comma) from first line
     with open(filepath, newline='') as csvfile:
-        reader = csv.reader(csvfile)
+        first_line = csvfile.readline()
+        delimiter = '\t' if '\t' in first_line else ','
+    with open(filepath, newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter=delimiter)
         header = next(reader)
         data = []
         for row in reader:
-            # Convert to int, treat missing as -1
-            data.append([int(x) if x.strip() not in ('', 'NA', 'nan') else -1 for x in row[1:]])
+            alleles = []
+            for x in row[1:]:  # skip ST column
+                val = x.strip()
+                if val == '' or val == '?' or val is None:
+                    alleles.append(-1)
+                else:
+                    try:
+                        alleles.append(int(val))
+                    except ValueError:
+                        alleles.append(-1)
+            data.append(alleles)
         return data
 
 # Directional Hamming Distance (as per Java logic)
