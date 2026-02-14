@@ -180,8 +180,22 @@ public class SerializableCameriniForest extends CameriniForest {
     }
 
     private void clearQueue(MergeableHeapInterface<HeapNode> q, int nodeId) {
-  	    q.clear();
-        queueInitialized.put(nodeId, false);
+           // Diagnostics: heap usage before clear
+        Runtime runtime = Runtime.getRuntime();
+        long usedBefore = runtime.totalMemory() - runtime.freeMemory();
+        System.err.println(String.format("[DIAG] Clearing queue for node %d: heap before=%.2f MB", nodeId, usedBefore / (1024.0 * 1024.0)));
+
+           q.clear();
+           q = null;
+           queueInitialized.put(nodeId, false);
+
+           // Diagnostics: heap usage after clear (before and after GC)
+           long usedAfter = runtime.totalMemory() - runtime.freeMemory();
+           System.err.println(String.format("[DIAG] Cleared queue for node %d: heap after clear=%.2f MB", nodeId, usedAfter / (1024.0 * 1024.0)));
+           System.gc();
+           try { Thread.sleep(50); } catch (InterruptedException e) { }
+           long usedAfterGC = runtime.totalMemory() - runtime.freeMemory();
+           System.err.println(String.format("[DIAG] Cleared queue for node %d: heap after GC=%.2f MB", nodeId, usedAfterGC / (1024.0 * 1024.0)));
     }
 
 
