@@ -974,7 +974,8 @@ public class Main {
         
         // Load node map for edge reconstruction
         Map<Integer, Node> nodeMap = GraphMapper.loadNodeMap(persistedGraphFile);
-        
+        int currEdge = 0;
+        int numEdgesToAdd = nodesToProcess.size() * nodeMap.size() ; // Worst case: each new node connects to all existing nodes
         switch (operationType) {
             case ADD:
                 // Add nodes to persisted file using batch operation (without edges, they're already computed)
@@ -989,6 +990,7 @@ public class Main {
                     
                     // Add each edge to the dynamic algorithm
                     for (Edge edge : incomingEdges) {
+                        System.out.println("Adding edge " + (++currEdge) + " of " + numEdgesToAdd);
                         dynamicAlgorithm.addEdge(edge);
                     }
                 }
