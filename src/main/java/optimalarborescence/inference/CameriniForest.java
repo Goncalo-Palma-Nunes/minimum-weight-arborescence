@@ -12,9 +12,8 @@ import java.util.HashSet;
 
 import optimalarborescence.datastructure.UnionFind;
 import optimalarborescence.datastructure.UnionFindStronglyConnected;
-import optimalarborescence.datastructure.heap.HeapNode;
+import optimalarborescence.datastructure.heap.LinearSearchArray;
 import optimalarborescence.datastructure.heap.MergeableHeapInterface;
-import optimalarborescence.datastructure.heap.PairingHeap;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Node;
 import optimalarborescence.graph.Edge;
@@ -44,10 +43,15 @@ public class CameriniForest extends StaticAlgorithm {
 
     private UnionFind ufWCC;
 
-    protected List<MergeableHeapInterface<HeapNode>> queues;
+    protected List<MergeableHeapInterface<int[]>> queues;
 
-    protected Comparator<HeapNode> maxDisjointCmp;
+    protected Comparator<int[]> maxDisjointCmp;
 
+    /**
+     * Kept for API backward compatibility with subclasses; no longer used internally
+     * since the heap comparator now queries ufSCC directly.
+     */
+    @SuppressWarnings("unused")
     private Comparator<Edge> cmp;
 
     /** Constructor for CameriniForest. This class is an implementation of
@@ -74,14 +78,12 @@ public class CameriniForest extends StaticAlgorithm {
 
         this.cmp = comparator;
 
-        this.maxDisjointCmp = new Comparator<HeapNode>() {
-            @Override
-            public int compare(HeapNode o1, HeapNode o2) {
-                Edge e1 = getAdjustedEdge(o1.getEdge());
-                Edge e2 = getAdjustedEdge(o2.getEdge());
-                return cmp.compare(e1, e2);
-            }
-        };
+        // Compare int[] edges {weight, srcId, dstId} by adjusted weight:
+        // adjusted(e) = e.weight + ufSCC.findWeight(e.destinationId)
+        this.maxDisjointCmp = (a, b) -> Integer.compare(
+            a[0] + ufSCC.findWeight(a[2]),
+            b[0] + ufSCC.findWeight(b[2])
+        );
 
         // Find the maximum node ID to determine array size
          maxNodeId = graph.getNodes().stream()
@@ -94,7 +96,7 @@ public class CameriniForest extends StaticAlgorithm {
             inEdgeNode.add(null);
             max.add(null);
             cycleEdgeNodes.add(new ArrayList<>());
-            queues.add(new PairingHeap(maxDisjointCmp));
+            queues.add(new LinearSearchArray(0, maxDisjointCmp));
         }
         
         // Populate entries only for nodes that exist
@@ -108,7 +110,7 @@ public class CameriniForest extends StaticAlgorithm {
     protected void initializeDataStructures() {
         for (Edge e : graph.getEdges()) {
             Node v = e.getDestination();
-            getQueue(v).insert(new HeapNode(e, null, null));;
+            getQueue(v).insert(new int[]{ e.getWeight(), e.getSource().getId(), e.getDestination().getId() });
         }
     }
 
@@ -120,11 +122,11 @@ public class CameriniForest extends StaticAlgorithm {
         return this.leaves;
     }
 
-    protected MergeableHeapInterface<HeapNode> getQueue(Node v) {
+    protected MergeableHeapInterface<int[]> getQueue(Node v) {
         return queues.get(v.getId());
     }
 
-    protected boolean emptyQueue(MergeableHeapInterface<HeapNode> q) {
+    protected boolean emptyQueue(MergeableHeapInterface<int[]> q) {
         return q.isEmpty();
     }
 
@@ -252,16 +254,18 @@ public class CameriniForest extends StaticAlgorithm {
     private void contractionPhase() {
         while (!roots.isEmpty()) {
             Node root = roots.remove(0);
-            MergeableHeapInterface<HeapNode> q = getQueue(sccFind(root)); // priority queue of edges entering r
+            MergeableHeapInterface<int[]> q = getQueue(sccFind(root)); // priority queue of edges entering r
 
             if (emptyQueue(q)) {
                 // Only add to rset if this node has no incoming edge (no leaf set)
                 rset.add(root);
                 continue;
             }
-            Edge e = q.extractMin().getEdge();
+            int[] raw = q.extractMin();
+            Edge e = new Edge(new Node(raw[1]), new Node(raw[2]), raw[0]);
             while (!emptyQueue(q) && sccFind(e.getSource()) == sccFind(e.getDestination())) {
-                e = q.extractMin().getEdge();
+                raw = q.extractMin();
+                e = new Edge(new Node(raw[1]), new Node(raw[2]), raw[0]);
             }
 
             if (sccFind(e.getSource()) == sccFind(e.getDestination())) {

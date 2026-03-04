@@ -1,8 +1,7 @@
 package optimalarborescence.inference;
 
-import optimalarborescence.datastructure.heap.HeapNode;
+import optimalarborescence.datastructure.heap.LinearSearchArray;
 import optimalarborescence.datastructure.heap.MergeableHeapInterface;
-import optimalarborescence.datastructure.heap.PairingHeap;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Node;
@@ -179,7 +178,7 @@ public class SerializableCameriniForest extends CameriniForest {
         return graph;
     }
 
-    private void clearQueue(MergeableHeapInterface<HeapNode> q, int nodeId) {
+    private void clearQueue(MergeableHeapInterface<int[]> q, int nodeId) {
            // Diagnostics: heap usage before clear
         Runtime runtime = Runtime.getRuntime();
         long usedBefore = runtime.totalMemory() - runtime.freeMemory();
@@ -199,13 +198,15 @@ public class SerializableCameriniForest extends CameriniForest {
     }
 
 
-    private Edge extractMinEdge(MergeableHeapInterface<HeapNode> q) {
+    private Edge extractMinEdge(MergeableHeapInterface<int[]> q) {
         if (emptyQueue(q)) {
             return null;
         }
-        Edge e = q.extractMin().getEdge();
+        int[] raw = q.extractMin();
+        Edge e = new Edge(new Node(raw[1]), new Node(raw[2]), raw[0]);
         while (!emptyQueue(q) && sccFind(e.getSource()) == sccFind(e.getDestination())) {
-            e = q.extractMin().getEdge();
+            raw = q.extractMin();
+            e = new Edge(new Node(raw[1]), new Node(raw[2]), raw[0]);
             this.numExaminedEdges[e.getDestination().getId()]++; // Increment the count of examined edges for the destination node
         }
         return e;
@@ -227,7 +228,7 @@ public class SerializableCameriniForest extends CameriniForest {
     private void contractionPhase() {
         while (!roots.isEmpty()) {
                 Node root = roots.remove(0);
-                MergeableHeapInterface<HeapNode> q = getQueue(sccFind(root)); // priority queue of edges entering r
+                MergeableHeapInterface<int[]> q = getQueue(sccFind(root)); // priority queue of edges entering r
 
                 if (emptyQueue(q)) {
                     rset.add(root);
@@ -345,7 +346,7 @@ public class SerializableCameriniForest extends CameriniForest {
                     roots.add(0, rep); // Add representative to roots to be processed again
                     for (Integer node : contractionSet) { // Merge queues involved in the cycle
                         if (rep.getId() != node) {
-                            MergeableHeapInterface<HeapNode> nodeQueue = getQueue(getNodes().get(node));
+                            MergeableHeapInterface<int[]> nodeQueue = getQueue(getNodes().get(node));
                             getQueue(rep).merge(nodeQueue);
                             // Clear the merged queue to free memory
                             clearQueue(nodeQueue, node);
@@ -366,7 +367,7 @@ public class SerializableCameriniForest extends CameriniForest {
      * @return The heap/queue containing incoming edges for node v
      */
     @Override
-    protected MergeableHeapInterface<HeapNode> getQueue(Node v) {
+    protected MergeableHeapInterface<int[]> getQueue(Node v) {
         if (!useMemoryMappedFiles) {
             // Use parent's implementation for in-memory operation
             return super.getQueue(v);
@@ -429,7 +430,7 @@ public class SerializableCameriniForest extends CameriniForest {
         }
         
         // Get the queue for the representative (this is the merged queue)
-        MergeableHeapInterface<HeapNode> queue = queues.get(repId);
+        MergeableHeapInterface<int[]> queue = queues.get(repId);
         
         // Track total edges loaded for diagnostic purposes
         final long[] totalEdgesLoaded = {0};
@@ -457,8 +458,8 @@ public class SerializableCameriniForest extends CameriniForest {
                         Edge edge = buildEdge(otherNode, node, distanceFunction);
                         if (edge.getDestination().getId() == nodeId) {
                             // incomingEdges.add(edge);
-                            queue.insert(new HeapNode(edge, null, null)); // Insert directly into queue
-                            totalEdgesLoaded[0]++;
+                            queue.insert(new int[]{ edge.getWeight(), edge.getSource().getId(), edge.getDestination().getId() }); // Insert directly into queue
+                                totalEdgesLoaded[0]++;
                         }
                     }
                 }
@@ -469,7 +470,7 @@ public class SerializableCameriniForest extends CameriniForest {
                             Edge edge = buildEdge(otherNode, node, distanceFunction);
                             if (edge.getDestination().getId() == nodeId) {
                                 // incomingEdges.add(edge);
-                                queue.insert(new HeapNode(edge, null, null)); // Insert directly into queue
+                                queue.insert(new int[]{ edge.getWeight(), edge.getSource().getId(), edge.getDestination().getId() }); // Insert directly into queue
                                 totalEdgesLoaded[0]++;
                             }
                         }
@@ -482,7 +483,7 @@ public class SerializableCameriniForest extends CameriniForest {
                 long startTime = System.currentTimeMillis();
                 
                 GraphMapper.streamIncidentEdges(baseName, nodeId, edge -> {
-                    queue.insert(new HeapNode(edge, null, null));
+                    queue.insert(new int[]{ edge.getWeight(), edge.getSource().getId(), edge.getDestination().getId() });
                     edgeCount[0]++;
                     totalEdgesLoaded[0]++;
                 });
@@ -545,8 +546,8 @@ public class SerializableCameriniForest extends CameriniForest {
         
         // Clear all queues and mark for lazy initialization
         for (int i = 0; i < queues.size(); i++) {
-            queues.set(i, new PairingHeap(maxDisjointCmp));
-            queueInitialized.put(i, false);
+            queues.set(i, new LinearSearchArray(0, maxDisjointCmp));
+                queueInitialized.put(i, false);
         }
     }
     

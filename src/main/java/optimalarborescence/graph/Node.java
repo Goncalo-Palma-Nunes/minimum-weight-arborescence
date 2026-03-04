@@ -69,7 +69,12 @@ public class Node implements Serializable, Comparable<Node> {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         Node other = (Node) obj;
-        return this.pointID == other.pointID && ((this.point == null && other.point == null) || this.point.equals(other.point));
+        // If either node is a mock node (point == null), compare by ID only.
+        // Two nodes with the same ID represent the same vertex regardless of profile data.
+        if (this.point == null || other.point == null) {
+            return this.pointID == other.pointID;
+        }
+        return this.pointID == other.pointID && this.point.equals(other.point);
     }
 
     @Override
