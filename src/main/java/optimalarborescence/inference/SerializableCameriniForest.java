@@ -180,22 +180,22 @@ public class SerializableCameriniForest extends CameriniForest {
     }
 
     private void clearQueue(MergeableHeapInterface<HeapNode> q, int nodeId) {
-           // Diagnostics: heap usage before clear
-        Runtime runtime = Runtime.getRuntime();
-        long usedBefore = runtime.totalMemory() - runtime.freeMemory();
-        System.err.println(String.format("[DIAG] Clearing queue for node %d: heap before=%.2f MB", nodeId, usedBefore / (1024.0 * 1024.0)));
+        //    // Diagnostics: heap usage before clear
+        // Runtime runtime = Runtime.getRuntime();
+        // long usedBefore = runtime.totalMemory() - runtime.freeMemory();
+        // System.err.println(String.format("[DIAG] Clearing queue for node %d: heap before=%.2f MB", nodeId, usedBefore / (1024.0 * 1024.0)));
 
            q.clear();
            q = null;
            queueInitialized.put(nodeId, false);
 
-           // Diagnostics: heap usage after clear (before and after GC)
-           long usedAfter = runtime.totalMemory() - runtime.freeMemory();
-           System.err.println(String.format("[DIAG] Cleared queue for node %d: heap after clear=%.2f MB", nodeId, usedAfter / (1024.0 * 1024.0)));
-           System.gc();
-           try { Thread.sleep(50); } catch (InterruptedException e) { }
-           long usedAfterGC = runtime.totalMemory() - runtime.freeMemory();
-           System.err.println(String.format("[DIAG] Cleared queue for node %d: heap after GC=%.2f MB", nodeId, usedAfterGC / (1024.0 * 1024.0)));
+        //    // Diagnostics: heap usage after clear (before and after GC)
+        //    long usedAfter = runtime.totalMemory() - runtime.freeMemory();
+        //    System.err.println(String.format("[DIAG] Cleared queue for node %d: heap after clear=%.2f MB", nodeId, usedAfter / (1024.0 * 1024.0)));
+        //    System.gc();
+        //    try { Thread.sleep(50); } catch (InterruptedException e) { }
+        //    long usedAfterGC = runtime.totalMemory() - runtime.freeMemory();
+        //    System.err.println(String.format("[DIAG] Cleared queue for node %d: heap after GC=%.2f MB", nodeId, usedAfterGC / (1024.0 * 1024.0)));
     }
 
 
@@ -431,8 +431,6 @@ public class SerializableCameriniForest extends CameriniForest {
         // Get the queue for the representative (this is the merged queue)
         MergeableHeapInterface<HeapNode> queue = queues.get(repId);
         
-        // Track total edges loaded for diagnostic purposes
-        final long[] totalEdgesLoaded = {0};
         
         // Load and insert edges for all nodes in the SCC
         for (Integer nodeId : nodesToLoad) {
@@ -458,7 +456,6 @@ public class SerializableCameriniForest extends CameriniForest {
                         if (edge.getDestination().getId() == nodeId) {
                             // incomingEdges.add(edge);
                             queue.insert(new HeapNode(edge, null, null)); // Insert directly into queue
-                            totalEdgesLoaded[0]++;
                         }
                     }
                 }
@@ -470,35 +467,20 @@ public class SerializableCameriniForest extends CameriniForest {
                             if (edge.getDestination().getId() == nodeId) {
                                 // incomingEdges.add(edge);
                                 queue.insert(new HeapNode(edge, null, null)); // Insert directly into queue
-                                totalEdgesLoaded[0]++;
                             }
                         }
                     }
                 }
             }
             else {
-                // DIAGNOSTIC: Track edge loading per node
-                final long[] edgeCount = {0};
-                long startTime = System.currentTimeMillis();
                 
                 GraphMapper.streamIncidentEdges(baseName, nodeId, edge -> {
-                    queue.insert(new HeapNode(edge, null, null));
-                    edgeCount[0]++;
-                    totalEdgesLoaded[0]++;
+                    if (sccFind(edge.getDestination()) != sccFind(edge.getSource())) {
+                        // Only insert edges that are not internal to the same SCC
+                        queue.insert(new HeapNode(edge, null, null));
+                    }
                 });
-                
-                long elapsed = System.currentTimeMillis() - startTime;
-                if (nodesToLoad.size() > 1 || elapsed > 1000) {
-                    System.err.println(String.format("[MEMORY] Node %d: loaded %d edges in %d ms",
-                        nodeId, edgeCount[0], elapsed));
-                }
             }
-        }
-        
-        // DIAGNOSTIC: Log final edge count loaded into queue
-        if (nodesToLoad.size() > 1) {
-            System.err.println(String.format("[MEMORY] Queue for SCC %d: loaded %d total edges",
-                repId, totalEdgesLoaded[0]));
         }
     }
     
