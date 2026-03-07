@@ -362,6 +362,7 @@ public class LinearSearchArrayTest {
             public optimalarborescence.datastructure.heap.MergeableHeapInterface<int[]> merge(optimalarborescence.datastructure.heap.MergeableHeapInterface<int[]> o) { return this; }
             public void insert(int[] v) {}
             public int[] extractMin() { return null; }
+            public int[] extractMin(int i) { return null; }
             public int[] decreaseKey(int[] n, int v) { return null; }
             public int[] findMin() { return null; }
             public boolean isEmpty() { return true; }

@@ -26,6 +26,15 @@ public interface MergeableHeapInterface<T> {
     T extractMin();
 
     /**
+     * Removes and returns the element at index i from the heap.
+     * Only implemented by indexable heaps
+     * 
+     * @param i the index of the element to remove
+     * @return the element at index i
+     */
+    T extractMin(int i);
+
+    /**
      * Decreases the key of a specific element in the heap.
      *
      * @param value the value to decrease

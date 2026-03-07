@@ -261,4 +261,9 @@ public class PairingHeap implements MergeableHeapInterface<HeapNode> {
             "root=" + root +
             " }";
     }
+
+    @Override
+    public HeapNode extractMin(int i) {
+        throw new UnsupportedOperationException("extractMin(int i) is not supported in PairingHeap");
+    }
 }

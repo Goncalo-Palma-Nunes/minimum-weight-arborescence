@@ -7,6 +7,7 @@ import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,7 @@ import java.util.function.Consumer;
 
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
+import optimalarborescence.datastructure.UnionFindStronglyConnected;
 
 /**
  * EdgeListMapper provides memory-mapped file operations for edge arrays.
@@ -593,5 +595,69 @@ public class EdgeListMapper {
             }
         }
         return edges;
+    }
+
+    /**
+     * Find the minimum weight edge in the file that points to the target node and whose source is in a different strongly connected component.
+     * This is used to find a safe edge to add during the CameriniForest contraction phase.
+     * @param filename The edge array file to search for the minimum edge
+     * @param targetId The ID of the target node for which we want to find the minimum incoming edge
+     * @param uf The union-find data structure for managing strongly connected components
+     * @param cmp Comparator for int[] edges {weight, srcId, dstId} used to determine which edge is smaller
+     * @return The minimum weight edge satisfying the criteria, or null if none exists
+     * @throws IOException if file operations fail
+     */
+    public static Edge findMinSafeEdgeInFile(String filename, int targetId, UnionFindStronglyConnected uf,
+                                             Comparator<int[]> cmp) throws IOException {
+        String nodeFileName = filename.replace("_edges.dat", "");
+        nodeFileName += "_edges_node" + targetId + ".dat";
+
+        Edge minEdge = null;
+
+        try (RandomAccessFile raf = new RandomAccessFile(nodeFileName, "r");
+             FileChannel channel = raf.getChannel()) {
+
+            long fileSize = channel.size();
+            if (fileSize <= HEADER_SIZE) {
+                return null;
+            }
+
+            long numEdges = (fileSize - HEADER_SIZE) / BYTES_PER_EDGE;
+            long edgesRead = 0;
+            long currentOffset = HEADER_SIZE;
+
+            while (edgesRead < numEdges) {
+                long remainingEdges = numEdges - edgesRead;
+                long remainingBytes = fileSize - currentOffset;
+                long chunkSize = Math.min(remainingBytes, CHUNK_SIZE);
+                long edgesInChunk = chunkSize / BYTES_PER_EDGE;
+                if (edgesInChunk > remainingEdges) {
+                    edgesInChunk = remainingEdges;
+                    chunkSize = edgesInChunk * BYTES_PER_EDGE;
+                }
+
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, currentOffset, chunkSize);
+                mbb.order(ByteOrder.nativeOrder());
+
+                for (int i = 0; i < edgesInChunk; i++) {
+                    int srcId = mbb.getInt();
+                    int destId = mbb.getInt();
+                    int weight = mbb.getInt();
+
+                    if (uf.find(srcId) != uf.find(destId)) {
+                        int[] candidate = new int[]{ weight, srcId, destId };
+                        if (minEdge == null || cmp.compare(candidate,
+                                new int[]{ minEdge.getWeight(), minEdge.getSource().getId(), minEdge.getDestination().getId() }) < 0) {
+                            minEdge = new Edge(new Node(srcId), new Node(destId), weight);
+                        }
+                    }
+                    edgesRead++;
+                }
+
+                currentOffset += chunkSize;
+            }
+        }
+
+        return minEdge;
     }
 }

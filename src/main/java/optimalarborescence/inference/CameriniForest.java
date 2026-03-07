@@ -39,7 +39,7 @@ public class CameriniForest extends StaticAlgorithm {
     protected List<List<TarjanForestNode>> cycleEdgeNodes;
 
     /** A union-find data structure to maintain the strongly connected components of 𝐻 */
-    private UnionFindStronglyConnected ufSCC;
+    protected UnionFindStronglyConnected ufSCC;
 
     private UnionFind ufWCC;
 

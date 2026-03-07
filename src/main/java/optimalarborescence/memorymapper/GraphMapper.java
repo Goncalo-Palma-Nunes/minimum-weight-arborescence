@@ -3,8 +3,10 @@ package optimalarborescence.memorymapper;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Node;
+import optimalarborescence.datastructure.UnionFindStronglyConnected;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -315,5 +317,23 @@ public class GraphMapper {
     public static void removeOutgoingEdges(String baseName, int sourceId) throws IOException {
         String edgeFile = baseName + "_edges.dat";
         EdgeListMapper.removeOutgoingEdges(edgeFile, sourceId);
+    }
+
+    public static Edge findMinSafeEdgeIncomingToSCC(String baseName, UnionFindStronglyConnected uf,
+                                                     Set<Integer> sccNodes, Comparator<int[]> cmp) throws IOException {
+        String edgeFile = baseName + "_edges.dat";
+
+        Edge currBest = null;
+        for (Integer nodeId : sccNodes) {
+            Edge e = EdgeListMapper.findMinSafeEdgeInFile(edgeFile, nodeId, uf, cmp);
+            if (e != null) {
+                if (currBest == null || cmp.compare(
+                        new int[]{ e.getWeight(), e.getSource().getId(), e.getDestination().getId() },
+                        new int[]{ currBest.getWeight(), currBest.getSource().getId(), currBest.getDestination().getId() }) < 0) {
+                    currBest = e;
+                }
+            }
+        }
+        return currBest;
     }
 }

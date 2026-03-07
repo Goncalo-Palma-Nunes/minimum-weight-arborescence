@@ -141,6 +141,22 @@ public class LinearSearchArray implements MergeableHeapInterface<int[]> {
         size++;
     }
 
+
+    public int[] extractMin(int index) {
+        if (index < 0 || index >= size) {
+            throw new IllegalArgumentException("Index out of bounds");
+        }
+        int[] minEdge = new int[] { array[index * ENTRY_SIZE], array[index * ENTRY_SIZE + 1], array[index * ENTRY_SIZE + 2] };
+
+        // Shift the last edge to the position of the extracted edge
+        array[index * ENTRY_SIZE] = array[(size - 1) * ENTRY_SIZE];
+        array[index * ENTRY_SIZE + 1] = array[(size - 1) * ENTRY_SIZE + 1];
+        array[index * ENTRY_SIZE + 2] = array[(size - 1) * ENTRY_SIZE + 2];
+        size--;
+
+        return minEdge;
+    }
+
     @Override
     public int[] extractMin() {
         if (this.isEmpty()) {
@@ -153,15 +169,7 @@ public class LinearSearchArray implements MergeableHeapInterface<int[]> {
                 minIndex = i;
             }
         }
-        int[] minEdge = new int[] { array[minIndex * ENTRY_SIZE], array[minIndex * ENTRY_SIZE + 1], array[minIndex * ENTRY_SIZE + 2] };
-
-        // Shift the last edge to the position of the extracted minimum edge
-        array[minIndex * ENTRY_SIZE] = array[(size - 1) * ENTRY_SIZE];
-        array[minIndex * ENTRY_SIZE + 1] = array[(size - 1) * ENTRY_SIZE + 1];
-        array[minIndex * ENTRY_SIZE + 2] = array[(size - 1) * ENTRY_SIZE + 2];
-        size--;
-
-        return minEdge;
+        return extractMin(minIndex);
     }
 
     @Override
@@ -199,5 +207,28 @@ public class LinearSearchArray implements MergeableHeapInterface<int[]> {
 
     public int[] getArray() {
         return this.array;
+    }
+
+
+    public static int[] extractMinFromSetOfArrays(List<LinearSearchArray> heaps) {
+        int minWeight = Integer.MAX_VALUE;
+        int heapIndex = -1;
+
+        for (int i = 0; i < heaps.size(); i++) {
+            LinearSearchArray heap = heaps.get(i);
+            if (!heap.isEmpty()) {
+                int[] minEdge = heap.findMin();
+                if (minEdge[0] < minWeight) { // Compare weights
+                    minWeight = minEdge[0];
+                    heapIndex = i; // Remember which heap it came from
+                }
+            }
+        }
+
+        if (heapIndex == -1) {
+            throw new IllegalStateException("All heaps are empty");
+        }
+
+        return heaps.get(heapIndex).extractMin();
     }
 }

@@ -1,5 +1,6 @@
 package optimalarborescence.unittests.mapper;
 
+import optimalarborescence.datastructure.UnionFindStronglyConnected;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
 import optimalarborescence.memorymapper.EdgeListMapper;
@@ -8,6 +9,8 @@ import optimalarborescence.sequences.AllelicProfile;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.lang.reflect.Method;
 
 import java.io.File;
 import java.io.IOException;
@@ -19,6 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Comparator;
 
 import static org.junit.Assert.*;
 
@@ -494,6 +498,123 @@ public class EdgeListMapperTest {
         assertFalse("Edge 0->2 should not exist", EdgeListMapper.edgeExists(TEST_EDGES_FILE, 0, 2));
         assertTrue("Edge 1->2 should exist", EdgeListMapper.edgeExists(TEST_EDGES_FILE, 1, 2));
         assertTrue("Edge 3->2 should exist", EdgeListMapper.edgeExists(TEST_EDGES_FILE, 3, 2));
+    }
+
+    // -----------------------------------------------------------------------
+    // findMinSafeEdgeInFile tests
+    // -----------------------------------------------------------------------
+
+    private static final Comparator<int[]> NATURAL_CMP = Comparator.comparingInt(e -> e[0]);
+
+    /** Reflectively invokes the private findMinSafeEdgeInFile method. */
+    private Edge invokeFind(String filename, int targetId, UnionFindStronglyConnected uf) throws Exception {
+        Method method = EdgeListMapper.class.getDeclaredMethod(
+                "findMinSafeEdgeInFile", String.class, int.class, UnionFindStronglyConnected.class, Comparator.class);
+        method.setAccessible(true);
+        return (Edge) method.invoke(null, filename, targetId, uf, NATURAL_CMP);
+    }
+
+    @Test
+    public void testFindMinSafeEdge_EmptyFile_ReturnsNull() throws Exception {
+        // Edge file for node 2 exists but contains zero edges.
+        String nodeFile = TEST_BASE_NAME + "_edges_node2.dat";
+        EdgeListMapper.writeEdgeArray(nodeFile, new ArrayList<>());
+
+        UnionFindStronglyConnected uf = new UnionFindStronglyConnected(5);
+
+        Edge result = invokeFind(TEST_EDGES_FILE, 2, uf);
+        assertNull("Empty file should return null", result);
+    }
+
+    @Test
+    public void testFindMinSafeEdge_AllEdgesInSameSCC_ReturnsNull() throws Exception {
+        // Edges 0->2 and 1->2 both have their source merged into node 2's SCC.
+        String nodeFile = TEST_BASE_NAME + "_edges_node2.dat";
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(testNodes.get(0), testNodes.get(2), 10)); // 0->2
+        edges.add(new Edge(testNodes.get(1), testNodes.get(2), 20)); // 1->2
+        EdgeListMapper.writeEdgeArray(nodeFile, edges);
+
+        UnionFindStronglyConnected uf = new UnionFindStronglyConnected(5);
+        uf.union(0, 2); // source 0 and target 2 in same component
+        uf.union(1, 2); // source 1 and target 2 in same component
+
+        Edge result = invokeFind(TEST_EDGES_FILE, 2, uf);
+        assertNull("All edges in same SCC should return null", result);
+    }
+
+    @Test
+    public void testFindMinSafeEdge_AllEdgesInDifferentSCCs_ReturnsMin() throws Exception {
+        // Default UF: every node is its own component, so all edges are "safe".
+        String nodeFile = TEST_BASE_NAME + "_edges_node2.dat";
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(testNodes.get(0), testNodes.get(2), 30)); // 0->2, weight 30
+        edges.add(new Edge(testNodes.get(1), testNodes.get(2), 10)); // 1->2, weight 10
+        edges.add(new Edge(testNodes.get(3), testNodes.get(2), 20)); // 3->2, weight 20
+        EdgeListMapper.writeEdgeArray(nodeFile, edges);
+
+        UnionFindStronglyConnected uf = new UnionFindStronglyConnected(5);
+
+        Edge result = invokeFind(TEST_EDGES_FILE, 2, uf);
+        assertNotNull("Should find a minimum edge", result);
+        assertEquals("Source should be node 1", 1, result.getSource().getId());
+        assertEquals("Destination should be node 2", 2, result.getDestination().getId());
+        assertEquals("Weight should be 10", 10, result.getWeight());
+    }
+
+    @Test
+    public void testFindMinSafeEdge_MixedSCCs_ReturnsMinAmongValid() throws Exception {
+        // 0 and 2 are in the same SCC; 1 and 3 are separate.
+        // Edges: 0->2 (weight 5, invalid), 1->2 (weight 15, valid), 3->2 (weight 8, valid).
+        String nodeFile = TEST_BASE_NAME + "_edges_node2.dat";
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(testNodes.get(0), testNodes.get(2), 5));  // same SCC – must be ignored
+        edges.add(new Edge(testNodes.get(1), testNodes.get(2), 15)); // valid
+        edges.add(new Edge(testNodes.get(3), testNodes.get(2), 8));  // valid, lower weight
+        EdgeListMapper.writeEdgeArray(nodeFile, edges);
+
+        UnionFindStronglyConnected uf = new UnionFindStronglyConnected(5);
+        uf.union(0, 2); // merge source 0 with target 2
+
+        Edge result = invokeFind(TEST_EDGES_FILE, 2, uf);
+        assertNotNull("Should find a minimum edge among valid ones", result);
+        assertEquals("Source should be node 3", 3, result.getSource().getId());
+        assertEquals("Weight should be 8", 8, result.getWeight());
+    }
+
+    @Test
+    public void testFindMinSafeEdge_SingleValidEdge_ReturnsThatEdge() throws Exception {
+        // Only one edge crosses SCC boundaries.
+        String nodeFile = TEST_BASE_NAME + "_edges_node2.dat";
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(testNodes.get(0), testNodes.get(2), 50)); // same SCC – ignored
+        edges.add(new Edge(testNodes.get(1), testNodes.get(2), 25)); // only valid edge
+        EdgeListMapper.writeEdgeArray(nodeFile, edges);
+
+        UnionFindStronglyConnected uf = new UnionFindStronglyConnected(5);
+        uf.union(0, 2);
+
+        Edge result = invokeFind(TEST_EDGES_FILE, 2, uf);
+        assertNotNull("Should find the single valid edge", result);
+        assertEquals("Source should be node 1", 1, result.getSource().getId());
+        assertEquals("Weight should be 25", 25, result.getWeight());
+    }
+
+    @Test
+    public void testFindMinSafeEdge_TieInWeight_ReturnsOneOfThem() throws Exception {
+        // Two valid edges with the same weight; either is an acceptable answer.
+        String nodeFile = TEST_BASE_NAME + "_edges_node2.dat";
+        List<Edge> edges = new ArrayList<>();
+        edges.add(new Edge(testNodes.get(0), testNodes.get(2), 10)); // valid
+        edges.add(new Edge(testNodes.get(1), testNodes.get(2), 10)); // valid, same weight
+        EdgeListMapper.writeEdgeArray(nodeFile, edges);
+
+        UnionFindStronglyConnected uf = new UnionFindStronglyConnected(5);
+
+        Edge result = invokeFind(TEST_EDGES_FILE, 2, uf);
+        assertNotNull("Should return an edge on weight tie", result);
+        assertEquals("Weight should be 10", 10, result.getWeight());
+        assertEquals("Destination should be node 2", 2, result.getDestination().getId());
     }
 
     @Test
