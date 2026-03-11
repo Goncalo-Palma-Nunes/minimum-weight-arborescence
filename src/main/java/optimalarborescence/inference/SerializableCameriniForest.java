@@ -453,7 +453,7 @@ public class SerializableCameriniForest extends CameriniForest {
                     for (Point<?> neighbor : neighbors) {
                         Node otherNode = new Node(neighbor);
                         Edge edge = buildEdge(otherNode, node, distanceFunction);
-                        if (edge.getDestination().getId() == nodeId) {
+                        if (edge.getDestination().getId() == nodeId && sccFind(edge.getSource()) != sccFind(edge.getDestination())) {
                             // incomingEdges.add(edge);
                             queue.insert(new HeapNode(edge, null, null)); // Insert directly into queue
                         }
@@ -464,7 +464,7 @@ public class SerializableCameriniForest extends CameriniForest {
                     for (Node otherNode : nodeMap.values()) {
                         if (otherNode.getId() != nodeId) {
                             Edge edge = buildEdge(otherNode, node, distanceFunction);
-                            if (edge.getDestination().getId() == nodeId) {
+                            if (edge.getDestination().getId() == nodeId && sccFind(edge.getSource()) != sccFind(edge.getDestination())) {
                                 // incomingEdges.add(edge);
                                 queue.insert(new HeapNode(edge, null, null)); // Insert directly into queue
                             }
