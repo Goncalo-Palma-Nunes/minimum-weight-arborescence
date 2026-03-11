@@ -349,8 +349,9 @@ public class SerializableCameriniForest extends CameriniForest {
                             MergeableHeapInterface<int[]> nodeQueue = getQueue(getNodes().get(node));
                             getQueue(rep).merge(nodeQueue);
                             // Clear the merged queue to free memory
-                            clearQueue(nodeQueue, node);
+                            //clearQueue(nodeQueue, node);
                         }
+			//clearQueue(getQueue(getNodes().get(node)), node);
                     }
                     updateMax(rep, dst);
                     cycleEdgeNodes.set(rep.getId(), edgeNodesInCycle);
@@ -453,7 +454,7 @@ public class SerializableCameriniForest extends CameriniForest {
                     for (Point<?> neighbor : neighbors) {
                         Node otherNode = new Node(neighbor);
                         Edge edge = buildEdge(otherNode, node, distanceFunction);
-                        if (edge.getDestination().getId() == nodeId) {
+                        if (edge.getDestination().getId() == nodeId && sccFind(edge.getSource()) != sccFind(edge.getDestination)) {
                             // incomingEdges.add(edge);
                             queue.insert(new int[]{ edge.getWeight(), edge.getSource().getId(), edge.getDestination().getId() }); // Insert directly into queue
                         }
@@ -464,7 +465,7 @@ public class SerializableCameriniForest extends CameriniForest {
                     for (Node otherNode : nodeMap.values()) {
                         if (otherNode.getId() != nodeId) {
                             Edge edge = buildEdge(otherNode, node, distanceFunction);
-                            if (edge.getDestination().getId() == nodeId) {
+                            if (edge.getDestination().getId() == nodeId && sccFind(edge.getSource() != sccFind(edge.getDestination))) {
                                 // incomingEdges.add(edge);
                                 queue.insert(new int[]{ edge.getWeight(), edge.getSource().getId(), edge.getDestination().getId() }); // Insert directly into queue
                             }
