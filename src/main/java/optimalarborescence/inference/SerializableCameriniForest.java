@@ -307,22 +307,14 @@ public class SerializableCameriniForest extends CameriniForest {
                     // contains Union-Find representative IDs, not original graph node IDs
                     Set<Integer> originalNodeIds = new HashSet<>();
                     
-                    for (TarjanForestNode n : edgeNodesInCycle) {
-                        int srcId = n.edge.getSource().getId();
-                        int dstId = n.edge.getDestination().getId();
-                        
-                        // Add source's composition
-                        if (sccComposition.containsKey(srcId)) {
-                            originalNodeIds.addAll(sccComposition.get(srcId));
+                    for (Integer componentRepId : contractionSet) {
+                        Set<Integer> componentNodeIds = sccComposition.getOrDefault(componentRepId, null);
+                        if (componentNodeIds != null) {
+                            // This component is already a merged SCC with multiple nodes
+                            originalNodeIds.addAll(componentNodeIds);
                         } else {
-                            originalNodeIds.add(srcId);
-                        }
-                        
-                        // Add destination's composition
-                        if (sccComposition.containsKey(dstId)) {
-                            originalNodeIds.addAll(sccComposition.get(dstId));
-                        } else {
-                            originalNodeIds.add(dstId);
+                            // This component is a singleton SCC, add the original node ID
+                            originalNodeIds.add(componentRepId);
                         }
                     }
                     
@@ -331,20 +323,19 @@ public class SerializableCameriniForest extends CameriniForest {
                     sccComposition.put(repId, originalNodeIds);
                     
                     // Clean up old entries for nodes that are now merged
-                    for (TarjanForestNode n : edgeNodesInCycle) {
-                        int srcId = n.edge.getSource().getId();
-                        int dstId = n.edge.getDestination().getId();
-                        if (srcId != repId) {
-                            sccComposition.remove(srcId);
-                        }
-                        if (dstId != repId) {
-                            sccComposition.remove(dstId);
+                    for (Integer componentRepId: contractionSet) {
+                        if (componentRepId != repId) {
+                            sccComposition.remove(componentRepId);
                         }
                     }
                     
                     roots.add(0, rep); // Add representative to roots to be processed again
                     for (Integer node : contractionSet) { // Merge queues involved in the cycle
                         if (rep.getId() != node) {
+                            if (!queueInitialized.getOrDefault(node, false)) {
+                                continue;
+                            }
+
                             MergeableHeapInterface<HeapNode> nodeQueue = getQueue(getNodes().get(node));
                             getQueue(rep).merge(nodeQueue);
                             // Clear the merged queue to free memory
@@ -414,9 +405,9 @@ public class SerializableCameriniForest extends CameriniForest {
         }
         
         // DIAGNOSTIC: Log SCC size and memory estimate
-        long estimatedEdges = nodesToLoad.size() * 100000L; // Assume 100k edges per node
+        /*long estimatedEdges = nodesToLoad.size() * this.graph.getNodes().size(); // Assume 100k edges per node
         long estimatedMemoryMB = (estimatedEdges * 150) / (1024 * 1024); // ~150 bytes per HeapNode
-        if (nodesToLoad.size() > 1 || repId % 10000 == 0) {
+        if (nodesToLoad.size() > 1 || repId % this.graph.getNodes().size() == 0) {
             System.err.println(String.format("[MEMORY] Initializing queue for node %d (SCC size: %d nodes, ~%d edges, ~%d MB)",
                 repId, nodesToLoad.size(), estimatedEdges, estimatedMemoryMB));
             
@@ -426,7 +417,7 @@ public class SerializableCameriniForest extends CameriniForest {
             long maxMemoryMB = runtime.maxMemory() / (1024 * 1024);
             System.err.println(String.format("[MEMORY] Heap usage: %d MB / %d MB (%.1f%%)",
                 usedMemoryMB, maxMemoryMB, (usedMemoryMB * 100.0 / maxMemoryMB)));
-        }
+        }*/
         
         // Get the queue for the representative (this is the merged queue)
         MergeableHeapInterface<HeapNode> queue = queues.get(repId);
