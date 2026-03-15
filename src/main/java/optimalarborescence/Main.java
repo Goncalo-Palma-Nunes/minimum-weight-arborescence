@@ -252,7 +252,7 @@ public class Main {
         return -1;
     }
     
-    private static int readBatchSize(String algorithmType) {
+    private static int readBatchSize(String algorithmType) throws IOException {
         // Batch size only applies to static and neighbor joining algorithms
         if (algorithmType.equals(DYNAMIC_ALGORITHM)) {
             return 1; // Dynamic algorithm always processes one point at a time
@@ -261,8 +261,10 @@ public class Main {
         System.out.println("Enter the batch size (positive integer) for adding points in test mode, or " + EXIT + " to quit:");
         System.out.println("(Batch size determines how many points are added before inferring the phylogeny)");
         
+        String response = "";
         while (true) {
-            String response = System.console().readLine().trim().toLowerCase();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+            response = reader.readLine();
             if (response.equals(EXIT)) {
                 System.out.println("Exiting the program.");
                 System.exit(0);
