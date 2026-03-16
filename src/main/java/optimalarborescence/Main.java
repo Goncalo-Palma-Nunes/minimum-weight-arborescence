@@ -1140,11 +1140,11 @@ public class Main {
         List<Point<?>> initialPoints = allPoints.subList(0, 2);
         
         // Run initial iteration based on algorithm type
-        long startTime = System.currentTimeMillis();
         List<Edge> phylogeny = null;
+        List<Long> iterationTimes = new ArrayList<>(2);
         switch (algorithmType) {
             case STATIC_ALGORITHM:
-                phylogeny = runStaticTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, true, onDemand);
+                phylogeny = runStaticTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, true, onDemand, iterationTimes);
                 break;
             case DYNAMIC_ALGORITHM:
                 phylogeny = runDynamicTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, true);
@@ -1153,11 +1153,10 @@ public class Main {
                 phylogeny = runNJTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, sequenceLength, true);
                 break;
         }
-        long endTime = System.currentTimeMillis();
         long cost = phylogeny.stream().mapToLong(Edge::getWeight).sum();
-        logIterationDetails(startTime, endTime, "add", 2, 1, cost, outputFile);
+        logIterationDetails(iterationTimes.get(0), iterationTimes.get(1), "add", 2, 1, cost, outputFile);
         System.out.println("Initial phylogeny cost: " + cost);
-        System.out.println("Initial iteration execution time: " + (endTime - startTime) + " ms");
+        System.out.println("Initial iteration execution time: " + (iterationTimes.get(0) - iterationTimes.get(1)) + " ms");
         System.out.println("Initial graph created with 2 points. Phylogeny saved.");
         
         // Iteratively add remaining points in batches
@@ -1170,10 +1169,9 @@ public class Main {
             
             List<Point<?>> batchPoints = allPoints.subList(i, i + currentBatchSize);
             
-            startTime = System.currentTimeMillis();
             switch (algorithmType) {
                 case STATIC_ALGORITHM:
-                    phylogeny = runStaticTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, false, onDemand);
+                    phylogeny = runStaticTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, false, onDemand, iterationTimes);
                     break;
                 case DYNAMIC_ALGORITHM:
                     // Dynamic algorithm processes points one by one
@@ -1185,11 +1183,10 @@ public class Main {
                     phylogeny = runNJTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, sequenceLength, false);
                     break;
             }
-            endTime = System.currentTimeMillis();
             cost = phylogeny.stream().mapToLong(Edge::getWeight).sum();
-            logIterationDetails(startTime, endTime, "add", currentBatchSize, i + 1, cost, outputFile);
+            logIterationDetails(iterationTimes.get(0), iterationTimes.get(1), "add", currentBatchSize, i + 1, cost, outputFile);
             System.out.println("Updated phylogeny cost: " + cost);
-            System.out.println("Iteration execution time: " + (endTime - startTime) + " ms");
+            System.out.println("Iteration execution time: " + (iterationTimes.get(0) - iterationTimes.get(1)) + " ms");
             System.out.println("Batch added. Total points: " + (i + currentBatchSize));
             
             i += currentBatchSize;
@@ -1202,8 +1199,9 @@ public class Main {
     private static List<Edge> runStaticTestIteration(String sequenceType, List<Point<?>> points, String tempGraphFile, 
                                                String outputFile, int numNeighbors, 
                                                NearestNeighbourSearchAlgorithm<?> nnAlgorithm, 
-                                               int sequenceLength, boolean isInitial, boolean onDemand) throws IOException {
-        
+                                               int sequenceLength, boolean isInitial, boolean onDemand,
+                                               List<Long> iterationTimes) throws IOException {
+        long startPreProcessTime = System.currentTimeMillis();
         if (isInitial) {
             // Create new graph with initial points using memory-mapped files
             if (numNeighbors > 0) {
@@ -1227,12 +1225,17 @@ public class Main {
                 addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength, sequenceType);
             }
         }
+        long endPreProcessTime = System.currentTimeMillis();
+        iterationTimes.set(0, endPreProcessTime - startPreProcessTime);
         
         // Infer phylogeny using SerializableCameriniForest for lazy loading from memory-mapped files
+        long startInferenceTime = System.currentTimeMillis();
         CameriniForest camerini = new SerializableCameriniForest(EDGE_COMPARATOR, tempGraphFile, onDemand, nnAlgorithm, numNeighbors,
                 SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance(),
                 SYMMETRIC_DATA.contains(sequenceType));
         List<Edge> phylogeny = camerini.inferPhylogeny(null).getEdges();
+        long endInferenceTime = System.currentTimeMillis();
+        iterationTimes.set(1, endInferenceTime - startInferenceTime);
         
         // Save phylogeny
         ensureDirectoryExists(outputFile);
@@ -1358,8 +1361,9 @@ public class Main {
         return phylogeny;
     }
 
-    private static void logIterationDetails(long startTime, long endTime, String operationType, int batchSize, int iterationNumber, long cost, String outputFile) throws IOException {
-        long executionTime = endTime - startTime;
+    private static void logIterationDetails(long preProcess, long inferenceT, String operationType, int batchSize, int iterationNumber, long cost, String outputFile) throws IOException {
+        long preProcessTime = preProcess;
+        long inferenceTime = inferenceT;
         String logFile = outputFile + "_test_log.txt";
         ensureDirectoryExists(logFile);
         try (java.io.FileWriter fw = new java.io.FileWriter(logFile, true);
@@ -1369,7 +1373,8 @@ public class Main {
             out.print(" | Operation: " + operationType);
             out.print(" | Points processed in this iteration: " + batchSize);
             out.print(" | Phylogeny Cost: " + cost);
-            out.println(" | Execution time (ms): " + executionTime);
+            out.println(" | Pre-process time (ms): " + preProcessTime);
+            out.println(" | Inference time (ms): " + inferenceTime);
         }
     }
 }
