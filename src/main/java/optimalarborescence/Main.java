@@ -1141,7 +1141,7 @@ public class Main {
         
         // Run initial iteration based on algorithm type
         List<Edge> phylogeny = null;
-        List<Long> iterationTimes = new ArrayList<>(2);
+        List<Long> iterationTimes = new ArrayList<>(List.of(0L, 0L)); // [preProcessTime, inferenceTime]
         switch (algorithmType) {
             case STATIC_ALGORITHM:
                 phylogeny = runStaticTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, true, onDemand, iterationTimes);
