@@ -1,5 +1,6 @@
 package optimalarborescence.inference;
 
+import optimalarborescence.datastructure.heap.HeapNode;
 import optimalarborescence.datastructure.heap.LinearSearchArray;
 import optimalarborescence.datastructure.heap.MergeableHeapInterface;
 import optimalarborescence.graph.Edge;
@@ -308,22 +309,14 @@ public class SerializableCameriniForest extends CameriniForest {
                     // contains Union-Find representative IDs, not original graph node IDs
                     Set<Integer> originalNodeIds = new HashSet<>();
                     
-                    for (TarjanForestNode n : edgeNodesInCycle) {
-                        int srcId = n.edge.getSource().getId();
-                        int dstId = n.edge.getDestination().getId();
-                        
-                        // Add source's composition
-                        if (sccComposition.containsKey(srcId)) {
-                            originalNodeIds.addAll(sccComposition.get(srcId));
+                    for (Integer componentRepId : contractionSet) {
+                        Set<Integer> componentNodeIds = sccComposition.getOrDefault(componentRepId, null);
+                        if (componentNodeIds != null) {
+                            // This component is already a merged SCC with multiple nodes
+                            originalNodeIds.addAll(componentNodeIds);
                         } else {
-                            originalNodeIds.add(srcId);
-                        }
-                        
-                        // Add destination's composition
-                        if (sccComposition.containsKey(dstId)) {
-                            originalNodeIds.addAll(sccComposition.get(dstId));
-                        } else {
-                            originalNodeIds.add(dstId);
+                            // This component is a singleton SCC, add the original node ID
+                            originalNodeIds.add(componentRepId);
                         }
                     }
                     
@@ -332,26 +325,24 @@ public class SerializableCameriniForest extends CameriniForest {
                     sccComposition.put(repId, originalNodeIds);
                     
                     // Clean up old entries for nodes that are now merged
-                    for (TarjanForestNode n : edgeNodesInCycle) {
-                        int srcId = n.edge.getSource().getId();
-                        int dstId = n.edge.getDestination().getId();
-                        if (srcId != repId) {
-                            sccComposition.remove(srcId);
-                        }
-                        if (dstId != repId) {
-                            sccComposition.remove(dstId);
+                    for (Integer componentRepId: contractionSet) {
+                        if (componentRepId != repId) {
+                            sccComposition.remove(componentRepId);
                         }
                     }
                     
                     roots.add(0, rep); // Add representative to roots to be processed again
                     for (Integer node : contractionSet) { // Merge queues involved in the cycle
                         if (rep.getId() != node) {
+                            if (!queueInitialized.getOrDefault(node, false)) {
+                                continue;
+                            }
+
                             MergeableHeapInterface<int[]> nodeQueue = getQueue(getNodes().get(node));
                             getQueue(rep).merge(nodeQueue);
                             // Clear the merged queue to free memory
-                            //clearQueue(nodeQueue, node);
+                            clearQueue(nodeQueue, node);
                         }
-			//clearQueue(getQueue(getNodes().get(node)), node);
                     }
                     updateMax(rep, dst);
                     cycleEdgeNodes.set(rep.getId(), edgeNodesInCycle);
@@ -416,19 +407,19 @@ public class SerializableCameriniForest extends CameriniForest {
         }
         
         // DIAGNOSTIC: Log SCC size and memory estimate
-        long estimatedEdges = nodesToLoad.size() * 100000L; // Assume 100k edges per node
-        long estimatedMemoryMB = (estimatedEdges * 150) / (1024 * 1024); // ~150 bytes per HeapNode
-        if (nodesToLoad.size() > 1 || repId % 10000 == 0) {
-            System.err.println(String.format("[MEMORY] Initializing queue for node %d (SCC size: %d nodes, ~%d edges, ~%d MB)",
-                repId, nodesToLoad.size(), estimatedEdges, estimatedMemoryMB));
+        // long estimatedEdges = nodesToLoad.size() * 100000L; // Assume 100k edges per node
+        // long estimatedMemoryMB = (estimatedEdges * 150) / (1024 * 1024); // ~150 bytes per HeapNode
+        // if (nodesToLoad.size() > 1 || repId % 10000 == 0) {
+        //     System.err.println(String.format("[MEMORY] Initializing queue for node %d (SCC size: %d nodes, ~%d edges, ~%d MB)",
+        //         repId, nodesToLoad.size(), estimatedEdges, estimatedMemoryMB));
             
-            // Log current memory state
-            Runtime runtime = Runtime.getRuntime();
-            long usedMemoryMB = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
-            long maxMemoryMB = runtime.maxMemory() / (1024 * 1024);
-            System.err.println(String.format("[MEMORY] Heap usage: %d MB / %d MB (%.1f%%)",
-                usedMemoryMB, maxMemoryMB, (usedMemoryMB * 100.0 / maxMemoryMB)));
-        }
+        //     // Log current memory state
+        //     Runtime runtime = Runtime.getRuntime();
+        //     long usedMemoryMB = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
+        //     long maxMemoryMB = runtime.maxMemory() / (1024 * 1024);
+        //     System.err.println(String.format("[MEMORY] Heap usage: %d MB / %d MB (%.1f%%)",
+        //         usedMemoryMB, maxMemoryMB, (usedMemoryMB * 100.0 / maxMemoryMB)));
+        // }
         
         // Get the queue for the representative (this is the merged queue)
         MergeableHeapInterface<int[]> queue = queues.get(repId);
@@ -454,7 +445,7 @@ public class SerializableCameriniForest extends CameriniForest {
                     for (Point<?> neighbor : neighbors) {
                         Node otherNode = new Node(neighbor);
                         Edge edge = buildEdge(otherNode, node, distanceFunction);
-                        if (edge.getDestination().getId() == nodeId && sccFind(edge.getSource()) != sccFind(edge.getDestination)) {
+                        if (edge.getDestination().getId() == nodeId && sccFind(edge.getSource()) != sccFind(edge.getDestination())) {
                             // incomingEdges.add(edge);
                             queue.insert(new int[]{ edge.getWeight(), edge.getSource().getId(), edge.getDestination().getId() }); // Insert directly into queue
                         }
@@ -465,7 +456,7 @@ public class SerializableCameriniForest extends CameriniForest {
                     for (Node otherNode : nodeMap.values()) {
                         if (otherNode.getId() != nodeId) {
                             Edge edge = buildEdge(otherNode, node, distanceFunction);
-                            if (edge.getDestination().getId() == nodeId && sccFind(edge.getSource() != sccFind(edge.getDestination))) {
+                            if (edge.getDestination().getId() == nodeId && sccFind(edge.getSource()) != sccFind(edge.getDestination())) {
                                 // incomingEdges.add(edge);
                                 queue.insert(new int[]{ edge.getWeight(), edge.getSource().getId(), edge.getDestination().getId() }); // Insert directly into queue
                             }
