@@ -1156,7 +1156,7 @@ public class Main {
         long cost = phylogeny.stream().mapToLong(Edge::getWeight).sum();
         logIterationDetails(iterationTimes.get(0), iterationTimes.get(1), "add", 2, 1, cost, outputFile);
         System.out.println("Initial phylogeny cost: " + cost);
-        System.out.println("Initial iteration execution time: " + (iterationTimes.get(0) - iterationTimes.get(1)) + " ms");
+        System.out.println("Initial iteration execution time: " + (iterationTimes.get(0) + iterationTimes.get(1)) + " ms");
         System.out.println("Initial graph created with 2 points. Phylogeny saved.");
         
         // Iteratively add remaining points in batches
@@ -1186,7 +1186,7 @@ public class Main {
             cost = phylogeny.stream().mapToLong(Edge::getWeight).sum();
             logIterationDetails(iterationTimes.get(0), iterationTimes.get(1), "add", currentBatchSize, i + 1, cost, outputFile);
             System.out.println("Updated phylogeny cost: " + cost);
-            System.out.println("Iteration execution time: " + (iterationTimes.get(0) - iterationTimes.get(1)) + " ms");
+            System.out.println("Iteration execution time: " + (iterationTimes.get(0) + iterationTimes.get(1)) + " ms");
             System.out.println("Batch added. Total points: " + (i + currentBatchSize));
             
             i += currentBatchSize;
