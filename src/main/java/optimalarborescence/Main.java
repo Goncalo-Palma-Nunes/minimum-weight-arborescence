@@ -219,6 +219,13 @@ public class Main {
         } catch (IOException e) {
             System.err.println("Error writing to log file: " + e.getMessage());
         }
+
+        if (!isValidArborescence(GraphMapper.loadGraph(persistedGraphFile), new Graph(phylogeny))) {
+            System.err.println("Invalid arborescence generated.");
+            System.exit(1);
+        } else {
+            System.out.println("Arborescence validation passed.");
+        }
     }
 
     private static int approximatesGraph() throws IOException{
@@ -1156,7 +1163,7 @@ public class Main {
         long cost = phylogeny.stream().mapToLong(Edge::getWeight).sum();
         logIterationDetails(iterationTimes.get(0), iterationTimes.get(1), "add", 2, 1, cost, outputFile);
         System.out.println("Initial phylogeny cost: " + cost);
-        System.out.println("Initial iteration execution time: " + (iterationTimes.get(0) - iterationTimes.get(1)) + " ms");
+        System.out.println("Initial iteration execution time: " + (iterationTimes.get(0) + iterationTimes.get(1)) + " ms");
         System.out.println("Initial graph created with 2 points. Phylogeny saved.");
         
         // Iteratively add remaining points in batches
@@ -1186,7 +1193,7 @@ public class Main {
             cost = phylogeny.stream().mapToLong(Edge::getWeight).sum();
             logIterationDetails(iterationTimes.get(0), iterationTimes.get(1), "add", currentBatchSize, i + 1, cost, outputFile);
             System.out.println("Updated phylogeny cost: " + cost);
-            System.out.println("Iteration execution time: " + (iterationTimes.get(0) - iterationTimes.get(1)) + " ms");
+            System.out.println("Iteration execution time: " + (iterationTimes.get(0) + iterationTimes.get(1)) + " ms");
             System.out.println("Batch added. Total points: " + (i + currentBatchSize));
             
             i += currentBatchSize;
@@ -1376,5 +1383,61 @@ public class Main {
             out.println(" | Pre-process time (ms): " + preProcessTime);
             out.println(" | Inference time (ms): " + inferenceTime);
         }
+    }
+
+
+    private static boolean isValidArborescence(Graph graph, Graph arborescence) {
+        if (arborescence.getNumNodes() != graph.getNumNodes() || arborescence.getNumEdges() != graph.getNumNodes() - 1) {
+            return false;
+        }
+
+        Map<Integer, Node> incidentNodes = new HashMap<>();
+        for (Edge edge : arborescence.getEdges()) {
+            if (!graph.getEdges().contains(edge)) {
+                return false;
+            }
+            Node dest = edge.getDestination();
+            if (incidentNodes.containsKey(dest.getId())) {
+                return false; // More than one incoming edge to the same node
+            }
+            incidentNodes.put(dest.getId(), dest);
+        }
+
+        List<Node> allNodes = graph.getNodes();
+        for (Node node : incidentNodes.values()) {
+            allNodes.remove(node);
+        }
+        if (allNodes.size() != 1) {
+            return false; // More than one root or missing nodes
+        }
+        Node root = allNodes.get(0);
+
+        if (!BFS(arborescence, root)) { // It is not a spanning tree
+            return false; // Not all nodes are reachable from the root
+        }
+
+        return true;
+    }
+
+    private static boolean BFS(Graph graph, Node start) {
+        List<Node> visited = new ArrayList<>();
+        List<Node> queue = new ArrayList<>();
+        queue.add(start);
+
+        while (!queue.isEmpty()) {
+            Node current = queue.remove(0);
+            visited.add(current);
+
+            for (Edge edge : graph.getEdges()) {
+                if (edge.getSource().equals(current)) {
+                    Node neighbor = edge.getDestination();
+                    if (!visited.contains(neighbor) && !queue.contains(neighbor)) {
+                        queue.add(neighbor);
+                    }
+                }
+            }
+        }
+
+        return visited.size() == graph.getNumNodes();
     }
 }
