@@ -135,6 +135,29 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
         generateHashes();
     }
 
+    /**
+     * Constructs an LSH instance with the specified number of hash functions and buckets, using the provided highest entropy indices for hash generation.
+     * @param widthConcatenatedHashes 
+     * @param numTables 
+     * @param minHashIndex 
+     * @param maxHashIndex 
+     * @param distanceFunction
+     * @param radius
+     * @param highestEntropyIndices
+     */
+    public LSH(int widthConcatenatedHashes, int numTables, int minHashIndex,
+                int maxHashIndex, DistanceFunction distanceFunction,
+                float radius, List<Integer> highestEntropyIndices) {
+        super(distanceFunction);
+        this.widthConcatenatedHashes = widthConcatenatedHashes;
+        this.numTables = numTables;
+        this.minHashIndex = minHashIndex;
+        this.maxHashIndex = maxHashIndex;
+        this.radius = radius;
+
+        validLSH();
+        generateHashes(highestEntropyIndices);
+    }
 
     private void validLSH() {
         if (widthConcatenatedHashes <= 0 || numTables <= 0 || radius <= 0) {
@@ -185,6 +208,36 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
                 tablesCreated++;
             }
         }
+    }
+
+    private void generateHashes(List<Integer> highestEntropyIndices) {
+        Random r = new Random();
+        r.setSeed(SEED);
+
+        /* Generate numTables concatenated hashes and the respective buckets */
+        Set<Set<Integer>> uniqueHashes = new HashSet<>(); // Used to prevent repeated concatenated hashes
+        int tablesCreated = 0;
+        while (tablesCreated < this.numTables) {
+            Set<Hash<T>> hashes = new TreeSet<>(); // Used to prevent repeated indices within a concatenated hash
+            Set<Integer> indices = new TreeSet<>();
+
+            /* Each concatenated hash is obtained by concatenating widthConcatenatedHashes
+             * hamming hashes uniformly sampled */
+            while (hashes.size() < this.widthConcatenatedHashes) {
+                // sample a random index from the highest entropy indices
+                int index = highestEntropyIndices.get(r.nextInt(highestEntropyIndices.size()));
+                boolean added = hashes.add(new Hash<T>(index)); // TreeSet so it won't add if it is already there
+                if (added) { indices.add(index); }
+            }
+
+            if (!uniqueHashes.contains(indices)) {
+                uniqueHashes.add(indices);
+                concatenatedHashes.add(hashes);
+                tables.add(new Hashtable<>());
+                tablesCreated++;
+            }
+        }
+
     }
 
     private List<T> computeHash(Set<Hash<T>> concatenatedHash, Point<T> p) {
