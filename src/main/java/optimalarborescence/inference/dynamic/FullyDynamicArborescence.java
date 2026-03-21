@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Queue;
 import java.util.Comparator;
+import java.util.stream.Collectors;
 
 public class FullyDynamicArborescence extends OnlineAlgorithm {
 
@@ -418,6 +419,195 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                 ATreeNode lcaATreeNode = (ATreeNode) lca;
                 lcaATreeNode.addContractedEdge(edge);
             }
+        }
+
+        return this.getCurrentArborescence();
+    }
+
+    @Override
+    public List<Edge> removeEdges(List<Edge> edges) {
+        if (edges == null || edges.isEmpty()) {
+            return this.getCurrentArborescence();
+        }
+
+        // Remove all edges from the graph upfront
+        for (Edge edge : edges) {
+            if (edge != null && this.getGraph().getEdges().contains(edge)) {
+                getGraph().removeEdge(edge);
+            }
+        }
+
+        List<Edge> currentArb = this.getCurrentArborescence();
+
+        // Partition: arborescence edges vs non-arborescence edges
+        // Use List.contains (equals-based) since Edge.hashCode() is not overridden
+        List<Edge> arborescenceEdges = new ArrayList<>();
+        List<Edge> nonArborescenceEdges = new ArrayList<>();
+        for (Edge edge : edges) {
+            if (edge == null) continue;
+            if (currentArb.contains(edge)) {
+                arborescenceEdges.add(edge);
+            } else {
+                nonArborescenceEdges.add(edge);
+            }
+        }
+
+        // Cheap path: remove non-arborescence edges from their c-nodes' contracted edge lists
+        for (Edge edge : nonArborescenceEdges) {
+            for (ATreeNode root : this.getRoots()) {
+                ATreeNode contraction = root.findContractionByEdge(edge, root);
+                if (contraction != null) {
+                    contraction.getContractedEdges().remove(edge);
+                    break;
+                }
+            }
+        }
+
+        // Expensive path: decompose all arborescence edges, then run inference once
+        if (!arborescenceEdges.isEmpty()) {
+            if (this.getRoots().isEmpty()) {
+                this.currentArborescence = firstStaticInference(this.getGraph());
+            } else {
+                List<ATreeNode> allRemovedContractions = new ArrayList<>();
+                for (Edge edge : arborescenceEdges) {
+                    List<ATreeNode> removed = decompose(edge);
+                    allRemovedContractions.addAll(removed);
+                }
+
+                // Collect contracted edges from all decomposed c-nodes,
+                // filtering out any edges that are in the removal batch
+                // Use List.contains (equals-based) since Edge.hashCode() is not overridden
+                List<Edge> contractedEdges = allRemovedContractions.stream()
+                        .flatMap(c -> c.getContractedEdges().stream())
+                        .filter(e -> !edges.contains(e))
+                        .collect(Collectors.toList());
+
+                // V' is captured after all decompositions (this.roots has been updated)
+                List<ATreeNode> V = new LinkedList<>(this.getRoots());
+
+                Map<Integer, Integer> reductions = computeReductionQuantities();
+                Map<Edge, Integer> reducedCosts = applyReductionQuantities(contractedEdges, reductions);
+
+                DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
+                    V,
+                    contractedEdges,
+                    reducedCosts,
+                    this.getGraph(),
+                    this.edgeComparator
+                );
+                this.camerini = dynamicTarjan;
+
+                Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
+                this.roots = dynamicTarjan.augmentTarjanForestToATree();
+
+                List<Edge> fullEdges = expandArborescence(updatedArborescence.getEdges());
+                this.currentArborescence = fullEdges;
+            }
+        }
+
+        return this.getCurrentArborescence();
+    }
+
+    @Override
+    public List<Edge> addEdges(List<Edge> edges) {
+        if (edges == null || edges.isEmpty()) {
+            return this.getCurrentArborescence();
+        }
+
+        // Add all edges to the graph upfront
+        for (Edge edge : edges) {
+            getGraph().addEdge(edge);
+        }
+
+        // Validate leaves — if any source/dest has no leaf, fall back to full static inference
+        TarjanForestNode[] leaves = this.camerini.getLeaves();
+        if (leaves == null) {
+            this.currentArborescence = firstStaticInference(this.getGraph());
+            return this.getCurrentArborescence();
+        }
+        for (Edge edge : edges) {
+            Node src = edge.getSource();
+            Node dst = edge.getDestination();
+            if (src.getId() >= leaves.length || dst.getId() >= leaves.length
+                    || leaves[src.getId()] == null || leaves[dst.getId()] == null) {
+                this.currentArborescence = firstStaticInference(this.getGraph());
+                return this.getCurrentArborescence();
+            }
+        }
+
+        List<ATreeNode> allRemovedContractions = new ArrayList<>();
+        List<Edge> triggeringEdges = new ArrayList<>();
+        boolean needsInference = false;
+
+        for (Edge edge : edges) {
+            Node source = edge.getSource();
+            Node destination = edge.getDestination();
+
+            TarjanForestNode sourceLeaf = leaves[source.getId()];
+            TarjanForestNode destLeaf = leaves[destination.getId()];
+
+            TarjanForestNode candidateForRemoval = this.findCandidateForRemoval(destLeaf, edge);
+
+            if (candidateForRemoval != null) {
+                boolean sourceInSubtree = isNodeInSubtree(sourceLeaf, candidateForRemoval);
+
+                if (sourceInSubtree) {
+                    // Case 1: source is inside the candidate's subtree — add to LCA's contractedEdges
+                    TarjanForestNode lca = destLeaf.LCA(sourceLeaf);
+                    if (lca instanceof ATreeNode) {
+                        ((ATreeNode) lca).addContractedEdge(edge);
+                    }
+                } else {
+                    // Case 2: source is outside — virtual deletion, defer inference
+                    if (this.getRoots().isEmpty()) {
+                        this.currentArborescence = firstStaticInference(this.getGraph());
+                        return this.getCurrentArborescence();
+                    }
+                    Edge removedEdge = candidateForRemoval.getEdge();
+                    List<ATreeNode> removed = decompose(removedEdge);
+                    allRemovedContractions.addAll(removed);
+                    triggeringEdges.add(edge);
+                    needsInference = true;
+                }
+            } else {
+                // Case 3: no candidate — add to LCA's contractedEdges
+                TarjanForestNode lca = destLeaf.LCA(sourceLeaf);
+                if (lca instanceof ATreeNode) {
+                    ((ATreeNode) lca).addContractedEdge(edge);
+                }
+            }
+        }
+
+        if (needsInference) {
+            // Collect contracted edges from all decomposed c-nodes
+            List<Edge> contractedEdges = allRemovedContractions.stream()
+                    .flatMap(c -> c.getContractedEdges().stream())
+                    .collect(Collectors.toList());
+
+            // Triggering edges are added to the edge set but NOT to reducedCosts (keep original weight)
+            List<Edge> edgesForInference = new ArrayList<>(contractedEdges);
+            edgesForInference.addAll(triggeringEdges);
+
+            // V' captured after all decompositions
+            List<ATreeNode> V = new LinkedList<>(this.getRoots());
+
+            Map<Integer, Integer> reductions = computeReductionQuantities();
+            Map<Edge, Integer> reducedCosts = applyReductionQuantities(contractedEdges, reductions);
+
+            DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
+                V,
+                edgesForInference,
+                reducedCosts,
+                this.getGraph(),
+                this.edgeComparator
+            );
+            this.camerini = dynamicTarjan;
+
+            Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
+            this.roots = dynamicTarjan.augmentTarjanForestToATree();
+
+            List<Edge> fullEdges = expandArborescence(updatedArborescence.getEdges());
+            this.currentArborescence = fullEdges;
         }
 
         return this.getCurrentArborescence();
