@@ -260,11 +260,6 @@ public class Main {
     }
     
     private static int readBatchSize(String algorithmType) throws IOException {
-        // Batch size only applies to static and neighbor joining algorithms
-        if (algorithmType.equals(DYNAMIC_ALGORITHM)) {
-            return 1; // Dynamic algorithm always processes one point at a time
-        }
-        
         System.out.println("Enter the batch size (positive integer) for adding points in test mode, or " + EXIT + " to quit:");
         System.out.println("(Batch size determines how many points are added before inferring the phylogeny)");
         
@@ -981,47 +976,29 @@ public class Main {
         // stream and cast dynamicCamerini.getRoots() to List<ATreeNode>
         SerializableFullyDynamicArborescence dynamicAlgorithm = new SerializableFullyDynamicArborescence(persistedGraphFile);
         
-        // Load node map for edge reconstruction
-        Map<Integer, Node> nodeMap = GraphMapper.loadNodeMap(persistedGraphFile);
-        int currEdge = 0;
-        int numEdgesToAdd = nodesToProcess.size() * nodeMap.size() ; // Worst case: each new node connects to all existing nodes
         switch (operationType) {
             case ADD:
                 // Add nodes to persisted file using batch operation (without edges, they're already computed)
                 GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), new HashMap<>(), persistedGraphFile, sequenceLength);
-                
-                // Reload node map to include newly added nodes
-                nodeMap = GraphMapper.loadNodeMap(persistedGraphFile);
-                
-                // For each new node, get its incoming edges and add them to the dynamic algorithm
+
+                // Collect all incoming edges for all new nodes, then add in a single batch call
+                List<Edge> allEdgesToAdd = new ArrayList<>();
                 for (Node newNode : nodesToProcess) {
-                    List<Edge> incomingEdges = GraphMapper.getIncomingEdges(persistedGraphFile, newNode.getId());
-                    
-                    // Add each edge to the dynamic algorithm
-                    for (Edge edge : incomingEdges) {
-                        System.out.println("Adding edge " + (++currEdge) + " of " + numEdgesToAdd);
-                        dynamicAlgorithm.addEdge(edge);
-                    }
+                    allEdgesToAdd.addAll(GraphMapper.getIncomingEdges(persistedGraphFile, newNode.getId()));
                 }
+                System.out.println("Adding " + allEdgesToAdd.size() + " edges in batch...");
+                dynamicAlgorithm.addEdges(allEdgesToAdd);
                 break;
                 
             case REMOVE:
-                // Get edges that will be removed (edges incident to nodes being removed)
-                String edgeFile = persistedGraphFile + "_edges.dat";
-                
+                // Collect all edges incident to nodes being removed, then remove in a single batch call
+                List<Edge> allEdgesToRemove = new ArrayList<>();
                 for (Node nodeToRemove : nodesToProcess) {
-                    // Get incoming edges
-                    List<Edge> incomingEdges = GraphMapper.getIncomingEdges(persistedGraphFile, nodeToRemove.getId());
-                    for (Edge edge : incomingEdges) {
-                        dynamicAlgorithm.removeEdge(edge);
-                    }
-                
-                    // Get outgoing edges
-                    List<Edge> outgoingEdges = GraphMapper.getOutgoingEdges(persistedGraphFile, nodeToRemove.getId());
-                    for (Edge edge : outgoingEdges) {
-                        dynamicAlgorithm.removeEdge(edge);
-                    }
+                    allEdgesToRemove.addAll(GraphMapper.getIncomingEdges(persistedGraphFile, nodeToRemove.getId()));
+                    allEdgesToRemove.addAll(GraphMapper.getOutgoingEdges(persistedGraphFile, nodeToRemove.getId()));
                 }
+                System.out.println("Removing " + allEdgesToRemove.size() + " edges in batch...");
+                dynamicAlgorithm.removeEdges(allEdgesToRemove);
                 
                 // Remove nodes from persisted file and the incoming edge files for each of them
                 GraphMapper.removeNodesBatch(nodesToProcess, persistedGraphFile, sequenceLength);
@@ -1033,8 +1010,6 @@ public class Main {
                 
             case UPDATE:
                 // Remove old edges from dynamic algorithm
-                edgeFile = persistedGraphFile + "_edges.dat";
-                
                 for (Node nodeToUpdate : nodesToProcess) {
                     // Get incoming edges
                     List<Edge> incomingEdges = GraphMapper.getIncomingEdges(persistedGraphFile, nodeToUpdate.getId());
@@ -1103,9 +1078,6 @@ public class Main {
         // Get batch size if not provided as command line argument
         if (batchSize == null) {
             batchSize = readBatchSize(algorithmType);
-        } else if (algorithmType.equals(DYNAMIC_ALGORITHM) && batchSize != 1) {
-            System.out.println("Warning: Batch size is not applicable for dynamic algorithm. Using batch size of 1.");
-            batchSize = 1;
         }
         
         // Load all points from the input file
@@ -1181,10 +1153,7 @@ public class Main {
                     phylogeny = runStaticTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, false, onDemand, iterationTimes);
                     break;
                 case DYNAMIC_ALGORITHM:
-                    // Dynamic algorithm processes points one by one
-                    for (Point<?> point : batchPoints) {
-                        phylogeny = runDynamicTestIteration(sequenceType, List.of(point), tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, false);
-                    }
+                    phylogeny = runDynamicTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, false);
                     break;
                 case NEIGHBOR_JOINING:
                     phylogeny = runNJTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, sequenceLength, false);
@@ -1299,15 +1268,13 @@ public class Main {
             // Load node map for edge reconstruction
             // Map<Integer, Node> nodeMap = GraphMapper.loadNodeMap(tempGraphFile);
             
-            // Load edges for new nodes and add to dynamic algorithm
+            // Collect all incoming edges for all new nodes, then add in a single batch call
+            List<Edge> allEdgesToAdd = new ArrayList<>();
             for (Node newNode : nodesToAdd) {
-                List<Edge> incomingEdges = GraphMapper.getIncomingEdges(tempGraphFile, newNode.getId());
-                
-                // Add each edge to the dynamic algorithm
-                for (Edge edge : incomingEdges) {
-                    dynamicAlgorithm.addEdge(edge);
-                }
+                allEdgesToAdd.addAll(GraphMapper.getIncomingEdges(tempGraphFile, newNode.getId()));
             }
+            System.out.println("Adding " + allEdgesToAdd.size() + " edges in batch...");
+            dynamicAlgorithm.addEdges(allEdgesToAdd);
         }
         
         // Get current phylogeny
