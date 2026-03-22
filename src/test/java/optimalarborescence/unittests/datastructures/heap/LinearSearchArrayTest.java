@@ -321,11 +321,12 @@ public class LinearSearchArrayTest {
     }
 
     @Test
-    public void testMergePreservesCapacityExactly() {
-        // After merge the new capacity should == combined size (no wasted space)
+    public void testMergeLinksArraysWithoutCopying() {
+        // After merge, arrays are linked — no array reallocation occurs
         LinearSearchArray heap1 = new LinearSearchArray(3);
         heap1.insert(edge(10, 1, 2));
         heap1.insert(edge(20, 3, 4));
+        int[] originalArray = heap1.getArray();
 
         LinearSearchArray heap2 = new LinearSearchArray(3);
         heap2.insert(edge(30, 5, 6));
@@ -333,7 +334,10 @@ public class LinearSearchArrayTest {
         heap1.merge(heap2);
 
         assertEquals(3, heap1.getSize());
-        assertEquals(3, heap1.getCapacity());
+        // Local array reference unchanged — no copy occurred
+        assertSame(originalArray, heap1.getArray());
+        // findMin still finds the global minimum across linked arrays
+        assertArrayEquals(new int[]{10, 1, 2}, heap1.findMin());
     }
 
     @Test

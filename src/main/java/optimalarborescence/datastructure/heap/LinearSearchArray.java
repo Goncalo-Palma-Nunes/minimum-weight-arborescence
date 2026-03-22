@@ -1,5 +1,6 @@
 package optimalarborescence.datastructure.heap;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import optimalarborescence.graph.Edge;
@@ -10,6 +11,7 @@ public class LinearSearchArray implements MergeableHeapInterface<int[]> {
     protected int size;
     protected int[] array;
     private final Comparator<int[]> comparator;
+    private List<LinearSearchArray> linked;  // null when no arrays are linked
 
     private static final int ENTRY_SIZE = 3; // weight, source, target
 
@@ -39,7 +41,7 @@ public class LinearSearchArray implements MergeableHeapInterface<int[]> {
         }
     }
 
-    /** Returns true if a is less than b under this heap's ordering. */
+    /** Returns true if a is less than b under this heap's ordering (local array only). */
     private boolean isLess(int indexA, int indexB) {
         if (comparator != null) {
             int[] a = new int[]{ array[indexA * ENTRY_SIZE], array[indexA * ENTRY_SIZE + 1], array[indexA * ENTRY_SIZE + 2] };
@@ -47,6 +49,25 @@ public class LinearSearchArray implements MergeableHeapInterface<int[]> {
             return comparator.compare(a, b) < 0;
         }
         return array[indexA * ENTRY_SIZE] < array[indexB * ENTRY_SIZE];
+    }
+
+    /** Find index of the minimum entry in THIS array only (no linked). */
+    private int localMinIndex() {
+        int minIdx = 0;
+        for (int i = 1; i < size; i++) {
+            if (isLess(i, minIdx)) minIdx = i;
+        }
+        return minIdx;
+    }
+
+    /** Compare entry at idxA in array A with entry at idxB in array B. */
+    private int compareBetween(LinearSearchArray a, int idxA, LinearSearchArray b, int idxB) {
+        if (comparator != null) {
+            int[] entryA = new int[]{ a.array[idxA * ENTRY_SIZE], a.array[idxA * ENTRY_SIZE + 1], a.array[idxA * ENTRY_SIZE + 2] };
+            int[] entryB = new int[]{ b.array[idxB * ENTRY_SIZE], b.array[idxB * ENTRY_SIZE + 1], b.array[idxB * ENTRY_SIZE + 2] };
+            return comparator.compare(entryA, entryB);
+        }
+        return Integer.compare(a.array[idxA * ENTRY_SIZE], b.array[idxB * ENTRY_SIZE]);
     }
 
     private int getSourceFromEdge(int[] edge) {
@@ -59,9 +80,15 @@ public class LinearSearchArray implements MergeableHeapInterface<int[]> {
 
     @Override
     public boolean isEmpty() {
-        return this.size == 0;
+        if (this.size > 0) return false;
+        if (linked != null) {
+            for (LinearSearchArray la : linked) {
+                if (la.size > 0) return false;
+            }
+        }
+        return true;
     }
-    
+
     @Override
     public MergeableHeapInterface<int[]> merge(MergeableHeapInterface<int[]> other) {
         if (!(other instanceof LinearSearchArray)) {
@@ -69,42 +96,50 @@ public class LinearSearchArray implements MergeableHeapInterface<int[]> {
         }
 
         LinearSearchArray otherHeap = (LinearSearchArray) other;
-        if (this.isEmpty()) {
-            this.array = otherHeap.array;
-            this.size = otherHeap.size;
-            this.capacity = otherHeap.capacity;
-            return this;
-        }
         if (otherHeap.isEmpty()) {
             return this;
         }
 
-        int mergedSize = this.size + otherHeap.size;
-        int[] mergedArray = new int[mergedSize * ENTRY_SIZE];
-        System.arraycopy(this.array, 0, mergedArray, 0, this.size * ENTRY_SIZE);
-        System.arraycopy(otherHeap.array, 0, mergedArray, this.size * ENTRY_SIZE, otherHeap.size * ENTRY_SIZE);
-        
-        this.array = mergedArray;
-        this.size = mergedSize;
-        this.capacity = mergedSize;
-
+        if (this.linked == null) this.linked = new ArrayList<>();
+        this.linked.add(otherHeap);
+        // Flatten: adopt other's linked arrays to avoid tree-shaped traversal
+        if (otherHeap.linked != null) {
+            this.linked.addAll(otherHeap.linked);
+            otherHeap.linked = null;
+        }
         return this;
     }
-    
+
     @Override
     public int[] findMin() {
         if (this.isEmpty()) {
             throw new IllegalStateException("Heap is empty");
         }
-        int minIndex = 0;
-        for (int i = 1; i < size; i++) {
-            if (isLess(i, minIndex)) {
-                minIndex = i;
+
+        LinearSearchArray bestArr = null;
+        int bestIdx = -1;
+
+        if (this.size > 0) {
+            bestArr = this;
+            bestIdx = localMinIndex();
+        }
+        if (linked != null) {
+            for (LinearSearchArray la : linked) {
+                if (la.size > 0) {
+                    int laIdx = la.localMinIndex();
+                    if (bestArr == null || compareBetween(la, laIdx, bestArr, bestIdx) < 0) {
+                        bestArr = la;
+                        bestIdx = laIdx;
+                    }
+                }
             }
         }
-        return new int[] { array[minIndex * ENTRY_SIZE], array[minIndex * ENTRY_SIZE + 1], array[minIndex * ENTRY_SIZE + 2] };
+
+        return new int[]{ bestArr.array[bestIdx * ENTRY_SIZE],
+                          bestArr.array[bestIdx * ENTRY_SIZE + 1],
+                          bestArr.array[bestIdx * ENTRY_SIZE + 2] };
     }
-    
+
     @Override
     public void insert(int[] edge) {
         if (edge.length != ENTRY_SIZE) {
@@ -163,13 +198,26 @@ public class LinearSearchArray implements MergeableHeapInterface<int[]> {
             throw new IllegalStateException("Heap is empty");
         }
 
-        int minIndex = 0;
-        for (int i = 1; i < size; i++) {
-            if (isLess(i, minIndex)) {
-                minIndex = i;
+        LinearSearchArray bestArr = null;
+        int bestIdx = -1;
+
+        if (this.size > 0) {
+            bestArr = this;
+            bestIdx = localMinIndex();
+        }
+        if (linked != null) {
+            for (LinearSearchArray la : linked) {
+                if (la.size > 0) {
+                    int laIdx = la.localMinIndex();
+                    if (bestArr == null || compareBetween(la, laIdx, bestArr, bestIdx) < 0) {
+                        bestArr = la;
+                        bestIdx = laIdx;
+                    }
+                }
             }
         }
-        return extractMin(minIndex);
+
+        return bestArr.extractMin(bestIdx);
     }
 
     @Override
@@ -177,17 +225,36 @@ public class LinearSearchArray implements MergeableHeapInterface<int[]> {
         if (edge.length != ENTRY_SIZE) {
             throw new IllegalArgumentException("Edge must have exactly 3 elements: weight, source, target");
         }
+        // Search in this array
+        int[] result = localDecreaseKey(edge, newWeight);
+        if (result != null) return result;
+        // Search in linked arrays
+        if (linked != null) {
+            for (LinearSearchArray la : linked) {
+                result = la.localDecreaseKey(edge, newWeight);
+                if (result != null) return result;
+            }
+        }
+        throw new IllegalArgumentException("Edge not found in heap");
+    }
+
+    /**
+     * Attempts to decrease the key of an edge in this local array only.
+     * Returns the updated edge if found and decreased, null if not found.
+     * Throws if found but newWeight is not smaller.
+     */
+    private int[] localDecreaseKey(int[] edge, int newWeight) {
         for (int i = 0; i < size; i++) {
-            if (array[i * ENTRY_SIZE + 1] == getSourceFromEdge(edge) && array[i * ENTRY_SIZE + 2] == getTargetFromEdge(edge)) { // Match source and target
-                if (newWeight < array[i * ENTRY_SIZE]) { // Check if the new weight is smaller
-                    array[i * ENTRY_SIZE] = newWeight; // Update the weight
+            if (array[i * ENTRY_SIZE + 1] == getSourceFromEdge(edge) && array[i * ENTRY_SIZE + 2] == getTargetFromEdge(edge)) {
+                if (newWeight < array[i * ENTRY_SIZE]) {
+                    array[i * ENTRY_SIZE] = newWeight;
                     return new int[] { newWeight, getSourceFromEdge(edge), getTargetFromEdge(edge) };
                 } else {
                     throw new IllegalArgumentException("New weight must be smaller than the current weight");
                 }
             }
         }
-        throw new IllegalArgumentException("Edge not found in heap");
+        return null;
     }
 
     @Override
@@ -195,10 +262,24 @@ public class LinearSearchArray implements MergeableHeapInterface<int[]> {
         this.size = 0;
         this.array = null;
         this.capacity = 0;
+        if (linked != null) {
+            for (LinearSearchArray la : linked) {
+                la.size = 0;
+                la.array = null;
+                la.capacity = 0;
+            }
+            linked = null;
+        }
     }
 
     public int getSize() {
-        return this.size;
+        int total = this.size;
+        if (linked != null) {
+            for (LinearSearchArray la : linked) {
+                total += la.size;
+            }
+        }
+        return total;
     }
 
     public int getCapacity() {
