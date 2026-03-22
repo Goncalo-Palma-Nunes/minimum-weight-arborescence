@@ -981,10 +981,11 @@ public class Main {
                 // Add nodes to persisted file using batch operation (without edges, they're already computed)
                 GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), new HashMap<>(), persistedGraphFile, sequenceLength);
 
-                // Collect all incoming edges for all new nodes, then add in a single batch call
+                // Collect all edges incident to new nodes (both directions), then add in a single batch call
                 List<Edge> allEdgesToAdd = new ArrayList<>();
                 for (Node newNode : nodesToProcess) {
                     allEdgesToAdd.addAll(GraphMapper.getIncomingEdges(persistedGraphFile, newNode.getId()));
+                    allEdgesToAdd.addAll(GraphMapper.getOutgoingEdges(persistedGraphFile, newNode.getId()));
                 }
                 System.out.println("Adding " + allEdgesToAdd.size() + " edges in batch...");
                 dynamicAlgorithm.addEdges(allEdgesToAdd);
@@ -1268,10 +1269,11 @@ public class Main {
             // Load node map for edge reconstruction
             // Map<Integer, Node> nodeMap = GraphMapper.loadNodeMap(tempGraphFile);
             
-            // Collect all incoming edges for all new nodes, then add in a single batch call
+            // Collect all edges incident to new nodes (both directions), then add in a single batch call
             List<Edge> allEdgesToAdd = new ArrayList<>();
             for (Node newNode : nodesToAdd) {
                 allEdgesToAdd.addAll(GraphMapper.getIncomingEdges(tempGraphFile, newNode.getId()));
+                allEdgesToAdd.addAll(GraphMapper.getOutgoingEdges(tempGraphFile, newNode.getId()));
             }
             System.out.println("Adding " + allEdgesToAdd.size() + " edges in batch...");
             dynamicAlgorithm.addEdges(allEdgesToAdd);
