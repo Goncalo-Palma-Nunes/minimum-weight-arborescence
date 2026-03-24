@@ -1,8 +1,7 @@
 package optimalarborescence.inference;
 
-import optimalarborescence.datastructure.heap.HeapNode;
+import optimalarborescence.datastructure.heap.LinearSearchArray;
 import optimalarborescence.datastructure.heap.MergeableHeapInterface;
-import optimalarborescence.datastructure.heap.PairingHeap;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Node;
@@ -179,7 +178,7 @@ public class SerializableCameriniForest extends CameriniForest {
         return graph;
     }
 
-    private void clearQueue(MergeableHeapInterface<HeapNode> q, int nodeId) {
+    private void clearQueue(MergeableHeapInterface<int[]> q, int nodeId) {
         //    // Diagnostics: heap usage before clear
         // Runtime runtime = Runtime.getRuntime();
         // long usedBefore = runtime.totalMemory() - runtime.freeMemory();
@@ -199,13 +198,13 @@ public class SerializableCameriniForest extends CameriniForest {
     }
 
 
-    private Edge extractMinEdge(MergeableHeapInterface<HeapNode> q) {
+    private Edge extractMinEdge(MergeableHeapInterface<int[]> q) {
         if (emptyQueue(q)) {
             return null;
         }
-        Edge e = q.extractMin().getEdge();
+        Edge e = queueEntryToEdge(q.extractMin());
         while (!emptyQueue(q) && sccFind(e.getSource()) == sccFind(e.getDestination())) {
-            e = q.extractMin().getEdge();
+            e = queueEntryToEdge(q.extractMin());
             this.numExaminedEdges[e.getDestination().getId()]++; // Increment the count of examined edges for the destination node
         }
         return e;
@@ -227,7 +226,7 @@ public class SerializableCameriniForest extends CameriniForest {
     private void contractionPhase() {
         while (!roots.isEmpty()) {
                 Node root = roots.remove(0);
-                MergeableHeapInterface<HeapNode> q = getQueue(sccFind(root)); // priority queue of edges entering r
+                MergeableHeapInterface<int[]> q = getQueue(sccFind(root)); // priority queue of edges entering r
 
                 if (emptyQueue(q)) {
                     rset.add(root);
@@ -336,7 +335,7 @@ public class SerializableCameriniForest extends CameriniForest {
                                 continue;
                             }
 
-                            MergeableHeapInterface<HeapNode> nodeQueue = getQueue(getNodes().get(node));
+                            MergeableHeapInterface<int[]> nodeQueue = getQueue(getNodes().get(node));
                             getQueue(rep).merge(nodeQueue);
                             // Clear the merged queue to free memory
                             clearQueue(nodeQueue, node);
@@ -357,7 +356,7 @@ public class SerializableCameriniForest extends CameriniForest {
      * @return The heap/queue containing incoming edges for node v
      */
     @Override
-    protected MergeableHeapInterface<HeapNode> getQueue(Node v) {
+    protected MergeableHeapInterface<int[]> getQueue(Node v) {
         if (!useMemoryMappedFiles) {
             // Use parent's implementation for in-memory operation
             return super.getQueue(v);
@@ -420,7 +419,7 @@ public class SerializableCameriniForest extends CameriniForest {
         }*/
         
         // Get the queue for the representative (this is the merged queue)
-        MergeableHeapInterface<HeapNode> queue = queues.get(repId);
+        MergeableHeapInterface<int[]> queue = queues.get(repId);
         
         
         // Load and insert edges for all nodes in the SCC
@@ -446,7 +445,7 @@ public class SerializableCameriniForest extends CameriniForest {
                         Edge edge = buildEdge(otherNode, node, distanceFunction);
                         if (edge.getDestination().getId() == nodeId && sccFind(edge.getSource()) != sccFind(edge.getDestination())) {
                             // incomingEdges.add(edge);
-                            queue.insert(new HeapNode(edge, null, null)); // Insert directly into queue
+                            queue.insert(edgeToQueueEntry(edge)); // Insert directly into queue
                         }
                     }
                 }
@@ -457,7 +456,7 @@ public class SerializableCameriniForest extends CameriniForest {
                             Edge edge = buildEdge(otherNode, node, distanceFunction);
                             if (edge.getDestination().getId() == nodeId && sccFind(edge.getSource()) != sccFind(edge.getDestination())) {
                                 // incomingEdges.add(edge);
-                                queue.insert(new HeapNode(edge, null, null)); // Insert directly into queue
+                                queue.insert(edgeToQueueEntry(edge)); // Insert directly into queue
                             }
                         }
                     }
@@ -468,7 +467,7 @@ public class SerializableCameriniForest extends CameriniForest {
                 GraphMapper.streamIncidentEdges(baseName, nodeId, edge -> {
                     if (sccFind(edge.getDestination()) != sccFind(edge.getSource())) {
                         // Only insert edges that are not internal to the same SCC
-                        queue.insert(new HeapNode(edge, null, null));
+                        queue.insert(edgeToQueueEntry(edge));
                     }
                 });
             }
@@ -518,7 +517,7 @@ public class SerializableCameriniForest extends CameriniForest {
         
         // Clear all queues and mark for lazy initialization
         for (int i = 0; i < queues.size(); i++) {
-            queues.set(i, new PairingHeap(maxDisjointCmp));
+            queues.set(i, new LinearSearchArray(DEFAULT_QUEUE_CAPACITY, maxDisjointCmp));
             queueInitialized.put(i, false);
         }
     }

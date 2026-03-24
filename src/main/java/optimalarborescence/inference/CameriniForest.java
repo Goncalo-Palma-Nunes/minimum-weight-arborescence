@@ -12,14 +12,15 @@ import java.util.HashSet;
 
 import optimalarborescence.datastructure.UnionFind;
 import optimalarborescence.datastructure.UnionFindStronglyConnected;
-import optimalarborescence.datastructure.heap.HeapNode;
+import optimalarborescence.datastructure.heap.LinearSearchArray;
 import optimalarborescence.datastructure.heap.MergeableHeapInterface;
-import optimalarborescence.datastructure.heap.PairingHeap;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Node;
 import optimalarborescence.graph.Edge;
 
 public class CameriniForest extends StaticAlgorithm {
+
+    protected static final int DEFAULT_QUEUE_CAPACITY = 16;
 
     /**  Array that for each i stores a node from the forest which is associated with the minimum weight edge incident in node i */
     protected List<TarjanForestNode> inEdgeNode;
@@ -44,9 +45,11 @@ public class CameriniForest extends StaticAlgorithm {
 
     private UnionFind ufWCC;
 
-    protected List<MergeableHeapInterface<HeapNode>> queues;
+    protected List<MergeableHeapInterface<int[]>> queues;
 
-    protected Comparator<HeapNode> maxDisjointCmp;
+    protected Comparator<int[]> maxDisjointCmp;
+
+    protected Map<Integer, Node> nodeById;
 
     private Comparator<Edge> cmp;
 
@@ -71,14 +74,15 @@ public class CameriniForest extends StaticAlgorithm {
         this.ufSCC = new UnionFindStronglyConnected(maxNodeId + 1);
         this.ufWCC = new UnionFind(maxNodeId + 1);
         this.queues = new ArrayList<>();
+        this.nodeById = new HashMap<>();
 
         this.cmp = comparator;
 
-        this.maxDisjointCmp = new Comparator<HeapNode>() {
+        this.maxDisjointCmp = new Comparator<int[]>() {
             @Override
-            public int compare(HeapNode o1, HeapNode o2) {
-                Edge e1 = getAdjustedEdge(o1.getEdge());
-                Edge e2 = getAdjustedEdge(o2.getEdge());
+            public int compare(int[] o1, int[] o2) {
+                Edge e1 = getAdjustedEdge(queueEntryToEdge(o1));
+                Edge e2 = getAdjustedEdge(queueEntryToEdge(o2));
                 return cmp.compare(e1, e2);
             }
         };
@@ -94,12 +98,13 @@ public class CameriniForest extends StaticAlgorithm {
             inEdgeNode.add(null);
             max.add(null);
             cycleEdgeNodes.add(new ArrayList<>());
-            queues.add(new PairingHeap(maxDisjointCmp));
+            queues.add(new LinearSearchArray(DEFAULT_QUEUE_CAPACITY, maxDisjointCmp));
         }
         
         // Populate entries only for nodes that exist
         for (Node node : graph.getNodes()) {
             max.set(node.getId(), node);
+            nodeById.put(node.getId(), node);
         }
         
         initializeDataStructures();
@@ -108,7 +113,7 @@ public class CameriniForest extends StaticAlgorithm {
     protected void initializeDataStructures() {
         for (Edge e : graph.getEdges()) {
             Node v = e.getDestination();
-            getQueue(v).insert(new HeapNode(e, null, null));;
+            getQueue(v).insert(edgeToQueueEntry(e));
         }
     }
 
@@ -120,12 +125,29 @@ public class CameriniForest extends StaticAlgorithm {
         return this.leaves;
     }
 
-    protected MergeableHeapInterface<HeapNode> getQueue(Node v) {
+    protected MergeableHeapInterface<int[]> getQueue(Node v) {
         return queues.get(v.getId());
     }
 
-    protected boolean emptyQueue(MergeableHeapInterface<HeapNode> q) {
+    protected boolean emptyQueue(MergeableHeapInterface<int[]> q) {
         return q.isEmpty();
+    }
+
+    protected int[] edgeToQueueEntry(Edge edge) {
+        return new int[] {
+            edge.getWeight(),
+            edge.getSource().getId(),
+            edge.getDestination().getId()
+        };
+    }
+
+    protected Edge queueEntryToEdge(int[] entry) {
+        Node source = nodeById.get(entry[1]);
+        Node destination = nodeById.get(entry[2]);
+        if (source == null || destination == null) {
+            throw new IllegalStateException("Queue entry contains unknown node id");
+        }
+        return new Edge(source, destination, entry[0]);
     }
 
     private void addLeave(TarjanForestNode node, int index) {
@@ -252,16 +274,16 @@ public class CameriniForest extends StaticAlgorithm {
     private void contractionPhase() {
         while (!roots.isEmpty()) {
             Node root = roots.remove(0);
-            MergeableHeapInterface<HeapNode> q = getQueue(sccFind(root)); // priority queue of edges entering r
+            MergeableHeapInterface<int[]> q = getQueue(sccFind(root)); // priority queue of edges entering r
 
             if (emptyQueue(q)) {
                 // Only add to rset if this node has no incoming edge (no leaf set)
                 rset.add(root);
                 continue;
             }
-            Edge e = q.extractMin().getEdge();
+            Edge e = queueEntryToEdge(q.extractMin());
             while (!emptyQueue(q) && sccFind(e.getSource()) == sccFind(e.getDestination())) {
-                e = q.extractMin().getEdge();
+                e = queueEntryToEdge(q.extractMin());
             }
 
             if (sccFind(e.getSource()) == sccFind(e.getDestination())) {

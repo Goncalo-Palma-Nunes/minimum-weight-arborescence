@@ -1,8 +1,7 @@
 package optimalarborescence.inference.dynamic;
 
-import optimalarborescence.datastructure.heap.HeapNode;
+import optimalarborescence.datastructure.heap.LinearSearchArray;
 import optimalarborescence.datastructure.heap.MergeableHeapInterface;
-import optimalarborescence.datastructure.heap.PairingHeap;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
@@ -72,7 +71,7 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
         // Clear queues that were initialized by parent constructor - we'll do it lazily
         // Note: queues size is based on maxNodeId + 1, not node count
         for (int i = 0; i < queues.size(); i++) {
-            queues.set(i, new PairingHeap(maxDisjointCmp));
+            queues.set(i, new LinearSearchArray(DEFAULT_QUEUE_CAPACITY, maxDisjointCmp));
             queueInitialized.put(i, false);
         }
     }
@@ -173,7 +172,7 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
      * actually needs to consider.
      */
     @Override
-    protected MergeableHeapInterface<HeapNode> getQueue(Node v) {
+    protected MergeableHeapInterface<int[]> getQueue(Node v) {
         if (!useMemoryMappedFiles) {
             // Use parent's implementation for in-memory operation
             return super.getQueue(v);
@@ -202,9 +201,9 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
         // Load edges from the modified graph files (with reduced costs)
         List<Edge> incomingEdges = GraphMapper.loadIncidentEdges(baseName, v.getId());
         
-        MergeableHeapInterface<HeapNode> queue = queues.get(v.getId());
+        MergeableHeapInterface<int[]> queue = queues.get(v.getId());
         for (Edge edge : incomingEdges) {
-            queue.insert(new HeapNode(edge, null, null));
+            queue.insert(edgeToQueueEntry(edge));
         }
     }
     
@@ -257,7 +256,7 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
         // Clear queues for lazy initialization
         // Note: queues size is based on maxNodeId + 1, not node count
         for (int i = 0; i < queues.size(); i++) {
-            queues.set(i, new PairingHeap(maxDisjointCmp));
+            queues.set(i, new LinearSearchArray(DEFAULT_QUEUE_CAPACITY, maxDisjointCmp));
             queueInitialized.put(i, false);
         }
     }
