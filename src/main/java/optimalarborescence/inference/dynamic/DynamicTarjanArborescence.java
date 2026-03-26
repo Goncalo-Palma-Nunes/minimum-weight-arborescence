@@ -167,9 +167,15 @@ public class DynamicTarjanArborescence extends CameriniForest {
         Edge edge = tarjanNode.getEdge();
         int cost = (edge != null) ? edge.getWeight() : 0;
         
-        // Create new ATreeNode as a simple node (no contractions initially)
-        // Parent will be set later during recursion
-        ATreeNode aTreeNode = new ATreeNode(edge, cost, true, null);
+        
+        boolean isSimpleNode;
+        if (tarjanNode.getChildren() != null) {
+            isSimpleNode = tarjanNode.getChildren().isEmpty();
+        } else {
+            isSimpleNode = true; // No children means it's a simple node
+        }
+
+        ATreeNode aTreeNode = new ATreeNode(edge, cost, isSimpleNode, null);
         
         // Register in map before processing children (to handle cycles/shared references)
         conversionMap.put(tarjanNode, aTreeNode);
