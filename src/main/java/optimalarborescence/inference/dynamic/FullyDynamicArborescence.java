@@ -153,15 +153,18 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         if (root == null) return;
         
         Queue<ATreeNode> queue = new LinkedList<>();
+        Queue<Integer> accumulatedCosts = new LinkedList<>(); // Parallel queue to track accumulated costs
         Map<ATreeNode, Integer> accumulatedCost = new HashMap<>();
         
         // accumulated cost is its own cost (or 0 if it's the root with no edge)
         queue.add(root);
         accumulatedCost.put(root, root.isRoot() ? 0 : root.getCost());
+        accumulatedCosts.add(accumulatedCost.get(root));
         
         while (!queue.isEmpty()) {
             ATreeNode current = queue.poll();
-            int currentAccumulated = accumulatedCost.get(current);
+            int currentAccumulated = accumulatedCosts.poll();
+            // int currentAccumulated = accumulatedCost.get(current);
             
             // If this is a simple node with an edge, record its reduction quantity
             if (current.isSimpleNode() && current.getEdge() != null) {
@@ -173,6 +176,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             for (ATreeNode child : current.getATreeChildren()) {
                 int childAccumulated = currentAccumulated + child.getCost();
                 accumulatedCost.put(child, childAccumulated);
+                accumulatedCosts.add(childAccumulated);
                 queue.add(child);
             }
         }
