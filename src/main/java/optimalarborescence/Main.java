@@ -18,6 +18,7 @@ import optimalarborescence.inference.dynamic.*;
 import optimalarborescence.inference.NeighbourJoining;
 import optimalarborescence.memorymapper.GraphMapper;
 import optimalarborescence.memorymapper.EdgeListMapper;
+import optimalarborescence.EntropyParser;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -459,34 +460,27 @@ public class Main {
     }
 
     private static LSH<?> buildLSH(int sequenceLength, String sequenceType) {
-        System.out.println("Enter a sequence of positive integers for the amount of compared sequence positions, the number of hash tables, and the maximum distance between two points:\n\tFormat: <num_compared_positions> <num_hash_tables> <max_distance>\n\tExample: 10 5 3\n\tEnter " + EXIT + " to quit.\n");
-        String response = "";
+        // System.out.println("Enter a sequence of positive integers for the amount of compared sequence positions, the number of hash tables, and the maximum distance between two points:\n\tFormat: <num_compared_positions> <num_hash_tables> <max_distance>\n\tExample: 10 5 3\n\tEnter " + EXIT + " to quit.\n");
+        // String response = "";
 
-        while (true) {
-            response = System.console().readLine().trim().toLowerCase();
-            if (response.equals(EXIT)) {
-                System.out.println("Exiting the program.");
-                System.exit(0);
-            }
-            String[] parts = response.split(" ");
-            if (parts.length != 3) {
-                System.out.println("Invalid response. Please enter three positive integers separated by spaces. Enter "+ EXIT + " to quit.");
-                continue;
-            }
-            try {
-                int numComparedPositions = Integer.parseInt(parts[0]);
-                int numHashTables = Integer.parseInt(parts[1]);
-                int maxDistance = Integer.parseInt(parts[2]);
-                if (numComparedPositions > 0 && numHashTables > 0 && maxDistance > 0) {
-                    DistanceFunction distanceFunction = SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance();
-                    return new LSH<>(numComparedPositions, numHashTables, 0, sequenceLength - 1, distanceFunction, maxDistance);
-                } else {
-                    System.out.println("All values must be positive integers. Please try again. Enter "+ EXIT + " to quit.");
-                }
-            } catch (NumberFormatException e) {
-                System.out.println("Invalid response. Please enter three positive integers separated by spaces. Enter "+ EXIT + " to quit.");
+
+        System.out.println("Building LSH with default parameters: comparing the " + 1300 + " highest entropy positions, using 15 hash tables, and a maximum distance of 1671 (half of the sequence length).");
+        int numComparedPositions = 1300;
+        int numHashTables = 15;
+        int maxDistance = 1671;
+        DistanceFunction distanceFunction = SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance();
+        List<Integer> highestEntropyIndices;
+        try {
+            highestEntropyIndices = EntropyParser.parseTopEntropies("/scratch/gn/entropy_sorted.json", numComparedPositions);
+        }
+        catch (IOException e) {
+            highestEntropyIndices = new ArrayList<>();
+            for (int i = 0; i < numComparedPositions; i++) {
+                highestEntropyIndices.add(i);
             }
         }
+
+        return new LSH<>(numComparedPositions, numHashTables, 0, sequenceLength - 1, distanceFunction, maxDistance, highestEntropyIndices);
     }
 
 

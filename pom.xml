@@ -56,6 +56,12 @@
       <artifactId>kryo</artifactId>
       <version>5.6.2</version>
     </dependency>
+    <!-- JSON parsing -->
+    <dependency>
+      <groupId>org.json</groupId>
+      <artifactId>json</artifactId>
+      <version>20240303</version>
+    </dependency>
   </dependencies>
   <!-- <properties>
     <maven.compiler.source>8</maven.compiler.source>
