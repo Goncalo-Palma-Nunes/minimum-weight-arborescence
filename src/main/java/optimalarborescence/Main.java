@@ -423,9 +423,14 @@ public class Main {
     private static NearestNeighbourSearchAlgorithm<?> selectNNAlgorithm(String sequenceType, int sequenceLength, String persistedGraphFile) throws IOException {
         System.out.println("Select the Nearest Neighbour Search Algorithm:\n'"+ LSH + "' for Locality Sensitive Hashing\nEnter " + EXIT + " to quit.");
         String response = "";
+        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
 
         while (!validNNAlgorithm(response)) {
-            response = System.console().readLine().trim().toLowerCase();
+            if (System.console() != null) {
+                response = System.console().readLine().trim().toLowerCase();
+            } else {
+                response = reader.readLine().trim().toLowerCase();
+            }
             switch (response) {
                 case LSH:
                     if (persistedGraphFile != null) {
