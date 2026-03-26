@@ -18,8 +18,6 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.JavaSerializer;
 
-import org.apache.commons.math3.util.CombinatoricsUtils;
-
 import optimalarborescence.distance.DistanceFunction;
 import optimalarborescence.distance.HammingDistance;
 import optimalarborescence.sequences.Sequence;
@@ -169,12 +167,39 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
             throw new IllegalArgumentException("Invalid hash index range.");
         }
 
-        int maxNumTables = (int) (CombinatoricsUtils.factorial(sequenceSize) / 
-                            (CombinatoricsUtils.factorial(widthConcatenatedHashes) * CombinatoricsUtils.factorial(sequenceSize - widthConcatenatedHashes))
-                            );
-        if (numTables > Integer.MAX_VALUE || numTables > maxNumTables) {
+        if (widthConcatenatedHashes > sequenceSize) {
+            throw new IllegalArgumentException("Number of concatenated hashes cannot exceed sequence size.");
+        }
+
+        if (!hasEnoughUniqueHashCombinations(sequenceSize, widthConcatenatedHashes, numTables)) {
             throw new IllegalArgumentException("Too many hash tables.");
         }
+    }
+
+    private static boolean hasEnoughUniqueHashCombinations(int n, int k, int requiredTables) {
+        if (requiredTables <= 0) {
+            return false;
+        }
+        if (k < 0 || k > n) {
+            return false;
+        }
+
+        k = Math.min(k, n - k);
+        if (k == 0) {
+            return requiredTables <= 1;
+        }
+
+        double logRequired = Math.log(requiredTables);
+        double logCombinations = 0.0;
+
+        for (int i = 1; i <= k; i++) {
+            logCombinations += Math.log(n - k + i) - Math.log(i);
+            if (logCombinations >= logRequired) {
+                return true;
+            }
+        }
+
+        return logCombinations >= logRequired;
     }
 
     /****************************************
