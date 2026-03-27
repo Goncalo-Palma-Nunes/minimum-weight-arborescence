@@ -469,9 +469,9 @@ public class Main {
         // String response = "";
 
 
-        System.out.println("Building LSH with default parameters: comparing the " + 1300 + " highest entropy positions, using 15 hash tables, and a maximum distance of 1671 (half of the sequence length).");
+        System.out.println("Building LSH with default parameters: comparing the " + 1300 + " highest entropy positions, using 1 hash table, and a maximum distance of 1671).");
         int numComparedPositions = 1300;
-        int numHashTables = 15;
+        int numHashTables = 1;
         int maxDistance = 1671;
         DistanceFunction distanceFunction = SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance();
         List<Integer> highestEntropyIndices;
@@ -1180,26 +1180,14 @@ public class Main {
         long startPreProcessTime = System.currentTimeMillis();
         if (isInitial) {
             // Create new graph with initial points using memory-mapped files
-            if (numNeighbors > 0) {
-                // Approximate graph
-                generateApproximateGraphIncrementally(points, tempGraphFile, nnAlgorithm, numNeighbors, sequenceType);
-            } else {
-                // Exact graph
-                generateExactGraphIncrementally(points, tempGraphFile, sequenceType);
-            }
+            generateExactGraphIncrementally(points, tempGraphFile, sequenceType);
         } else {
             // Add new nodes to existing memory-mapped graph
             List<Node> nodesToAdd = points.stream()
                 .map(p -> new Node(p.getSequence(), p.getId()))
                 .toList();
             
-            if (numNeighbors > 0) {
-                // Approximate graph
-                addNodesIncrementallyToApproximateGraph(nodesToAdd, tempGraphFile, sequenceLength, nnAlgorithm, numNeighbors, sequenceType);
-            } else {
-                // Exact graph
-                addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength, sequenceType);
-            }
+            addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength, sequenceType);
         }
         long endPreProcessTime = System.currentTimeMillis();
         iterationTimes.set(0, endPreProcessTime - startPreProcessTime);
@@ -1237,14 +1225,8 @@ public class Main {
         
         if (isInitial) {
             // Create new graph with initial points using memory-mapped files
-            if (numNeighbors > 0) {
-                // Approximate graph
-                generateApproximateGraphIncrementally(points, tempGraphFile, nnAlgorithm, numNeighbors, sequenceType);
-            } else {
-                // Exact graph
-                generateExactGraphIncrementally(points, tempGraphFile, sequenceType);
-            }
-            
+            generateExactGraphIncrementally(points, tempGraphFile, sequenceType);
+
             // Initialize dynamic algorithm from persisted graph
             dynamicAlgorithm = new SerializableFullyDynamicArborescence(tempGraphFile);
             dynamicAlgorithm.inferPhylogeny(null);
@@ -1256,14 +1238,9 @@ public class Main {
             List<Node> nodesToAdd = points.stream()
                 .map(p -> new Node(p.getSequence(), p.getId()))
                 .toList();
+
+            addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength, sequenceType);
             
-            if (numNeighbors > 0) {
-                // Approximate graph
-                addNodesIncrementallyToApproximateGraph(nodesToAdd, tempGraphFile, sequenceLength, nnAlgorithm, numNeighbors, sequenceType);
-            } else {
-                // Exact graph
-                addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength, sequenceType);
-            }
             
             // Load node map for edge reconstruction
             // Map<Integer, Node> nodeMap = GraphMapper.loadNodeMap(tempGraphFile);
