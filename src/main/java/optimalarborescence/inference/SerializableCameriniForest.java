@@ -91,9 +91,10 @@ public class SerializableCameriniForest extends CameriniForest {
         this.baseName = baseName;
         this.useMemoryMappedFiles = true;
         this.sccComposition = new HashMap<>();
-        this.numExaminedEdges = new int[graph.getNodes().size()];
-        this.prevFailure = new boolean[graph.getNodes().size()];
-        
+        int maxNodeId0 = graph.getNodes().stream().mapToInt(Node::getId).max().orElse(0);
+        this.numExaminedEdges = new int[maxNodeId0 + 1];
+        this.prevFailure = new boolean[maxNodeId0 + 1];
+
         this.nodeMap = GraphMapper.loadNodeIdsOnly(baseName);
     }
     
@@ -120,10 +121,11 @@ public class SerializableCameriniForest extends CameriniForest {
         this.symmetric = symmetric;
         this.useMemoryMappedFiles = true;
         this.sccComposition = new HashMap<>();
-        this.numExaminedEdges = new int[graph.getNodes().size()];
+        int maxNodeId = graph.getNodes().stream().mapToInt(Node::getId).max().orElse(0);
+        this.numExaminedEdges = new int[maxNodeId + 1];
 
         if (numNeighbors > 0) {
-            this.prevFailure = new boolean[graph.getNodes().size()];
+            this.prevFailure = new boolean[maxNodeId + 1];
         }
         
         // If onDemand=true: Need full sequences for edge weight computation
@@ -192,10 +194,6 @@ public class SerializableCameriniForest extends CameriniForest {
                         rset.add(root);
                         continue;
                     }
-
-                    // All edges have been examined and no valid edge was found, re-add root to rset
-                    rset.add(root);
-                    continue;
                 }
 
                 Node u = e.getSource();
@@ -315,6 +313,8 @@ public class SerializableCameriniForest extends CameriniForest {
                 List<Point<Object>> neighbors = ((NearestNeighbourSearchAlgorithm<Object>) nnAlgorithm)
                     .neighbourSearch((Point<Object>) node.getPoint(), numNeighbors + slack);
 
+                this.numExaminedEdges[nodeId] += neighbors.size();
+
                 for (Point<?> neighbor : neighbors) {
                     Node otherNode = new Node(neighbor);
                     if (sccFind(otherNode) == sccFind(node)) {
@@ -322,7 +322,7 @@ public class SerializableCameriniForest extends CameriniForest {
                     }
 
                     Edge edge = buildEdge(otherNode, node, distanceFunction);
-                    
+
                     // If the new edge's adjusted weight is smaller than the current minimum, update the minimum edge
                     if (minEdge == null || maxDisjointCmp.compare(new int[]{ edge.getWeight(), edge.getSource().getId(), edge.getDestination().getId() },
                                             new int[]{ minEdge.getWeight(), minEdge.getSource().getId(), minEdge.getDestination().getId() }) < 0) {
@@ -407,22 +407,8 @@ public class SerializableCameriniForest extends CameriniForest {
     }
 
     private Edge buildEdge(Node u, Node v, DistanceFunction distanceFunction) {
-        if (symmetric) {
-            int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
-            return new Edge(u, v, dist);
-        }
-        else {
-            Edge e;
-            if (u.getPoint().getSequence().getPositionsWithMissingData().size() <= v.getPoint().getSequence().getPositionsWithMissingData().size()) {
-                int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
-                e = new Edge(u, v, dist);
-            }
-            else {
-                int dist = (int) distanceFunction.calculate(v.getPoint().getSequence(), u.getPoint().getSequence());
-                e = new Edge(v, u, dist);
-            }
-            return e;
-        }
+        int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
+        return new Edge(u, v, dist);
     }
     
     /**
