@@ -204,4 +204,37 @@ public class SequenceTypingDataTest {
         assertTrue("toString should contain missing data marker -1", str.contains("-1"));
         assertTrue("toString should contain missing data marker 0", str.contains("0"));
     }
+
+    @Test
+    public void testConstructorNormalizesStringMissingSymbols() {
+        Object[] rawValues = new Object[]{1L, "?", "N", "0", "-1", "12"};
+        SequenceTypingData seq = new SequenceTypingData(rawValues, rawValues.length);
+
+        assertEquals(Long.valueOf(1L), seq.getElementAt(0));
+        assertEquals(Long.valueOf(-1L), seq.getElementAt(1));
+        assertEquals(Long.valueOf(-1L), seq.getElementAt(2));
+        assertEquals(Long.valueOf(0L), seq.getElementAt(3));
+        assertEquals(Long.valueOf(-1L), seq.getElementAt(4));
+        assertEquals(Long.valueOf(12L), seq.getElementAt(5));
+
+        assertFalse(seq.isMissingDataAt(0));
+        assertTrue(seq.isMissingDataAt(1));
+        assertTrue(seq.isMissingDataAt(2));
+        assertTrue(seq.isMissingDataAt(3));
+        assertTrue(seq.isMissingDataAt(4));
+        assertFalse(seq.isMissingDataAt(5));
+    }
+
+    @Test
+    public void testIsMissingDataSymbolSupportsAllRepresentations() {
+        assertTrue(SequenceTypingData.isMissingDataSymbol(-1L));
+        assertTrue(SequenceTypingData.isMissingDataSymbol(0L));
+        assertTrue(SequenceTypingData.isMissingDataSymbol("?"));
+        assertTrue(SequenceTypingData.isMissingDataSymbol("N"));
+        assertTrue(SequenceTypingData.isMissingDataSymbol("n"));
+
+        assertFalse(SequenceTypingData.isMissingDataSymbol(1L));
+        assertFalse(SequenceTypingData.isMissingDataSymbol("1"));
+        assertFalse(SequenceTypingData.isMissingDataSymbol("A"));
+    }
 }
