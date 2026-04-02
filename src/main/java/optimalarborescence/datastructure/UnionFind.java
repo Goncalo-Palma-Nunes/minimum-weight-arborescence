@@ -76,4 +76,15 @@ public class UnionFind {
             }
         }
     }
+
+
+    /**
+     * Clears the UnionFind structure, resetting all elements to be their own parents and ranks to 1.
+     */
+    public void clear() {
+        for (int i = 0; i < size; i++) {
+            parent[i] = i; // Reset each element to be its own parent
+            rank[i] = 1;   // Reset rank to 1
+        }
+    }
 }

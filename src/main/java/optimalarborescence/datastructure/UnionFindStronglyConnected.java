@@ -134,4 +134,13 @@ public class UnionFindStronglyConnected extends UnionFind {
         System.arraycopy(this.weight, 0, clone.weight, 0, this.size);
         return clone;
     }
+
+    @Override
+    public void clear() {
+        for (int i = 0; i < size; i++) {
+            weight[i] = 0;
+            parent[i] = i; // Reset each element to be its own parent
+            rank[i] = 1;   // Reset rank to 1
+        }
+    }
 }
