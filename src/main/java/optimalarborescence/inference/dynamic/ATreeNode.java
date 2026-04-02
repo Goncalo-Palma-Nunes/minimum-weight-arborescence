@@ -1,7 +1,9 @@
 package optimalarborescence.inference.dynamic;
 
 import java.util.List;
+import java.util.Map;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 import optimalarborescence.graph.Edge;
 import optimalarborescence.inference.TarjanForestNode;
@@ -36,10 +38,14 @@ public class ATreeNode extends TarjanForestNode {
      * <p>
      * If this is a simple node, this.contractedEdges = null
      * */
-    private List<Edge> contractedEdges; // TODO - removal of edge can be achieved in O(1) time, if we use an endogenous list implementation
+    // private List<Edge> contractedEdges; // TODO - removal of edge can be achieved in O(1) time, if we use an endogenous list implementation
                                         // each edge has associated pointers in the digraph representation, pointing to the next and previous
                                         // elements in the list. See Pollatos (Sec. 4.2) and
                                         // Gabow et al. "Efficient algorithms for finding minimum spanning trees in undirected and directed graphs."
+
+
+    /** Map of contracted vertices (for c-nodes) */
+    private Map<Integer, Integer> contractedVertices;
 
     // Lazy loading support
     /** Whether children have been loaded from disk (true for in-memory nodes, false for lazy-loaded nodes before first access) */
@@ -54,19 +60,22 @@ public class ATreeNode extends TarjanForestNode {
     /** Graph nodes map for reconstructing edges during lazy loading (null for in-memory nodes) */
     private java.util.Map<Integer, optimalarborescence.graph.Node> graphNodes;
 
-    public ATreeNode(Edge edge, int y, ATreeNode parent, List<ATreeNode> children, boolean simpleNode, List<Edge> contractedEdges) {
+    public ATreeNode(Edge edge, int y, ATreeNode parent, List<ATreeNode> children, boolean simpleNode, Map<Integer, Integer> contractedVertices) {
         super(edge);
         this.y = y;
         this.simpleNode = simpleNode;
-        this.contractedEdges = contractedEdges;
+        // this.contractedEdges = contractedEdges;
+        this.contractedVertices = contractedVertices;
+        this.parent = parent;
+        this.children = new ArrayList<>(children);
     }
 
-    public ATreeNode(Edge edge, int y, ATreeNode parent, boolean simpleNode, List<Edge> contractedEdges) {
-        this(edge, y, parent, new ArrayList<>(), simpleNode, contractedEdges);
+    public ATreeNode(Edge edge, int y, ATreeNode parent, boolean simpleNode, Map<Integer, Integer> contractedVertices) {
+        this(edge, y, parent, new ArrayList<>(), simpleNode, contractedVertices);
     }
 
-    public ATreeNode(Edge edge, int y, boolean simpleNode, List<Edge> contractedEdges) {
-        this(edge, y, null, new ArrayList<>(), simpleNode, contractedEdges);
+    public ATreeNode(Edge edge, int y, boolean simpleNode, Map<Integer, Integer> contractedVertices) {
+        this(edge, y, null, new ArrayList<>(), simpleNode, contractedVertices);
     }
 
     /**
@@ -76,14 +85,14 @@ public class ATreeNode extends TarjanForestNode {
      * @param edge The edge for this node
      * @param y Cost of the edge when selected
      * @param simpleNode Whether this is a simple node or c-node
-     * @param contractedEdges List of contracted edges (for c-nodes)
+     * @param contractedVertices map of contracted vertices (for c-nodes)
      * @param nodeOffset File offset for this node
      * @param baseName Base name for memory-mapped files
      * @param graphNodes Map of node IDs to Node objects for edge reconstruction
      */
-    public ATreeNode(Edge edge, int y, boolean simpleNode, List<Edge> contractedEdges,
+    public ATreeNode(Edge edge, int y, boolean simpleNode, Map<Integer, Integer> contractedVertices,
                     long nodeOffset, String baseName, java.util.Map<Integer, optimalarborescence.graph.Node> graphNodes) {
-        this(edge, y, null, new ArrayList<>(), simpleNode, contractedEdges);
+        this(edge, y, null, new ArrayList<>(), simpleNode, contractedVertices);
         this.childrenLoaded = false;
         this.nodeOffset = nodeOffset;
         this.baseName = baseName;
@@ -128,15 +137,21 @@ public class ATreeNode extends TarjanForestNode {
         return this.edge == null;
     }
 
-    public List<Edge> getContractedEdges() {
-        return contractedEdges;
+    public Map<Integer, Integer> getContractedVertices() {
+        return contractedVertices;
     }
 
-    public void addContractedEdge(Edge edge) {
-        if (this.contractedEdges == null) {
-            this.contractedEdges = new ArrayList<>();
+    public void addContractedEdge(Edge edge) { 
+        if (this.contractedVertices == null) {
+            this.contractedVertices = new HashMap<>();
         }
-        this.contractedEdges.add(edge);
+        // this.contractedVertices.put(edge.getDestination().getId(), edge.getWeight());
+        if (!this.contractedVertices.containsKey(edge.getSource().getId())) {
+            this.contractedVertices.put(edge.getSource().getId(), edge.getSource().getId());
+        }
+        if (!this.contractedVertices.containsKey(edge.getDestination().getId())) {
+            this.contractedVertices.put(edge.getDestination().getId(), edge.getDestination().getId());
+        }
     }
 
     private ATreeNode downCast(TarjanForestNode node) {
@@ -179,6 +194,13 @@ public class ATreeNode extends TarjanForestNode {
         return childrenLoaded;
     }
 
+
+    public boolean edgeInContractedEdges(Edge edge) {
+        if (this.contractedVertices == null) return false;
+        return this.contractedVertices.containsKey(edge.getSource().getId()) &&
+               this.contractedVertices.containsKey(edge.getDestination().getId());
+    }
+
     /** Searches the ATree for a contraction node (c-node) that contains the specified edge.
      * 
      * @param edge The edge to search for.
@@ -188,7 +210,7 @@ public class ATreeNode extends TarjanForestNode {
     public ATreeNode findContractionByEdge(Edge edge, ATreeNode node) {
         if (node == null) return null;
 
-        if (!node.isSimpleNode() && node.getContractedEdges().contains(edge)) return node;
+        if (!node.isSimpleNode() && node.edgeInContractedEdges(edge)) return node;
 
         List<ATreeNode> children = node.children.stream()
                                         .map(this::downCast)
