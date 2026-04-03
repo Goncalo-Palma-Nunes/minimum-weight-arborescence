@@ -25,59 +25,27 @@ import java.util.HashMap;
 public class DynamicTarjanArborescence extends CameriniForest {
 
     private List<ATreeNode> aTreeRoots;
-    private Map<Edge, Integer> reducedCosts;
+    private Map<Integer, Integer> reductions; // Map from node ID to reduction value r_i
     private Graph modifiedGraph;
+    protected Map<Integer, Boolean> removedNodes = new HashMap<>(); // Track removed nodes for edge weight adjustments
 
     /**
      * Constructor for DynamicTarjanArborescence.
      * 
      * @param aTreeRoots The list of ATree root nodes (V' in the partially contracted graph)
      * @param contractedEdges The edges from decomposed contractions (E')
-     * @param reducedCosts Map from edges to their reduced costs w_current(e) = w_original(e) - r_i
+     * @param reducedCosts Map of edges to their reduced costs (w_current(e) = w_original(e) - r_i)
      * @param originalGraph The original graph structure
      */
     public DynamicTarjanArborescence(List<ATreeNode> aTreeRoots, 
                                      List<Edge> contractedEdges, 
-                                     Map<Edge, Integer> reducedCosts,
+                                     Map<Integer, Integer> reducedCosts,
                                      Graph originalGraph, Comparator<Edge> edgeComparator) {
-        // Create a modified graph with reduced costs
-        super(createModifiedGraph(contractedEdges, reducedCosts, originalGraph), edgeComparator);
+        super(originalGraph, edgeComparator);
         
         this.aTreeRoots = aTreeRoots;
-        this.reducedCosts = reducedCosts;
+        this.reductions = reducedCosts; // Store reductions for use in getAdjustedWeight method
         this.modifiedGraph = this.graph;
-    }
-
-    /**
-     * Creates a modified graph with edges that have reduced costs applied.
-     * 
-     * This graph represents G' = (V, E') where E' contains edges with costs
-     * w_current(e) = w_original(e) - r_i.
-     * 
-     * @param contractedEdges The edges from E'
-     * @param reducedCosts The map of reduced costs
-     * @param originalGraph The original graph
-     * @return A new graph with reduced-cost edges
-     */
-    private static Graph createModifiedGraph(List<Edge> contractedEdges, 
-                                            Map<Edge, Integer> reducedCosts,
-                                            Graph originalGraph) {
-        List<Edge> modifiedEdges = new ArrayList<>();
-        
-        // include all edges from the original graph to preserve node order
-        // This ensures the Graph constructor adds nodes in the correct order
-        for (Edge edge : originalGraph.getEdges()) {
-            // Check if this edge should have a reduced cost
-            if (contractedEdges.contains(edge)) {
-                int reducedCost = reducedCosts.getOrDefault(edge, edge.getWeight());
-                Edge reducedEdge = new Edge(edge.getSource(), edge.getDestination(), reducedCost);
-                modifiedEdges.add(reducedEdge);
-            } else {
-                modifiedEdges.add(edge);
-            }
-        }
-        
-        return new Graph(modifiedEdges);
     }
 
     /**
@@ -94,17 +62,23 @@ public class DynamicTarjanArborescence extends CameriniForest {
     }
 
     /**
-     * Returns the ATree roots representing the partially contracted vertices.
+     * Returns the ATree roots representing the partially contracted cycles.
      */
     public List<ATreeNode> getATreeRoots() {
         return aTreeRoots;
     }
 
+    public Map<Integer, Integer> getReductions() {
+        return reductions;
+    }
+
     /**
-     * Returns the map of reduced costs for edges.
+     * Marks a node as virtually removed from the graph. Edges to or from this node will have
+     * their weights effectively set to infinity by getAdjustedWeight, without modifying the graph structure.
+     * @param nodeId The ID of the node to remove
      */
-    public Map<Edge, Integer> getReducedCosts() {
-        return reducedCosts;
+    public void virtuallyRemoveNode(int nodeId) {
+        removedNodes.put(nodeId, true);
     }
 
     /**
@@ -194,5 +168,15 @@ public class DynamicTarjanArborescence extends CameriniForest {
         aTreeNode.setChildren(aTreeChildren);
         
         return aTreeNode;
+    }
+
+    @Override
+    protected Number getAdjustedWeight(Edge e) {
+        if (removedNodes.getOrDefault(e.getSource(), false) || removedNodes.getOrDefault(e.getDestination(), false)) {
+            return Integer.MAX_VALUE; // Effectively remove edges to/from virtually removed nodes
+        }
+
+        // TODO - handle union find weight adjustments here as well
+        return e.getWeight() - reductions.getOrDefault(e.getDestination(), 0);
     }
 }

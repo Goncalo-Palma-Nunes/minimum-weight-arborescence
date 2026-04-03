@@ -6,6 +6,8 @@ import optimalarborescence.inference.TarjanForestNode;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
+import optimalarborescence.datastructure.UnionFind;
+import optimalarborescence.datastructure.UnionFindStronglyConnected;
 import optimalarborescence.exception.NotImplementedException;
 
 import java.util.LinkedList;
@@ -25,6 +27,15 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
     Comparator<Edge> edgeComparator;
     DynamicTarjanArborescence camerini;
     List<Edge> currentArborescence;
+    Map<Integer, Integer> reductions = new HashMap<>(); // Map from vertex ID to reduction quantity r_i
+    UnionFind wccUf = null; // Union-Find for maintaining weakly connected components in the contracted graph
+    UnionFindStronglyConnected sccUf = null; // Union-Find for maintaining strongly connected components in the contracted graph
+    int numVertices = 0; // Track number of vertices in the graph for Union-Find initialization
+    List<TarjanForestNode> leaves = new ArrayList<>();
+
+    /**  Array that for each i stores a node from the forest which is associated with the minimum weight edge incident in node i */
+    List<TarjanForestNode> inEdgeNode = new ArrayList<>();
+
 
     public FullyDynamicArborescence() {
         super();
@@ -46,6 +57,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         this.roots = roots;
         this.camerini = camerini;
         this.edgeComparator = (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
+        this.currentArborescence = new ArrayList<>();
     }
 
     public List<ATreeNode> getRoots() {
@@ -91,6 +103,47 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         return this.addEdge(edge);
     }
 
+    /**
+     * Resets the union-find structures for weakly and strongly connected components. 
+     * This should be called after any decomposition step that modifies the ATree structure, as any previous 
+     * union-find state may no longer be valid due to changes in the contracted graph's structure. 
+     * <p>
+     * The partial union-find state can be recomputed from the decomposed state through a BFS traversal of the ATree roots.
+     */
+    private void resetUnionFinds() {
+        if (this.wccUf != null) {
+            this.wccUf.clear();
+        }
+        else {
+            this.wccUf = new UnionFind(this.numVertices);
+        }
+
+        if (this.sccUf != null) {
+            this.sccUf.clear();
+        }
+        else {
+            this.sccUf = new UnionFindStronglyConnected(this.numVertices);
+        }
+    }
+
+    /**
+     * Performs a union operation on the weakly connected components union-find structure for the given nodes u and v.
+     * @param u The first node
+     * @param v The second node
+     */
+    private void wccUnion(Node u, Node v) {
+        wccUf.union(u.getId(), v.getId());
+    }
+
+    /**
+     * Performs a union operation on the strongly connected components union-find structure for the given nodes u and v.
+     * @param u The first node
+     * @param v The second node
+     */
+    private void sccUnion(Node u, Node v) {
+        sccUf.union(u.getId(), v.getId());
+    }
+
     private List<ATreeNode> decompose(Edge e) {
         ATreeNode N = null;
         for (ATreeNode root : this.getRoots()) {
@@ -127,29 +180,32 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
     }
 
     /**
-     * Computes the reduction quantities r_i for all simple nodes in the ATrees using BFS.
-     * 
+     * Computes the reduction quantities r_i for all simple nodes in the ATrees using BFS. Also performs
+     * union operations on the union-find structures to obtain the correct disjoint sets for the partially contracted graph 
+     * to be run with Edmonds' algorithm.
+     * <p>
      * For each simple node N_i, r_i is the sum of costs (y values) along the path from N_i to its root.
      * This runs in O(|V|) time by performing a single BFS on each ATree.
      * 
      * @return A map from vertex ID to reduction quantity r_i
      */
     private Map<Integer, Integer> computeReductionQuantities() {
-        Map<Integer, Integer> reductions = new HashMap<>();
-        
         // Process each ATree root
         for (ATreeNode root : roots) {
-            computeReductionQuantitiesBFS(root, reductions);
+            computeReductionQuantitiesBFS(root);
         }
         
         return reductions;
     }
 
     /**
-     * BFS traversal to compute reduction quantities for all nodes in a single ATree.
+     * BFS traversal to compute reduction quantities for all nodes in a single ATree. Also performs
+     * union operations on the union-find structures to obtain the correct disjoint sets for the partially contracted graph 
+     * to be run with Edmonds' algorithm.
+     * <p>
      * Each node accumulates the cost from its parent, so we compute r_i = sum of costs from root to N_i.
      */
-    private void computeReductionQuantitiesBFS(ATreeNode root, Map<Integer, Integer> reductions) {
+    private void computeReductionQuantitiesBFS(ATreeNode root) {
         if (root == null) return;
         
         Queue<ATreeNode> queue = new LinkedList<>();
@@ -167,9 +223,28 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             // int currentAccumulated = accumulatedCost.get(current);
             
             // If this is a simple node with an edge, record its reduction quantity
-            if (current.isSimpleNode() && current.getEdge() != null) {
-                int vertexId = current.getEdge().getDestination().getId();
-                reductions.put(vertexId, currentAccumulated);
+            if (current.getEdge() != null) {
+                Edge edge = current.getEdge();
+                wccUnion(edge.getSource(), edge.getDestination());
+                if (current.isSimpleNode()) {
+                    int vertexId = current.getEdge().getDestination().getId();
+                    reductions.put(vertexId, currentAccumulated);
+                    
+                    // simple nodes are leaves of the ATree
+                    leaves.add(current);
+                }
+                else {
+                    // perform the strongly connected union of all vertices in the cycle represented by this non-simple node
+                    sccUnion(edge.getSource(), edge.getDestination());
+
+                    // Perform a union for each contracted vertex in the cycle
+                    if (current.getContractedVertices() != null) {
+                        for (Integer contractedVertexId : current.getContractedVertices().keySet()) {
+                            sccUnion(edge.getSource(), new Node(contractedVertexId));
+                            sccUnion(edge.getDestination(), new Node(contractedVertexId));
+                        }
+                    }
+                }
             }
             
             // Process children: their accumulated cost is current + their own cost
@@ -207,38 +282,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         return reducedCosts;
     }
 
-    /**
-     * Expands a partial arborescence by adding the cycle edges from all ATree contractions.
-     * 
-     * When DynamicTarjanArborescence runs on the partially contracted graph, it returns
-     * an arborescence with edges between contracted vertices (ATree nodes). To get the
-     * full arborescence on the original graph, add back all the internal
-     * cycle edges that were contracted and stored in the ATree nodes.
-     * 
-     * @param partialArborescence The arborescence edges from the partially contracted graph
-     * @return The full arborescence including all cycle edges from contractions
-     */
-    private List<Edge> expandArborescence(List<Edge> partialArborescence) {
-        List<Edge> fullArborescence = new ArrayList<>(partialArborescence);
-        
-        // Traverse all ATree nodes and collect their contracted edges
-        Queue<ATreeNode> queue = new LinkedList<>(this.getRoots());
-        
-        while (!queue.isEmpty()) {
-            ATreeNode current = queue.poll();
-            
-            // If this is a contraction node (not simple), add its cycle edges
-            if (!current.isSimpleNode() && current.getContractedEdges() != null) {
-                fullArborescence.addAll(current.getContractedEdges());
-            }
-            
-            // Add children to queue for traversal
-            queue.addAll(current.getATreeChildren());
-        }
-        
-        return fullArborescence;
-    }
-
     public void rebuildContractedDigraph() {
         throw new NotImplementedException("The rebuildContractedDigraph method is not implemented.");
     }
@@ -273,8 +316,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             }
 
             if (contraction != null) {
-                // Handle the contraction
-                contraction.getContractedEdges().remove(edge);
+                // DO NOTHING HERE - the edge will be effectively removed from the contracted graph by the getAdjustedWeight method
             }
         }
         else {
@@ -284,22 +326,22 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                 this.currentArborescence = firstStaticInference(this.getGraph());
             } else {
                 List<ATreeNode> removedContractions = decompose(edge); // set R in Joaquim's thesis
+                resetUnionFinds(); // Reset Union-Find structures before recomputing reductions and running Edmonds
 
                 List<ATreeNode> V = new LinkedList<>(this.getRoots()); // V' in Joaquim's thesis
-                List<Edge> edges = removedContractions.stream()
-                        .flatMap(c -> c.getContractedEdges().stream())
-                        .toList(); // Union E' of all contracted edges from decomposed non-simple nodes
+                
+                // TODO - placeholder until I implement serializable version
+                List<Edge> edges = new ArrayList<>(); // E' in Joaquim's thesis
+
 
                 // Compute reduction quantities for all vertices in O(|V|) time
                 Map<Integer, Integer> reductions = computeReductionQuantities();
                 
-                // Apply reduction quantities to edges in E'
-                Map<Edge, Integer> reducedCosts = applyReductionQuantities(edges, reductions);
                 // Initialize DynamicTarjanArborescence with the partially contracted graph
                 DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
-                    V,                  // ATree roots representing V'
+                    V,                  // ATree roots
                     edges,              // Edges from E'
-                    reducedCosts,       // Reduced costs for edges
+                    reductions,       // Reduced costs for edges
                     this.getGraph(),    // Original graph
                     this.edgeComparator // Edge comparator
                 );
@@ -309,12 +351,8 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                 Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
                 this.roots = dynamicTarjan.augmentTarjanForestToATree();
                 
-                // Expand the partial arborescence to include all cycle edges from contractions
-                List<Edge> partialEdges = updatedArborescence.getEdges();
-                List<Edge> fullEdges = expandArborescence(partialEdges);
-                
                 // Update the current arborescence
-                this.currentArborescence = fullEdges;
+                this.currentArborescence = updatedArborescence.getEdges();
             }
         }
         
@@ -381,9 +419,10 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                     // Virtual deletion: recognize G(V', E') without actually removing the edge
                     List<ATreeNode> V = new LinkedList<>(this.getRoots());
                     List<ATreeNode> removedContractions = decompose(removedEdge);
-                    List<Edge> contractedEdges = removedContractions.stream()
-                            .flatMap(c -> c.getContractedEdges().stream())
-                            .toList();
+                    resetUnionFinds(); // Reset Union-Find structures before recomputing reductions and running Edmonds
+                    
+                    // Placeholder
+                    List<Edge> contractedEdges = new ArrayList<>();
                     
                     // Add e_in to the edge set
                     List<Edge> edgesWithNewEdge = new ArrayList<>(contractedEdges);
@@ -392,13 +431,12 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                     // Compute reduction quantities and apply them ONLY to edges already in G' (contractedEdges)
                     // The new edge e_in should use its original weight, not a reduced cost
                     Map<Integer, Integer> reductions = computeReductionQuantities();
-                    Map<Edge, Integer> reducedCosts = applyReductionQuantities(contractedEdges, reductions);
                     
                     // Run Edmonds' algorithm over G(V', E' ∪ {e_in})
                     DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
                         V,
                         edgesWithNewEdge,
-                        reducedCosts,
+                        reductions,
                         this.getGraph(),
                         this.edgeComparator
                     );
@@ -406,10 +444,8 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                     
                     Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
                     this.roots = dynamicTarjan.augmentTarjanForestToATree();
-                    
-                    // Expand the partial arborescence to include all cycle edges from contractions
-                    List<Edge> partialEdges = updatedArborescence.getEdges();
-                    List<Edge> fullEdges = expandArborescence(partialEdges);
+
+                    List<Edge> fullEdges = updatedArborescence.getEdges();
                     
                     this.currentArborescence = fullEdges;
                 }
@@ -419,7 +455,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             // No candidate for replacement found
             // Insert edge in the contracted-edges list of the LCA
             TarjanForestNode lca = destLeaf.LCA(sourceLeaf);
-            if (lca instanceof ATreeNode) { // TODO - substituir por um downcast
+            if (lca instanceof ATreeNode) {
                 ATreeNode lcaATreeNode = (ATreeNode) lca;
                 lcaATreeNode.addContractedEdge(edge);
             }
@@ -477,6 +513,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                     List<ATreeNode> removed = decompose(edge);
                     allRemovedContractions.addAll(removed);
                 }
+                resetUnionFinds(); // Reset Union-Find structures before recomputing reductions and running Edmonds
 
                 // Collect contracted edges from all decomposed c-nodes,
                 // filtering out any edges that are in the removal batch
@@ -569,6 +606,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                     }
                     Edge removedEdge = candidateForRemoval.getEdge();
                     List<ATreeNode> removed = decompose(removedEdge);
+                    resetUnionFinds(); // Reset Union-Find structures before recomputing reductions and running Edmonds
                     allRemovedContractions.addAll(removed);
                     triggeringEdges.add(edge);
                     needsInference = true;
