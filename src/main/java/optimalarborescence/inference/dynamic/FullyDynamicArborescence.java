@@ -33,8 +33,9 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
     int numVertices = 0; // Track number of vertices in the graph for Union-Find initialization
     List<TarjanForestNode> leaves = new ArrayList<>();
 
-    /**  Array that for each i stores a node from the forest which is associated with the minimum weight edge incident in node i */
-    List<TarjanForestNode> inEdgeNode = new ArrayList<>();
+    /**  Array that for each i stores a node from the forest which is associated with the minimum weight edge
+     *  incident in node i */
+    List<ATreeNode> inEdgeNode;
 
 
     public FullyDynamicArborescence() {
@@ -43,6 +44,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         this.camerini = null;
         this.edgeComparator = (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
         this.currentArborescence = new ArrayList<>();
+        this.inEdgeNode = new ArrayList<>();
     }
 
     /**
@@ -58,6 +60,8 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         this.camerini = camerini;
         this.edgeComparator = (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight());
         this.currentArborescence = new ArrayList<>();
+        this.numVertices = graph.getNodes().size();
+        this.inEdgeNode = new ArrayList<>(numVertices);
     }
 
     public List<ATreeNode> getRoots() {
@@ -198,6 +202,22 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         return reductions;
     }
 
+    private void updateInEdgeNode(ATreeNode node) {
+        if (node.getEdge() != null) {
+            Edge edge = node.getEdge();
+            Node dest = edge.getDestination();
+            if (inEdgeNode.size() <= dest.getId()) {
+                // Ensure the inEdgeNode list is large enough to hold the index
+                for (int i = inEdgeNode.size(); i <= dest.getId(); i++) {
+                    inEdgeNode.add(null);
+                }
+            }
+            if (inEdgeNode.get(dest.getId()) == null || node.getCost() < inEdgeNode.get(dest.getId()).getCost()) {
+                inEdgeNode.set(dest.getId(), node);
+            }
+        }
+    }
+
     /**
      * BFS traversal to compute reduction quantities for all nodes in a single ATree. Also performs
      * union operations on the union-find structures to obtain the correct disjoint sets for the partially contracted graph 
@@ -245,6 +265,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                         }
                     }
                 }
+                updateInEdgeNode(current);
             }
             
             // Process children: their accumulated cost is current + their own cost
