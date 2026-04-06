@@ -119,7 +119,7 @@ public class CameriniForest extends StaticAlgorithm {
         }
     }
 
-    protected void printLeaves() {
+    public void printLeaves() {
         System.out.println("Leaves array:");
         for (int i = 0; i < leaves.length; i++) {
             TarjanForestNode node = leaves[i];
@@ -314,6 +314,7 @@ public class CameriniForest extends StaticAlgorithm {
             }
             int[] raw = q.extractMin();
             Edge e = new Edge(new Node(raw[1]), new Node(raw[2]), raw[0]);
+            if (e.getDestination().getId() == 2) System.out.println("Processing edge: " + e.getSource().getId() + " -> " + e.getDestination().getId() + " with weight " + e.getWeight());
             while (!emptyQueue(q) && sccFind(e.getSource()) == sccFind(e.getDestination())) {
                 raw = q.extractMin();
                 e = new Edge(new Node(raw[1]), new Node(raw[2]), raw[0]);
@@ -322,6 +323,7 @@ public class CameriniForest extends StaticAlgorithm {
             if (sccFind(e.getSource()) == sccFind(e.getDestination())) {
                 // Both ends of the edge are in the same SCC, skip this edge
                 rset.add(root);
+                if (e.getDestination().getId() == 2) System.out.println("Skipping edge: " + e.getSource().getId() + " -> " + e.getDestination().getId() + " with weight " + e.getWeight() + " because it forms a cycle");
                 continue;
             }
 
@@ -333,9 +335,10 @@ public class CameriniForest extends StaticAlgorithm {
                 // no cycle formed
                 inEdgeNode.set(root.getId(), minNode);
                 wccUnion(u, v);
+                if (e.getDestination().getId() == 2) System.out.println("Adding edge: " + e.getSource().getId() + " -> " + e.getDestination().getId() + " with weight " + e.getWeight());
             }
             else {
-
+                if (e.getDestination().getId() == 2) System.out.println("Cycle detected when adding edge: " + e.getSource().getId() + " -> " + e.getDestination().getId() + " with weight " + e.getWeight());
                 // store nodes in cycle
                 List<Integer> contractionSet = new ArrayList<>();
                 contractionSet.add(sccFind(v).getId());

@@ -102,7 +102,8 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         int oldEdgeWeight = source.getNeighbors().get(destination);
         Edge oldEdge = new Edge(source, destination, oldEdgeWeight);
 
-        this.removeEdge(oldEdge);
+        // this.removeEdge(oldEdge);
+        this.removeEdgeWithoutInferenceStep(oldEdge);
         source.getNeighbors().put(destination, edge.getWeight());
 
         return this.addEdge(edge);
@@ -357,18 +358,19 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             null
         );
         this.camerini = dynamicTarjan; // Update camerini reference
+        System.out.println("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC");
         Graph updatedArborescence = dynamicTarjan.inferPhylogeny(g);
         this.roots = dynamicTarjan.augmentTarjanForestToATree();
         return updatedArborescence.getEdges();
     }
 
-    @Override
-    public List<Edge> removeEdge(Edge edge) {
+    private DynamicTarjanArborescence removeEdgeWithoutInferenceStep(Edge edge) {
         if (edge == null || !this.getGraph().getEdges().contains(edge)) {
-            return this.getCurrentArborescence();
+            return null;
         }
 
         getGraph().removeEdge(edge);
+        System.out.println("\u001B[35m Removing edge: " + edge + "\u001B[0m");
         if (!this.getCurrentArborescence().contains(edge)) {
 
             ATreeNode contraction = null;
@@ -415,20 +417,95 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                 );
                 this.camerini = dynamicTarjan; // Update camerini reference
                 
-                // Run Tarjan's algorithm on the partially contracted graph
-                Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
-                this.roots = dynamicTarjan.augmentTarjanForestToATree();
-                
-                // Update the current arborescence
-                this.currentArborescence = updatedArborescence.getEdges();
+                return dynamicTarjan; // Return the initialized DynamicTarjanArborescence for the caller to run inference on
             }
         }
         
-        return this.getCurrentArborescence();
+        return null;
     }
 
     @Override
-    public List<Edge> addEdge(Edge edge) {
+    public List<Edge> removeEdge(Edge e) {
+        DynamicTarjanArborescence dynamicTarjan = removeEdgeWithoutInferenceStep(e);
+        if (dynamicTarjan != null) {
+            Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
+            this.roots = dynamicTarjan.augmentTarjanForestToATree();
+            this.currentArborescence = updatedArborescence.getEdges();
+            return this.currentArborescence;
+        }
+        else {
+            // Edge was not found or no ATree structure exists, so we have already performed the necessary updates in the original graph and can simply return the current arborescence.
+            return this.getCurrentArborescence();
+        }
+    }
+
+    // @Override
+    // public List<Edge> removeEdge(Edge edge) {
+    //     if (edge == null || !this.getGraph().getEdges().contains(edge)) {
+    //         return this.getCurrentArborescence();
+    //     }
+
+    //     getGraph().removeEdge(edge);
+    //     System.out.println("\u001B[35m Removing edge: " + edge + "\u001B[0m");
+    //     if (!this.getCurrentArborescence().contains(edge)) {
+
+    //         ATreeNode contraction = null;
+    //         for (ATreeNode root : this.getRoots()) {
+    //             contraction = root.findContractionByEdge(edge, root);
+    //             if (contraction != null) break;
+    //         }
+
+    //         if (contraction != null) {
+    //             // DO NOTHING HERE - the edge will be effectively removed from the contracted graph by the getAdjustedWeight method
+    //         }
+    //     }
+    //     else {
+    //         // Check if ATree structure exists
+    //         if (this.getRoots().isEmpty()) {
+    //             // No ATree structure - fallback to running full Tarjan
+    //             this.currentArborescence = firstStaticInference(this.getGraph());
+    //         } else {
+    //             List<ATreeNode> removedContractions = decompose(edge); // set R in Joaquim's thesis
+    //             resetUnionFinds(); // Reset Union-Find structures before recomputing reductions and running Edmonds
+
+    //             List<ATreeNode> V = new LinkedList<>(this.getRoots()); // V' in Joaquim's thesis
+                
+    //             // TODO - placeholder until I implement serializable version
+    //             List<Edge> edges = new ArrayList<>(); // E' in Joaquim's thesis
+
+
+    //             // Compute reduction quantities for all vertices in O(|V|) time
+    //             Map<Integer, Integer> reductions = computeReductionQuantities();
+                
+    //             // Initialize DynamicTarjanArborescence with the partially contracted graph
+    //             DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
+    //                 V,                  // ATree roots
+    //                 edges,              // Edges from E'
+    //                 reductions,         // Reduced costs for edges
+    //                 this.getGraph(),    // Original graph
+    //                 this.edgeComparator,
+    //                 null,               // wccUf must be null: BFS pre-merges all WCC components,
+    //                                     // which would cause false cycle detection in contractionPhase.
+    //                                     // DTA must rebuild WCC from scratch.
+    //                 this.sccUf,
+    //                 new ArrayList<>(this.inEdgeNode),
+    //                 this.getIndexedLeaves()
+    //             );
+    //             this.camerini = dynamicTarjan; // Update camerini reference
+                
+    //             // Run Tarjan's algorithm on the partially contracted graph
+    //             Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
+    //             this.roots = dynamicTarjan.augmentTarjanForestToATree();
+                
+    //             // Update the current arborescence
+    //             this.currentArborescence = updatedArborescence.getEdges();
+    //         }
+    //     }
+        
+    //     return this.getCurrentArborescence();
+    // }
+
+    private DynamicTarjanArborescence addEdgeWithoutInferenceStep(Edge edge) {
         System.out.println("\u001B[34m Graph prior to edge addition: " + getGraph() + "\u001B[0m");
         System.out.println("\u001B[35m Adding edge: " + edge + "\u001B[0m");
         getGraph().addEdge(edge);
@@ -442,17 +519,41 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         if (leaves == null || source.getId() >= leaves.length || destination.getId() >= leaves.length) {
             // Leaves not initialized - need to run full algorithm
             this.currentArborescence = firstStaticInference(this.getGraph());
-            return this.getCurrentArborescence();
+            return null;
         }
         
         TarjanForestNode sourceLeaf = leaves[source.getId()];
         TarjanForestNode destLeaf = leaves[destination.getId()];
         
         // Check if the specific leaves for these nodes are null
-        if (sourceLeaf == null || destLeaf == null) {
-            // Leaves not properly initialized for these nodes - run full algorithm
-            this.currentArborescence = firstStaticInference(this.getGraph());
-            return this.getCurrentArborescence();
+        // if (sourceLeaf == null || destLeaf == null) {
+        //     // Leaves not properly initialized for these nodes - run full algorithm
+        //     System.out.println("\u001B[36m Leaves not properly initialized for source or destination. Running full inference.");
+        //     ((CameriniForest) this.camerini).printLeaves();
+        //     System.out.print("\u001B[0m");
+        //     ATreeNode dst = new ATreeNode(edge, edge.getWeight(), false, null);
+        //     this.roots.add(dst);
+        //     // this.currentArborescence = firstStaticInference(this.getGraph());
+        //     DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(roots, currentArborescence, reductions, graph, edgeComparator);
+        //     return dynamicTarjan;
+        // }
+        if (destLeaf == null) {
+            ATreeNode dst = new ATreeNode(edge, edge.getWeight(), false, null);
+            this.roots.add(dst);
+            this.computeReductionQuantities();
+            this.leaves.set(edge.getDestination().getId(), dst);
+            DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
+                new LinkedList<>(this.getRoots()),
+                null, 
+                reductions, 
+                graph, 
+                edgeComparator, 
+                null, 
+                this.sccUf, 
+                new ArrayList<>(this.inEdgeNode), 
+                this.getIndexedLeaves());
+            this.camerini = dynamicTarjan; // Update camerini reference
+            return dynamicTarjan;
         }
 
         TarjanForestNode candidateForRemoval = this.findCandidateForRemoval(destLeaf, edge);
@@ -460,7 +561,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             // Found a candidate node N which should replace its edge with e_in
             // Determine whether e_in should belong in the "in" cut-set of N
             // by checking if N(source) is in the subtree rooted at N
-            
+            System.out.println("\u001B[36m Candidate for replacement found: " + candidateForRemoval + "\u001B[0m");
             boolean sourceInSubtree = isNodeInSubtree(sourceLeaf, candidateForRemoval);
             
             if (sourceInSubtree) {
@@ -538,18 +639,14 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                     );
                     this.camerini = dynamicTarjan; // Update camerini reference
                     
-                    Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
-                    this.roots = dynamicTarjan.augmentTarjanForestToATree();
-
-                    List<Edge> fullEdges = updatedArborescence.getEdges();
-                    
-                    this.currentArborescence = fullEdges;
+                    return this.camerini;
                 }
             }
         }
         else {
             // No candidate for replacement found
             // Insert edge in the contracted-edges list of the LCA
+            System.out.println("u001B[36m No candidate for replacement found. Adding edge to LCA's contracted edges.\u001B[0m");
             TarjanForestNode lca = destLeaf.LCA(sourceLeaf);
             if (lca instanceof ATreeNode) {
                 ATreeNode lcaATreeNode = (ATreeNode) lca;
@@ -557,8 +654,157 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             }
         }
 
+        return null;
+    }
+
+    @Override
+    public List<Edge> addEdge(Edge edge) {
+        DynamicTarjanArborescence result = addEdgeWithoutInferenceStep(edge);
+        if (result != null) {
+            System.out.println("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+            Graph updatedArborescence = result.inferPhylogeny(this.getGraph());
+            this.roots = result.augmentTarjanForestToATree();
+            this.currentArborescence = updatedArborescence.getEdges();
+        }
         return this.getCurrentArborescence();
     }
+
+    // @Override
+    // public List<Edge> addEdge(Edge edge) {
+    //     System.out.println("\u001B[34m Graph prior to edge addition: " + getGraph() + "\u001B[0m");
+    //     System.out.println("\u001B[35m Adding edge: " + edge + "\u001B[0m");
+    //     getGraph().addEdge(edge);
+
+    //     Node source = edge.getSource();
+    //     Node destination = edge.getDestination();
+
+    //     TarjanForestNode[] leaves = this.camerini.getLeaves();
+        
+    //     // Check if leaves are initialized and accessible
+    //     if (leaves == null || source.getId() >= leaves.length || destination.getId() >= leaves.length) {
+    //         // Leaves not initialized - need to run full algorithm
+    //         this.currentArborescence = firstStaticInference(this.getGraph());
+    //         return this.getCurrentArborescence();
+    //     }
+        
+    //     TarjanForestNode sourceLeaf = leaves[source.getId()];
+    //     TarjanForestNode destLeaf = leaves[destination.getId()];
+        
+    //     // Check if the specific leaves for these nodes are null
+    //     if (sourceLeaf == null || destLeaf == null) {
+    //         // Leaves not properly initialized for these nodes - run full algorithm
+    //         System.out.println("\u001B[36m Leaves not properly initialized for source or destination. Running full inference.");
+    //         ((CameriniForest) this.camerini).printLeaves();
+    //         System.out.print("\u001B[0m");
+    //         this.currentArborescence = firstStaticInference(this.getGraph());
+    //         return this.getCurrentArborescence();
+    //     }
+
+    //     TarjanForestNode candidateForRemoval = this.findCandidateForRemoval(destLeaf, edge);
+    //     if (candidateForRemoval != null) {
+    //         // Found a candidate node N which should replace its edge with e_in
+    //         // Determine whether e_in should belong in the "in" cut-set of N
+    //         // by checking if N(source) is in the subtree rooted at N
+    //         System.out.println("\u001B[36m Candidate for replacement found: " + candidateForRemoval + "\u001B[0m");
+    //         boolean sourceInSubtree = isNodeInSubtree(sourceLeaf, candidateForRemoval);
+            
+    //         if (sourceInSubtree) {
+    //             // N(source) is in the subtree rooted at N
+    //             // e_in should NOT belong in the "in" cut-set of N
+    //             // Simply insert edge in contracted-edges list of LCA
+    //             TarjanForestNode lca = destLeaf.LCA(sourceLeaf);
+    //             if (lca instanceof ATreeNode) {  // TODO - substituir por um downcast
+    //                 ATreeNode lcaATreeNode = (ATreeNode) lca;
+    //                 lcaATreeNode.addContractedEdge(edge);
+    //             }
+    //         }
+    //         else {
+    //             // N(source) is NOT in the subtree rooted at N
+    //             // e_in should replace the edge of N
+    //             // Engage virtual deletion of N's edge and run Edmonds' algorithm
+                
+    //             TarjanForestNode N = candidateForRemoval;
+    //             Edge removedEdge = N.getEdge();
+                
+    //             // Check if ATree structure exists
+    //             if (this.getRoots().isEmpty()) {
+    //                 // No ATree structure - fallback to running full Tarjan
+    //                 // Note: Must create a new Tarjan instance since it maintains internal state
+    //                 this.currentArborescence = firstStaticInference(this.getGraph());
+    //             } else {
+    //                 System.out.println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    //                 if (N instanceof ATreeNode) {
+    //                     System.out.println("Virtually deleting node: " + N);
+    //                     ((ATreeNode) N).setVirtuallyDeleted(true);
+    //                     System.out.println("Candidate for removal marked as virtually deleted: " + ((ATreeNode) N).isVirtuallyDeleted());
+    //                 } else {
+    //                     System.out.println("Candidate for removal is not an ATreeNode, cannot be virtually deleted: " + N);
+    //                 }
+
+    //                 // System.out.println("Candidate for removal found: " + candidateForRemoval);
+    //                 System.out.println("ATree prior to decomposition:");
+    //                 for (ATreeNode root : this.getRoots()) {
+    //                     System.out.println(root);
+    //                 }
+
+    //                 // Virtual deletion: recognize G(V', E') without actually removing the edge
+    //                 List<ATreeNode> V = new LinkedList<>(this.getRoots());
+    //                 System.out.println("V = " + V.stream().map(n -> n.getEdge() != null ? n.getEdge().getDestination().getId() : null).collect(Collectors.toList()));
+    //                 for (ATreeNode root : V) {
+    //                     if (root.getEdge() == removedEdge) {
+    //                         ((ATreeNode) root).setVirtuallyDeleted(true);
+    //                     }
+    //                 }
+    //                 List<ATreeNode> removedContractions = decompose(removedEdge);
+    //                 resetUnionFinds(); // Reset Union-Find structures before recomputing reductions and running Edmonds
+                    
+    //                 // Placeholder
+    //                 List<Edge> contractedEdges = new ArrayList<>();
+                    
+    //                 // Add e_in to the edge set
+    //                 List<Edge> edgesWithNewEdge = new ArrayList<>(contractedEdges);
+    //                 edgesWithNewEdge.add(edge);
+                    
+    //                 // Compute reduction quantities and apply them ONLY to edges already in G' (contractedEdges)
+    //                 // The new edge e_in should use its original weight, not a reduced cost
+    //                 Map<Integer, Integer> reductions = computeReductionQuantities();
+                    
+    //                 // Run Edmonds' algorithm over G(V', E' ∪ {e_in})
+    //                 DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
+    //                     V,
+    //                     edgesWithNewEdge,
+    //                     reductions,
+    //                     this.getGraph(),
+    //                     this.edgeComparator,
+    //                     null,               // wccUf must be null: BFS pre-merges all WCC components.
+    //                     this.sccUf,
+    //                     new ArrayList<>(this.inEdgeNode),
+    //                     this.getIndexedLeaves()
+    //                 );
+    //                 this.camerini = dynamicTarjan; // Update camerini reference
+                    
+    //                 Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
+    //                 this.roots = dynamicTarjan.augmentTarjanForestToATree();
+
+    //                 List<Edge> fullEdges = updatedArborescence.getEdges();
+                    
+    //                 this.currentArborescence = fullEdges;
+    //             }
+    //         }
+    //     }
+    //     else {
+    //         // No candidate for replacement found
+    //         // Insert edge in the contracted-edges list of the LCA
+    //         System.out.println("u001B[36m No candidate for replacement found. Adding edge to LCA's contracted edges.\u001B[0m");
+    //         TarjanForestNode lca = destLeaf.LCA(sourceLeaf);
+    //         if (lca instanceof ATreeNode) {
+    //             ATreeNode lcaATreeNode = (ATreeNode) lca;
+    //             lcaATreeNode.addContractedEdge(edge);
+    //         }
+    //     }
+
+    //     return this.getCurrentArborescence();
+    // }
 
     @Override
     public List<Edge> removeNode(Node v, List<Edge> edges) {

@@ -202,6 +202,9 @@ public class FullyDynamicArborescenceSimpleGraphTest {
         // Update edge 3->0 from weight 1 to weight 10
         Edge updatedEdge = new Edge(nodes.get(3), nodes.get(0), 10);
         List<Edge> updatedArborescence = dynamicAlgorithm.updateEdge(updatedEdge);
+        int cost = updatedArborescence.stream().mapToInt(Edge::getWeight).sum();
+        int expectedCost = 24;
+        printTestResults(updatedArborescence, cost, expectedCost);
         
         Assert.assertTrue("Arborescence should remain valid after updating edge weight",
             isValidArborescence(dynamicAlgorithm.getGraph(), new Graph(updatedArborescence)));

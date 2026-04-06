@@ -242,6 +242,7 @@ public class FullyDynamicArborescenceDeletionTest {
         int costAfterReadd = dynamicAlgorithm.getCurrentArborescence().stream()
             .mapToInt(Edge::getWeight).sum();
         
+        printTestResults(dynamicAlgorithm.getCurrentArborescence(), costAfterReadd, initialCost);
         Assert.assertEquals("Cost should return to initial after re-adding edge",
             initialCost, costAfterReadd);
     }
@@ -303,5 +304,14 @@ public class FullyDynamicArborescenceDeletionTest {
         }
 
         return visited.size() == graph.getNumNodes();
+    }
+
+    private void printTestResults(List<Edge> arborescence, int newCost, int expectedCost) {
+        System.out.println("Current Arborescence:");
+        for (Edge edge : arborescence) {
+            System.out.println(edge);
+        }
+        System.out.println("New cost: " + newCost);
+        System.out.println("Expected cost: " + expectedCost);
     }
 }

@@ -108,6 +108,8 @@ public class DynamicTarjanArborescence extends CameriniForest {
         // Pre-merge queues for contracted supernodes so contractionPhase sees all
         // edges entering any cycle member, not just those entering the rep directly.
         preMergeQueuesForSCCs();
+
+        System.out.println("UnionFind SCC: " + ufSCC);
     }
 
     /**
@@ -298,6 +300,7 @@ public class DynamicTarjanArborescence extends CameriniForest {
         } else {
             System.out.println("  No ATree roots provided.");
         }
+        printLeaves();
         Graph result = super.inferPhylogeny(modifiedGraph);
         this.augmentTarjanForestToATree();
         
