@@ -135,6 +135,23 @@ public class UnionFindStronglyConnected extends UnionFind {
         return clone;
     }
 
+    /**
+     * Unites the sets containing rep and other, forcing rep to be the root
+     * of the resulting set regardless of rank.
+     *
+     * @param rep The element that should become the representative of the merged set.
+     * @param other The element whose set is merged into rep's set.
+     */
+    public void unionForceRep(int rep, int other) {
+        int rootRep = find(rep);
+        int rootOther = find(other);
+        if (rootRep != rootOther) {
+            parent[rootOther] = rootRep;
+            rank[rootRep] += rank[rootOther];
+            minusWeight(rootOther, rootRep);
+        }
+    }
+
     @Override
     public void clear() {
         for (int i = 0; i < size; i++) {

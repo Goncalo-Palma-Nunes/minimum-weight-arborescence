@@ -80,10 +80,13 @@ public class Node implements Serializable, Comparable<Node> {
     @Override
     public String toString() {
         String neighborStr = neighbors.keySet().stream()
-            .map(n -> n.getMLSTdata().toString())
+            //.filter(n -> n.getPoint() != null && n.getPoint().getSequence() != null)
+            //.map(n -> n.getMLSTdata().toString())
+            .map(n -> "Node" + n.getId()) // Use node IDs for neighbors
             .collect(Collectors.joining(", "));
+
         return "Node {" +
-                "Sequence='" + point.getSequence().toString() + '\'' +
+                "Sequence='" + ((point != null && point.getSequence() != null) ? point.getSequence().toString() : "null") + '\'' +
                 ", neighbors=[" + neighborStr + "]" +
                 ", pointID=" + pointID +
                 " }";

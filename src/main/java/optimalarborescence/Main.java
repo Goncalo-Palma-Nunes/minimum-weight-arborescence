@@ -985,9 +985,11 @@ public class Main {
                 for (Node newNode : nodesToProcess) {
                     allEdgesToAdd.addAll(GraphMapper.getIncomingEdges(persistedGraphFile, newNode.getId()));
                     allEdgesToAdd.addAll(GraphMapper.getOutgoingEdges(persistedGraphFile, newNode.getId()));
+                    dynamicAlgorithm.addNode(newNode, allEdgesToAdd);
+                    allEdgesToAdd.clear(); // Clear for next node
                 }
-                System.out.println("Adding " + allEdgesToAdd.size() + " edges in batch...");
-                dynamicAlgorithm.addEdges(allEdgesToAdd);
+                // System.out.println("Adding " + allEdgesToAdd.size() + " edges in batch...");
+                // dynamicAlgorithm.addEdges(allEdgesToAdd);
                 break;
                 
             case REMOVE:
@@ -996,9 +998,11 @@ public class Main {
                 for (Node nodeToRemove : nodesToProcess) {
                     allEdgesToRemove.addAll(GraphMapper.getIncomingEdges(persistedGraphFile, nodeToRemove.getId()));
                     allEdgesToRemove.addAll(GraphMapper.getOutgoingEdges(persistedGraphFile, nodeToRemove.getId()));
+                    dynamicAlgorithm.removeNode(nodeToRemove, allEdgesToRemove);
+                    allEdgesToRemove.clear(); // Clear for next node
                 }
-                System.out.println("Removing " + allEdgesToRemove.size() + " edges in batch...");
-                dynamicAlgorithm.removeEdges(allEdgesToRemove);
+                // System.out.println("Removing " + allEdgesToRemove.size() + " edges in batch...");
+                // dynamicAlgorithm.removeEdges(allEdgesToRemove);
                 
                 // Remove nodes from persisted file and the incoming edge files for each of them
                 GraphMapper.removeNodesBatch(nodesToProcess, persistedGraphFile, sequenceLength);
@@ -1273,9 +1277,11 @@ public class Main {
             for (Node newNode : nodesToAdd) {
                 allEdgesToAdd.addAll(GraphMapper.getIncomingEdges(tempGraphFile, newNode.getId()));
                 allEdgesToAdd.addAll(GraphMapper.getOutgoingEdges(tempGraphFile, newNode.getId()));
+                dynamicAlgorithm.addNode(newNode, allEdgesToAdd);
+                allEdgesToAdd.clear(); // Clear for next node since addNode already adds edges to the algorithm
             }
-            System.out.println("Adding " + allEdgesToAdd.size() + " edges in batch...");
-            dynamicAlgorithm.addEdges(allEdgesToAdd);
+            // System.out.println("Adding " + allEdgesToAdd.size() + " edges in batch...");
+            // dynamicAlgorithm.addEdges(allEdgesToAdd);
         }
         
         // Get current phylogeny

@@ -33,7 +33,7 @@ public class CameriniForest extends StaticAlgorithm {
     protected Set<Node> rset;
 
     /** A list of the maximum weight edge for each SCC */
-    private List<Node> max;
+    protected List<Node> max;
 
     /** A list that stores for each representative cycle vertex 𝑣 the list of cycle edge nodes in F */
     protected List<List<TarjanForestNode>> cycleEdgeNodes;
@@ -41,7 +41,7 @@ public class CameriniForest extends StaticAlgorithm {
     /** A union-find data structure to maintain the strongly connected components of 𝐻 */
     protected UnionFindStronglyConnected ufSCC;
 
-    private UnionFind ufWCC;
+    protected UnionFind ufWCC;
 
     protected List<MergeableHeapInterface<int[]>> queues;
 
@@ -107,6 +107,57 @@ public class CameriniForest extends StaticAlgorithm {
         initializeDataStructures();
     }
 
+    protected void printMax() {
+        System.out.println("Max array:");
+        for (int i = 0; i < max.size(); i++) {
+            Node node = max.get(i);
+            if (node != null) {
+                System.out.println("  Node ID: " + node.getId());
+            } else {
+                System.out.println("  Node ID: null");
+            }
+        }
+    }
+
+    protected void printLeaves() {
+        System.out.println("Leaves array:");
+        for (int i = 0; i < leaves.length; i++) {
+            TarjanForestNode node = leaves[i];
+            if (node != null) {
+                System.out.println("\t" + node.toString());
+            } else {
+                System.out.println("  Node ID: " + i + ", Leaf: null");
+            }
+        }
+    }
+
+    protected void printInEdgeNode() {
+        System.out.println("inEdgeNode array:");
+        for (int i = 0; i < inEdgeNode.size(); i++) {
+            TarjanForestNode node = inEdgeNode.get(i);
+            if (node != null) {
+                System.out.println("\t" + node.toString());
+            } else {
+                System.out.println("  Node ID: " + i + ", Edge: null");
+            }
+        }
+    }
+
+    protected void printCycleEdgeNodes() {
+        System.out.println("cycleEdgeNodes:");
+        for (int i = 0; i < cycleEdgeNodes.size(); i++) {
+            List<TarjanForestNode> nodes = cycleEdgeNodes.get(i);
+            if (nodes != null && !nodes.isEmpty()) {
+                System.out.println("  Node ID: " + i);
+                for (TarjanForestNode node : nodes) {
+                    System.out.println("\t" + node.toString());
+                }
+            } else {
+                System.out.println("  Node ID: " + i + ", Cycle Edges: null");
+            }
+        }
+    }
+
     protected void initializeDataStructures() {
         for (Edge e : graph.getEdges()) {
             Node v = e.getDestination();
@@ -153,7 +204,7 @@ public class CameriniForest extends StaticAlgorithm {
         return minNode;
     }
 
-    private List<TarjanForestNode> getCycleEdges(Node v) {
+    protected List<TarjanForestNode> getCycleEdges(Node v) {
         return cycleEdgeNodes.get(sccFind(v).getId());
     }
 

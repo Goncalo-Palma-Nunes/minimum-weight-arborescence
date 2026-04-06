@@ -4,13 +4,14 @@ import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
 import optimalarborescence.inference.dynamic.ATreeNode;
 
+import java.util.HashMap;
+
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -37,16 +38,16 @@ import java.util.Queue;
  *   - parent_offset (8 bytes)
  *   - num_children (4 bytes)
  *   - children_offsets[] (num_children × 8 bytes)
- *   - num_contracted_edges (4 bytes)
- *   - contracted_edges[] (num_contracted_edges × 12 bytes: src, dst, weight)
+ *   - num_contracted_vertices (4 bytes)
+ *   - contracted_vertices[] (num_contracted_vertices × 4 bytes: vertex_id)
  */
 public class ATreeMapper {
-    
-    private static final int BYTES_PER_EDGE = 12; // source(4), dest(4), weight(4)
-    
+
+    private static final int BYTES_PER_VERTEX = 4; // vertex_id(4)
+
     // Fixed-size portion of each node (before variable-length arrays)
-    private static final int NODE_FIXED_SIZE = 32; 
-    // edge_src(4) + edge_dst(4) + edge_weight(4) + cost(4) + parent_offset(8) + num_children(4) + num_contracted(4)
+    private static final int NODE_FIXED_SIZE = 32;
+    // edge_src(4) + edge_dst(4) + edge_weight(4) + cost(4) + parent_offset(8) + num_children(4) + num_contracted_vertices(4)
     
     /**
      * Save an ATree forest to a single memory-mapped file.
@@ -134,10 +135,10 @@ public class ATreeMapper {
             size += children.size() * 8; // 8 bytes per child offset
         }
         
-        // Add space for contracted edges
-        List<Edge> contractedEdges = node.getContractedEdges();
-        if (!node.isSimpleNode() && contractedEdges != null) {
-            size += contractedEdges.size() * BYTES_PER_EDGE;
+        // Add space for contracted vertex IDs
+        Map<Integer, Integer> contractedVertices = node.getContractedVertices();
+        if (!node.isSimpleNode() && contractedVertices != null) {
+            size += contractedVertices.size() * BYTES_PER_VERTEX;
         }
         
         return size;
@@ -183,17 +184,15 @@ public class ATreeMapper {
             }
         }
         
-        // Write contracted edges
-        List<Edge> contractedEdges = node.getContractedEdges();
-        int numContractedEdges = (!node.isSimpleNode() && contractedEdges != null) 
-                                ? contractedEdges.size() : 0;
-        mbb.putInt(numContractedEdges);
-        
-        if (numContractedEdges > 0) {
-            for (Edge contractedEdge : contractedEdges) {
-                mbb.putInt(contractedEdge.getSource().getId());
-                mbb.putInt(contractedEdge.getDestination().getId());
-                mbb.putInt(contractedEdge.getWeight());
+        // Write contracted vertex IDs
+        Map<Integer, Integer> contractedVertices = node.getContractedVertices();
+        int numContractedVertices = (!node.isSimpleNode() && contractedVertices != null)
+                                   ? contractedVertices.size() : 0;
+        mbb.putInt(numContractedVertices);
+
+        if (numContractedVertices > 0) {
+            for (Integer vertexId : contractedVertices.keySet()) {
+                mbb.putInt(vertexId);
             }
         }
     }
@@ -324,23 +323,18 @@ public class ATreeMapper {
         // Skip children offsets
         mbb.position(mbb.position() + numChildren * 8);
         
-        // Read contracted edges
-        int numContractedEdges = mbb.getInt();
-        List<Edge> contractedEdges = new ArrayList<>();
-        
-        for (int i = 0; i < numContractedEdges; i++) {
-            int srcId = mbb.getInt();
-            int dstId = mbb.getInt();
-            int weight = mbb.getInt();
-            
-            Node src = graphNodes.get(srcId);
-            Node dst = graphNodes.get(dstId);
-            
-            if (src != null && dst != null) {
-                contractedEdges.add(new Edge(src, dst, weight));
+        // Read contracted vertex IDs
+        int numContractedVertices = mbb.getInt();
+        Map<Integer, Integer> contractedVertices = null;
+
+        if (numContractedVertices > 0) {
+            contractedVertices = new HashMap<>();
+            for (int i = 0; i < numContractedVertices; i++) {
+                int vertexId = mbb.getInt();
+                contractedVertices.put(vertexId, vertexId);
             }
         }
-        
+
         // Create edge for this node
         Edge edge = null;
         if (edgeSrcId != -1 && edgeDstId != -1) {
@@ -350,12 +344,12 @@ public class ATreeMapper {
                 edge = new Edge(src, dst, edgeWeight);
             }
         }
-        
+
         // Create node with lazy loading support
-        boolean isSimpleNode = (numContractedEdges == 0);
+        boolean isSimpleNode = (numContractedVertices == 0);
         return new ATreeNode(edge, cost, isSimpleNode,
-                           contractedEdges.isEmpty() ? null : contractedEdges,
-                           offset, baseName, graphNodes);
+                             contractedVertices,
+                             offset, baseName, graphNodes);
     }
     
     /**
@@ -446,23 +440,18 @@ public class ATreeMapper {
             childOffsets.add(mbb.getLong());
         }
         
-        // Read contracted edges
-        int numContractedEdges = mbb.getInt();
-        List<Edge> contractedEdges = new ArrayList<>();
-        
-        for (int i = 0; i < numContractedEdges; i++) {
-            int srcId = mbb.getInt();
-            int dstId = mbb.getInt();
-            int weight = mbb.getInt();
-            
-            Node src = graphNodes.get(srcId);
-            Node dst = graphNodes.get(dstId);
-            
-            if (src != null && dst != null) {
-                contractedEdges.add(new Edge(src, dst, weight));
+        // Read contracted vertex IDs
+        int numContractedVertices = mbb.getInt();
+        Map<Integer, Integer> contractedVertices = null;
+
+        if (numContractedVertices > 0) {
+            contractedVertices = new HashMap<>();
+            for (int i = 0; i < numContractedVertices; i++) {
+                int vertexId = mbb.getInt();
+                contractedVertices.put(vertexId, vertexId);
             }
         }
-        
+
         // Create edge for this node
         Edge edge = null;
         if (edgeSrcId != -1 && edgeDstId != -1) {
@@ -472,11 +461,10 @@ public class ATreeMapper {
                 edge = new Edge(src, dst, edgeWeight);
             }
         }
-        
+
         // Create node (without parent and children initially)
-        boolean isSimpleNode = (numContractedEdges == 0);
-        ATreeNode node = new ATreeNode(edge, cost, isSimpleNode, 
-                                      contractedEdges.isEmpty() ? null : contractedEdges);
+        boolean isSimpleNode = (numContractedVertices == 0);
+        ATreeNode node = new ATreeNode(edge, cost, isSimpleNode, contractedVertices);
         
         // Store in cache
         loadedNodes.put(offset, node);

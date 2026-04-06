@@ -125,6 +125,7 @@ public class FullyDynamicArborescenceSimpleGraphTest {
 
         int newCost = updatedArborescence.stream().mapToInt(Edge::getWeight).sum();
         int expectedCost = 1 + 6 + 2; // 3->0 (1) + 0->1 (6) + 0->2 (2)
+        printTestResults(updatedArborescence, newCost, expectedCost);
         
         Assert.assertTrue("Arborescence should remain valid after inserting optimal edge",
             isValidArborescence(dynamicAlgorithm.getGraph(), new Graph(updatedArborescence)));
@@ -292,10 +293,12 @@ public class FullyDynamicArborescenceSimpleGraphTest {
         Map<Integer, Node> incidentNodes = new HashMap<>();
         for (Edge edge : arborescence.getEdges()) {
             if (!graph.getEdges().contains(edge)) {
+                System.out.println("\u001B[33m Warning: Arborescence contains edge not in original graph: " + edge + "\u001B[0m");
                 return false;
             }
             Node dest = edge.getDestination();
             if (incidentNodes.containsKey(dest.getId())) {
+                System.out.println("\u001B[33m Warning: More than one incoming edge to the same node: " + dest + "\u001B[0m");
                 return false; // More than one incoming edge to the same node
             }
             incidentNodes.put(dest.getId(), dest);
@@ -306,11 +309,13 @@ public class FullyDynamicArborescenceSimpleGraphTest {
             allNodes.remove(node);
         }
         if (allNodes.size() != 1) {
+            System.out.println("\u001B[33m Warning: More than one root or missing nodes\u001B[0m");
             return false; // More than one root or missing nodes
         }
         Node root = allNodes.get(0);
 
         if (!BFS(arborescence, root)) {
+            System.out.println("\u001B[33m Warning: Not all nodes are reachable from the root\u001B[0m");
             return false; // Not all nodes are reachable from the root
         }
 
@@ -337,5 +342,14 @@ public class FullyDynamicArborescenceSimpleGraphTest {
         }
 
         return visited.size() == graph.getNumNodes();
+    }
+
+    private void printTestResults(List<Edge> arborescence, int newCost, int expectedCost) {
+        System.out.println("Current Arborescence:");
+        for (Edge edge : arborescence) {
+            System.out.println(edge);
+        }
+        System.out.println("New cost: " + newCost);
+        System.out.println("Expected cost: " + expectedCost);
     }
 }

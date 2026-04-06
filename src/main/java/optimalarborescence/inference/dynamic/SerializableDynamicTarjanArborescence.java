@@ -31,9 +31,9 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
      */
     public SerializableDynamicTarjanArborescence(List<ATreeNode> aTreeRoots, 
                                      List<Edge> contractedEdges, 
-                                     Map<Edge, Integer> reducedCosts,
+                                     Map<Integer, Integer> reducedCosts,
                                      Graph originalGraph) {
-        super(aTreeRoots, contractedEdges, reducedCosts, originalGraph, 
+        super(aTreeRoots, contractedEdges, reducedCosts, originalGraph,
               (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight()));
         this.useMemoryMappedFiles = false;
     }
@@ -54,13 +54,13 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
      */
     public SerializableDynamicTarjanArborescence(List<ATreeNode> aTreeRoots,
                                      List<Edge> contractedEdges,
-                                     Map<Edge, Integer> reducedCosts,
+                                     Map<Integer, Integer> reducedCosts,
                                      Graph originalGraph,
                                      String baseName,
                                      int mlstLength) throws IOException {
         super(aTreeRoots, contractedEdges, reducedCosts, originalGraph,
               (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight()));
-        
+
         this.baseName = baseName;
         this.useMemoryMappedFiles = true;
         this.queueInitialized = new HashMap<>();

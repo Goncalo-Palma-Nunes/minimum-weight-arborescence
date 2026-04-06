@@ -2,8 +2,11 @@ package optimalarborescence.inference.dynamic;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.stream.Collectors;
 
 import optimalarborescence.graph.Edge;
 import optimalarborescence.inference.TarjanForestNode;
@@ -59,6 +62,9 @@ public class ATreeNode extends TarjanForestNode {
     
     /** Graph nodes map for reconstructing edges during lazy loading (null for in-memory nodes) */
     private java.util.Map<Integer, optimalarborescence.graph.Node> graphNodes;
+
+    /** Whether this node has been virtually deleted by FullyDynamicArborescence's addEdge method */
+    private boolean virtuallyDeleted = false;
 
     public ATreeNode(Edge edge, int y, ATreeNode parent, List<ATreeNode> children, boolean simpleNode, Map<Integer, Integer> contractedVertices) {
         super(edge);
@@ -141,6 +147,10 @@ public class ATreeNode extends TarjanForestNode {
         return contractedVertices;
     }
 
+    public void setContractedVertices(Map<Integer, Integer> contractedVertices) {
+        this.contractedVertices = contractedVertices;
+    }
+
     public void addContractedEdge(Edge edge) { 
         if (this.contractedVertices == null) {
             this.contractedVertices = new HashMap<>();
@@ -160,6 +170,14 @@ public class ATreeNode extends TarjanForestNode {
         } else {
             throw new ClassCastException("The provided TarjanForestNode is not an instance of ATreeNode.");
         }
+    }
+
+    public boolean isVirtuallyDeleted() {
+        return virtuallyDeleted;
+    }
+
+    public void setVirtuallyDeleted(boolean virtuallyDeleted) {
+        this.virtuallyDeleted = virtuallyDeleted;
     }
 
     public List<ATreeNode> getATreeChildren() {
@@ -243,4 +261,99 @@ public class ATreeNode extends TarjanForestNode {
         return null;
     }
 
+    /**
+     * Utility to render an ATreeNode (and its subtree) in a human-readable, recursion-safe form.
+     */
+    public class ATreePrinter {
+
+        public static String toString(ATreeNode root) {
+            return toString(root, 10);
+        }
+
+        public static String toString(ATreeNode root, int maxDepth) {
+            StringBuilder sb = new StringBuilder();
+            Set<ATreeNode> visited = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+            recurse(root, sb, visited, 0, maxDepth);
+            return sb.toString();
+        }
+
+        private static void recurse(ATreeNode node, StringBuilder sb, Set<ATreeNode> visited, int depth, int maxDepth) {
+            if (node == null) return;
+            indent(sb, depth);
+            sb.append(nodeSummary(node)).append('\n');
+
+            if (visited.contains(node)) {
+                indent(sb, depth + 1);
+                sb.append("(already visited)\n");
+                return;
+            }
+            if (depth >= maxDepth) {
+                indent(sb, depth + 1);
+                sb.append("... (max depth)\n");
+                return;
+            }
+
+            visited.add(node);
+
+            List<ATreeNode> children = node.getATreeChildren();
+            if (children == null || children.isEmpty()) {
+                // leaf
+                return;
+            }
+
+            for (ATreeNode child : children) {
+                indent(sb, depth + 1);
+                sb.append("child -> ").append(childSummary(child)).append('\n');
+                recurse(child, sb, visited, depth + 2, maxDepth);
+            }
+        }
+
+        private static String nodeSummary(ATreeNode n) {
+            StringBuilder s = new StringBuilder();
+            Edge e = n.getEdge();
+            if (e == null) {
+                s.append("ATreeNode[root]");
+            } else {
+                s.append("ATreeNode edge=").append(edgeToString(e));
+            }
+            s.append(", cost=").append(n.getCost());
+            s.append(", simple=").append(n.isSimpleNode());
+            if (n.isLazyLoadable()) s.append(", lazyLoadable=").append(n.isLazyLoadable());
+            s.append(", childrenLoaded=").append(n.areChildrenLoaded());
+            s.append(", virtuallyDeleted=").append(n.isVirtuallyDeleted());
+            if (n.getContractedVertices() != null && !n.getContractedVertices().isEmpty()) {
+                s.append(", contracted=").append(n.getContractedVertices().size());
+            }
+            if (n.isLazyLoadable()) {
+                // show limited info about lazy fields if present
+                // nodeOffset and baseName are private; use isLazyLoadable/areChildrenLoaded to infer
+                s.append(", (lazy)");
+            }
+            return s.toString();
+        }
+
+        private static String childSummary(ATreeNode n) {
+            Edge e = n.getEdge();
+            if (e == null) return "root";
+            return edgeToString(e) + " (cost=" + n.getCost() + ")";
+        }
+
+        private static String edgeToString(Edge e) {
+            if (e == null) return "null";
+            try {
+                return "(" + e.getSource().getId() + "->" + e.getDestination().getId() + ", w=" + e.getWeight() + ")";
+            } catch (Exception ex) {
+                return e.toString();
+            }
+        }
+
+        private static void indent(StringBuilder sb, int depth) {
+            for (int i = 0; i < depth; i++) sb.append("  ");
+        }
+    }
+
+    @Override
+    public String toString() {
+        return ATreePrinter.toString(this);
+    }
 }

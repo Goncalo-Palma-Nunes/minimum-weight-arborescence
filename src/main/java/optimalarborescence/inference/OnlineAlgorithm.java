@@ -3,6 +3,7 @@ package optimalarborescence.inference;
 import optimalarborescence.exception.NotImplementedException;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Edge;
+import optimalarborescence.graph.Node;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -28,7 +29,7 @@ public abstract class OnlineAlgorithm extends StaticAlgorithm {
 
     public abstract List<Edge> addEdge(Edge edge);
 
-    public abstract List<Edge> removeEdges(List<Edge> edges);
+    public abstract List<Edge> removeNode(Node u, List<Edge> edges);
 
-    public abstract List<Edge> addEdges(List<Edge> edges);
+    public abstract List<Edge> addNode(Node u, List<Edge> edges);
 }

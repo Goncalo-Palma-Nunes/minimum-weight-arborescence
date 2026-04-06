@@ -13,6 +13,7 @@ import optimalarborescence.exception.NotImplementedException;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
@@ -128,6 +129,10 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         else {
             this.sccUf = new UnionFindStronglyConnected(this.numVertices);
         }
+
+        // Reset inEdgeNode and leaves so they are fully repopulated by the next BFS
+        this.inEdgeNode.clear();
+        this.leaves.clear();
     }
 
     /**
@@ -171,9 +176,11 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             // Save parent before modifying relationships
             ATreeNode parentN = N.getParent();
             
-            // Remove N from its parent's children list (parent is guaranteed non-null here since !N.isRoot())
+            // Remove N from parent's children list, or from this.roots if N is a top-level ATree root
             if (parentN != null && parentN.getChildren() != null) {
                 parentN.getChildren().remove(N);
+            } else if (parentN == null) {
+                this.roots.remove(N);
             }
             
             // Detach N from parent
@@ -212,7 +219,8 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                     inEdgeNode.add(null);
                 }
             }
-            if (inEdgeNode.get(dest.getId()) == null || node.getCost() < inEdgeNode.get(dest.getId()).getCost()) {
+            if ((inEdgeNode.get(dest.getId()) == null || node.getCost() < inEdgeNode.get(dest.getId()).getCost()) 
+                && !isVirtuallyDeleted(node)) {
                 inEdgeNode.set(dest.getId(), node);
             }
         }
@@ -255,13 +263,14 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                 }
                 else {
                     // perform the strongly connected union of all vertices in the cycle represented by this non-simple node
-                    sccUnion(edge.getSource(), edge.getDestination());
+                    // Force destination to be the SCC representative for consistent representative semantics.
+                    // NOTE: edge.getSource() is the EXTERNAL vertex entering the supernode and must NOT be merged.
+                    int destId = edge.getDestination().getId();
 
                     // Perform a union for each contracted vertex in the cycle
                     if (current.getContractedVertices() != null) {
                         for (Integer contractedVertexId : current.getContractedVertices().keySet()) {
-                            sccUnion(edge.getSource(), new Node(contractedVertexId));
-                            sccUnion(edge.getDestination(), new Node(contractedVertexId));
+                            sccUf.unionForceRep(destId, contractedVertexId);
                         }
                     }
                 }
@@ -303,8 +312,36 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         return reducedCosts;
     }
 
+    private boolean isVirtuallyDeleted(TarjanForestNode node) {
+        if (node instanceof ATreeNode) {
+            return ((ATreeNode) node).isVirtuallyDeleted();
+        }
+        return false;
+    }
+
     public void rebuildContractedDigraph() {
         throw new NotImplementedException("The rebuildContractedDigraph method is not implemented.");
+    }
+
+    /**
+     * Converts this.leaves (a flat list of TarjanForestNodes for simple ATree nodes) into
+     * a list indexed by vertex ID, suitable for passing to DynamicTarjanArborescence.
+     */
+    private List<TarjanForestNode> getIndexedLeaves() {
+        int maxId = 0;
+        for (TarjanForestNode leaf : this.leaves) {
+            if (leaf.getEdge() != null) {
+                maxId = Math.max(maxId, leaf.getEdge().getDestination().getId());
+            }
+        }
+        List<TarjanForestNode> indexed = new ArrayList<>(Collections.nCopies(maxId + 1, null));
+        for (TarjanForestNode leaf : this.leaves) {
+            if (leaf.getEdge() != null && !isVirtuallyDeleted(leaf)) {
+                int id = leaf.getEdge().getDestination().getId();
+                indexed.set(id, leaf);
+            }
+        }
+        return indexed;
     }
 
     private List<Edge> firstStaticInference(Graph g) {
@@ -313,7 +350,11 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             g.getEdges(),
             new HashMap<>(),
             g,
-            this.edgeComparator
+            this.edgeComparator,
+            null,
+            null,
+            null,
+            null
         );
         this.camerini = dynamicTarjan; // Update camerini reference
         Graph updatedArborescence = dynamicTarjan.inferPhylogeny(g);
@@ -362,9 +403,15 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                 DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
                     V,                  // ATree roots
                     edges,              // Edges from E'
-                    reductions,       // Reduced costs for edges
+                    reductions,         // Reduced costs for edges
                     this.getGraph(),    // Original graph
-                    this.edgeComparator // Edge comparator
+                    this.edgeComparator,
+                    null,               // wccUf must be null: BFS pre-merges all WCC components,
+                                        // which would cause false cycle detection in contractionPhase.
+                                        // DTA must rebuild WCC from scratch.
+                    this.sccUf,
+                    new ArrayList<>(this.inEdgeNode),
+                    this.getIndexedLeaves()
                 );
                 this.camerini = dynamicTarjan; // Update camerini reference
                 
@@ -382,6 +429,8 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
 
     @Override
     public List<Edge> addEdge(Edge edge) {
+        System.out.println("\u001B[34m Graph prior to edge addition: " + getGraph() + "\u001B[0m");
+        System.out.println("\u001B[35m Adding edge: " + edge + "\u001B[0m");
         getGraph().addEdge(edge);
 
         Node source = edge.getSource();
@@ -429,7 +478,8 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                 // e_in should replace the edge of N
                 // Engage virtual deletion of N's edge and run Edmonds' algorithm
                 
-                Edge removedEdge = candidateForRemoval.getEdge();
+                TarjanForestNode N = candidateForRemoval;
+                Edge removedEdge = N.getEdge();
                 
                 // Check if ATree structure exists
                 if (this.getRoots().isEmpty()) {
@@ -437,8 +487,29 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                     // Note: Must create a new Tarjan instance since it maintains internal state
                     this.currentArborescence = firstStaticInference(this.getGraph());
                 } else {
+                    System.out.println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+                    if (N instanceof ATreeNode) {
+                        System.out.println("Virtually deleting node: " + N);
+                        ((ATreeNode) N).setVirtuallyDeleted(true);
+                        System.out.println("Candidate for removal marked as virtually deleted: " + ((ATreeNode) N).isVirtuallyDeleted());
+                    } else {
+                        System.out.println("Candidate for removal is not an ATreeNode, cannot be virtually deleted: " + N);
+                    }
+
+                    // System.out.println("Candidate for removal found: " + candidateForRemoval);
+                    System.out.println("ATree prior to decomposition:");
+                    for (ATreeNode root : this.getRoots()) {
+                        System.out.println(root);
+                    }
+
                     // Virtual deletion: recognize G(V', E') without actually removing the edge
                     List<ATreeNode> V = new LinkedList<>(this.getRoots());
+                    System.out.println("V = " + V.stream().map(n -> n.getEdge() != null ? n.getEdge().getDestination().getId() : null).collect(Collectors.toList()));
+                    for (ATreeNode root : V) {
+                        if (root.getEdge() == removedEdge) {
+                            ((ATreeNode) root).setVirtuallyDeleted(true);
+                        }
+                    }
                     List<ATreeNode> removedContractions = decompose(removedEdge);
                     resetUnionFinds(); // Reset Union-Find structures before recomputing reductions and running Edmonds
                     
@@ -459,7 +530,11 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                         edgesWithNewEdge,
                         reductions,
                         this.getGraph(),
-                        this.edgeComparator
+                        this.edgeComparator,
+                        null,               // wccUf must be null: BFS pre-merges all WCC components.
+                        this.sccUf,
+                        new ArrayList<>(this.inEdgeNode),
+                        this.getIndexedLeaves()
                     );
                     this.camerini = dynamicTarjan; // Update camerini reference
                     
@@ -486,194 +561,13 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
     }
 
     @Override
-    public List<Edge> removeEdges(List<Edge> edges) {
-        if (edges == null || edges.isEmpty()) {
-            return this.getCurrentArborescence();
-        }
-
-        // Remove all edges from the graph upfront
-        for (Edge edge : edges) {
-            if (edge != null && this.getGraph().getEdges().contains(edge)) {
-                getGraph().removeEdge(edge);
-            }
-        }
-
-        List<Edge> currentArb = this.getCurrentArborescence();
-
-        // Partition: arborescence edges vs non-arborescence edges
-        // Use List.contains (equals-based) since Edge.hashCode() is not overridden
-        List<Edge> arborescenceEdges = new ArrayList<>();
-        List<Edge> nonArborescenceEdges = new ArrayList<>();
-        for (Edge edge : edges) {
-            if (edge == null) continue;
-            if (currentArb.contains(edge)) {
-                arborescenceEdges.add(edge);
-            } else {
-                nonArborescenceEdges.add(edge);
-            }
-        }
-
-        // Cheap path: remove non-arborescence edges from their c-nodes' contracted edge lists
-        for (Edge edge : nonArborescenceEdges) {
-            for (ATreeNode root : this.getRoots()) {
-                ATreeNode contraction = root.findContractionByEdge(edge, root);
-                if (contraction != null) {
-                    contraction.getContractedEdges().remove(edge);
-                    break;
-                }
-            }
-        }
-
-        // Expensive path: decompose all arborescence edges, then run inference once
-        if (!arborescenceEdges.isEmpty()) {
-            if (this.getRoots().isEmpty()) {
-                this.currentArborescence = firstStaticInference(this.getGraph());
-            } else {
-                List<ATreeNode> allRemovedContractions = new ArrayList<>();
-                for (Edge edge : arborescenceEdges) {
-                    List<ATreeNode> removed = decompose(edge);
-                    allRemovedContractions.addAll(removed);
-                }
-                resetUnionFinds(); // Reset Union-Find structures before recomputing reductions and running Edmonds
-
-                // Collect contracted edges from all decomposed c-nodes,
-                // filtering out any edges that are in the removal batch
-                // Use List.contains (equals-based) since Edge.hashCode() is not overridden
-                List<Edge> contractedEdges = allRemovedContractions.stream()
-                        .flatMap(c -> c.getContractedEdges().stream())
-                        .filter(e -> !edges.contains(e))
-                        .collect(Collectors.toList());
-
-                // V' is captured after all decompositions (this.roots has been updated)
-                List<ATreeNode> V = new LinkedList<>(this.getRoots());
-
-                Map<Integer, Integer> reductions = computeReductionQuantities();
-                Map<Edge, Integer> reducedCosts = applyReductionQuantities(contractedEdges, reductions);
-
-                DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
-                    V,
-                    contractedEdges,
-                    reducedCosts,
-                    this.getGraph(),
-                    this.edgeComparator
-                );
-                this.camerini = dynamicTarjan;
-
-                Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
-                this.roots = dynamicTarjan.augmentTarjanForestToATree();
-
-                List<Edge> fullEdges = expandArborescence(updatedArborescence.getEdges());
-                this.currentArborescence = fullEdges;
-            }
-        }
-
-        return this.getCurrentArborescence();
+    public List<Edge> removeNode(Node v, List<Edge> edges) {
+        throw new NotImplementedException("The removeEdges method is not implemented.");
     }
 
     @Override
-    public List<Edge> addEdges(List<Edge> edges) {
-        if (edges == null || edges.isEmpty()) {
-            return this.getCurrentArborescence();
-        }
-
-        // Add all edges to the graph upfront
-        for (Edge edge : edges) {
-            getGraph().addEdge(edge);
-        }
-
-        // Validate leaves — if any source/dest has no leaf, fall back to full static inference
-        TarjanForestNode[] leaves = this.camerini.getLeaves();
-        if (leaves == null) {
-            this.currentArborescence = firstStaticInference(this.getGraph());
-            return this.getCurrentArborescence();
-        }
-        for (Edge edge : edges) {
-            Node src = edge.getSource();
-            Node dst = edge.getDestination();
-            if (src.getId() >= leaves.length || dst.getId() >= leaves.length
-                    || leaves[src.getId()] == null || leaves[dst.getId()] == null) {
-                this.currentArborescence = firstStaticInference(this.getGraph());
-                return this.getCurrentArborescence();
-            }
-        }
-
-        List<ATreeNode> allRemovedContractions = new ArrayList<>();
-        List<Edge> triggeringEdges = new ArrayList<>();
-        boolean needsInference = false;
-
-        for (Edge edge : edges) {
-            Node source = edge.getSource();
-            Node destination = edge.getDestination();
-
-            TarjanForestNode sourceLeaf = leaves[source.getId()];
-            TarjanForestNode destLeaf = leaves[destination.getId()];
-
-            TarjanForestNode candidateForRemoval = this.findCandidateForRemoval(destLeaf, edge);
-
-            if (candidateForRemoval != null) {
-                boolean sourceInSubtree = isNodeInSubtree(sourceLeaf, candidateForRemoval);
-
-                if (sourceInSubtree) {
-                    // Case 1: source is inside the candidate's subtree — add to LCA's contractedEdges
-                    TarjanForestNode lca = destLeaf.LCA(sourceLeaf);
-                    if (lca instanceof ATreeNode) {
-                        ((ATreeNode) lca).addContractedEdge(edge);
-                    }
-                } else {
-                    // Case 2: source is outside — virtual deletion, defer inference
-                    if (this.getRoots().isEmpty()) {
-                        this.currentArborescence = firstStaticInference(this.getGraph());
-                        return this.getCurrentArborescence();
-                    }
-                    Edge removedEdge = candidateForRemoval.getEdge();
-                    List<ATreeNode> removed = decompose(removedEdge);
-                    resetUnionFinds(); // Reset Union-Find structures before recomputing reductions and running Edmonds
-                    allRemovedContractions.addAll(removed);
-                    triggeringEdges.add(edge);
-                    needsInference = true;
-                }
-            } else {
-                // Case 3: no candidate — add to LCA's contractedEdges
-                TarjanForestNode lca = destLeaf.LCA(sourceLeaf);
-                if (lca instanceof ATreeNode) {
-                    ((ATreeNode) lca).addContractedEdge(edge);
-                }
-            }
-        }
-
-        if (needsInference) {
-            // Collect contracted edges from all decomposed c-nodes
-            List<Edge> contractedEdges = allRemovedContractions.stream()
-                    .flatMap(c -> c.getContractedEdges().stream())
-                    .collect(Collectors.toList());
-
-            // Triggering edges are added to the edge set but NOT to reducedCosts (keep original weight)
-            List<Edge> edgesForInference = new ArrayList<>(contractedEdges);
-            edgesForInference.addAll(triggeringEdges);
-
-            // V' captured after all decompositions
-            List<ATreeNode> V = new LinkedList<>(this.getRoots());
-
-            Map<Integer, Integer> reductions = computeReductionQuantities();
-            Map<Edge, Integer> reducedCosts = applyReductionQuantities(contractedEdges, reductions);
-
-            DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
-                V,
-                edgesForInference,
-                reducedCosts,
-                this.getGraph(),
-                this.edgeComparator
-            );
-            this.camerini = dynamicTarjan;
-
-            Graph updatedArborescence = dynamicTarjan.inferPhylogeny(this.getGraph());
-            this.roots = dynamicTarjan.augmentTarjanForestToATree();
-
-            List<Edge> fullEdges = expandArborescence(updatedArborescence.getEdges());
-            this.currentArborescence = fullEdges;
-        }
-
-        return this.getCurrentArborescence();
+    public List<Edge> addNode(Node u, List<Edge> edges) {
+        throw new NotImplementedException("The addEdges method is not implemented.");
     }
 
     /**
