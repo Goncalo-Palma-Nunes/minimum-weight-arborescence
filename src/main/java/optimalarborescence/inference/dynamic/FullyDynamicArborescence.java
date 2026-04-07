@@ -538,7 +538,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         //     return dynamicTarjan;
         // }
         if (destLeaf == null) {
-            ATreeNode dst = new ATreeNode(edge, edge.getWeight(), false, null);
+            ATreeNode dst = new ATreeNode(edge, edge.getWeight(), true, null);
             this.roots.add(dst);
             this.computeReductionQuantities();
             this.leaves.set(edge.getDestination().getId(), dst);
