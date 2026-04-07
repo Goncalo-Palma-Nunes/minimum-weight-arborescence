@@ -366,6 +366,7 @@ public class DynamicTarjanArborescence extends CameriniForest {
         for (TarjanForestNode tarjanRoot : tarjanRoots) {
             if (tarjanRoot != null) {
                 ATreeNode aTreeRoot = convertTarjanNodeToATreeNode(tarjanRoot, conversionMap);
+                aTreeRoot.setRemove(false);
                 this.aTreeRoots.add(aTreeRoot);
             }
         }
@@ -376,6 +377,7 @@ public class DynamicTarjanArborescence extends CameriniForest {
         for (int i = 0; i < this.leaves.length; i++) {
             TarjanForestNode oldLeaf = this.leaves[i];
             if (oldLeaf != null && conversionMap.containsKey(oldLeaf)) {
+                oldLeaf.setRemove(false);
                 this.leaves[i] = conversionMap.get(oldLeaf);
             }
         }

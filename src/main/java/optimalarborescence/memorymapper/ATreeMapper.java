@@ -166,7 +166,7 @@ public class ATreeMapper {
         mbb.putInt(node.getCost());
         
         // Write parent offset
-        ATreeNode parent = node.getParent();
+        ATreeNode parent = node.getATreeParent();
         long parentOffset = (parent != null && nodeOffsets.containsKey(parent)) 
                           ? nodeOffsets.get(parent) : -1L;
         mbb.putLong(parentOffset);
@@ -495,7 +495,7 @@ public class ATreeMapper {
         int numChildren = mbb.getInt();
         
         // Set parent if not already set
-        if (parentOffset != -1 && node.getParent() == null) {
+        if (parentOffset != -1 && node.getATreeParent() == null) {
             ATreeNode parent = loadedNodes.get(parentOffset);
             if (parent != null) {
                 node.setParent(parent);
@@ -510,7 +510,7 @@ public class ATreeMapper {
             if (child != null) {
                 children.add(child);
                 // Set child's parent to this node if not already set
-                if (child.getParent() == null) {
+                if (child.getATreeParent() == null) {
                     child.setParent(node);
                 }
             }

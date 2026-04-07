@@ -64,6 +64,7 @@ public class TarjanForestNode implements Serializable, Comparable<TarjanForestNo
         StringBuilder sb = new StringBuilder();
         sb.append("( ").append(edge.getSource().getId()).append(" -> ").append(edge.getDestination().getId()).append(" )");
         sb.append("\t-> Weight: ").append(edge.getWeight());
+        sb.append("\tRemove: ").append(remove);
         sb.append("\n\t Parent: ").append(parent != null ? parent.edge.getSource().getId() + "->" + parent.edge.getDestination().getId() : "null");
         sb.append("\n\t Children: ");
         for (TarjanForestNode child : children) {

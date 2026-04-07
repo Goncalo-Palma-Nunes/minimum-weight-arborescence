@@ -175,7 +175,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             }
             
             // Save parent before modifying relationships
-            ATreeNode parentN = N.getParent();
+            ATreeNode parentN = N.getATreeParent();
             
             // Remove N from parent's children list, or from this.roots if N is a top-level ATree root
             if (parentN != null && parentN.getChildren() != null) {

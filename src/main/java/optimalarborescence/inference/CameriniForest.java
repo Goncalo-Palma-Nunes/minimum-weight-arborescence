@@ -374,6 +374,7 @@ public class CameriniForest extends StaticAlgorithm {
                 int sigma = getAdjustedWeight(maxWeightEdge).intValue();
                 updateReducedCosts(contractionSet, sigma, map);
 
+                System.out.println("Contracting cycle with nodes: " + contractionSet + " and max weight edge: " + maxWeightEdge.toString() + " with adjusted weight " + sigma);
                 for (TarjanForestNode n: edgeNodesInCycle) { // Perform union of the nodes in the cycle
                     sccUnion(n.edge.getSource(), n.edge.getDestination());
                 }
@@ -392,6 +393,15 @@ public class CameriniForest extends StaticAlgorithm {
         }
     }
 
+    private void syncMax() {
+        for (Node node : getNodes()) {
+            Node rep = sccFind(node);
+            if (max.get(node.getId()) != null) {
+                max.set(node.getId(), max.get(rep.getId()));
+            }
+        }
+    }
+
     /**
      * Trace-Path function: traces a path from edgeNode to root, marking all nodes
      * for removal and making their children new roots in N.
@@ -400,6 +410,7 @@ public class CameriniForest extends StaticAlgorithm {
         TarjanForestNode current = edgeNode;
         while (current != null) {
             current.setRemove(true);
+            System.out.println("\u001B[31mMarking edge " + current.getEdge().toString() + " for removal\u001B[0m");
             // Make all children roots by setting parent to null
             List<TarjanForestNode> children = new ArrayList<>(current.getChildren());
             for (TarjanForestNode child : children) {
@@ -414,6 +425,17 @@ public class CameriniForest extends StaticAlgorithm {
     }
 
     protected List<Edge> expansionPhase() {
+
+        System.out.println("\u001B[32m");
+        syncMax();
+        printLeaves();
+        printInEdgeNode();
+        printCycleEdgeNodes();
+        printMax();
+        System.out.println("ufSCC: " + ufSCC.toString());
+        System.out.println("\u001B[0m");
+
+
         Set<Integer> R = rset.stream()
             .map(v -> max.get(v.getId()).getId())
             .collect(Collectors.toSet());
@@ -423,18 +445,24 @@ public class CameriniForest extends StaticAlgorithm {
 
         // Process set R first - trace paths from leaves of R nodes
         for (Integer node : R) {
+            System.out.println("\n\nProcessing root node in R: " + node);
             if (leaves[node] != null) {
                 tracePath(leaves[node], N);
             }
         }
+        System.out.println("Finished marking edges for removal\n\n");
 
         // Process set N
         while (!N.isEmpty()) {
             TarjanForestNode edgeNode = N.remove(0);
             
             // Skip nodes marked for removal
-            if (edgeNode.isRemove()) {
+            if (edgeNode.isRemove() ) {
+                System.out.println("\tSkipping node " + edgeNode.toString() + " because it is marked for removal");
                 continue;
+            }
+            else {
+                System.out.println("\tAdding node " + edgeNode.toString() + " to the arborescence");
             }
             
             // Add edge to result

@@ -113,7 +113,11 @@ public class ATreeNode extends TarjanForestNode {
         this.y = y;
     }
 
-    public ATreeNode getParent() {
+    /**
+     * Returns the parent as an ATreeNode, or null if the parent is not an ATreeNode.
+     * Use this only when you specifically need ATreeNode-typed access to the parent.
+     */
+    public ATreeNode getATreeParent() {
         if (parent instanceof ATreeNode) {
             return (ATreeNode) parent;
         } else {
@@ -318,6 +322,8 @@ public class ATreeNode extends TarjanForestNode {
             }
             s.append(", cost=").append(n.getCost());
             s.append(", simple=").append(n.isSimpleNode());
+            s.append(", removed=").append(n.isRemove());
+            s.append(", parent=").append(parentSummary(n));
             if (n.isLazyLoadable()) s.append(", lazyLoadable=").append(n.isLazyLoadable());
             s.append(", childrenLoaded=").append(n.areChildrenLoaded());
             s.append(", virtuallyDeleted=").append(n.isVirtuallyDeleted());
@@ -330,6 +336,13 @@ public class ATreeNode extends TarjanForestNode {
                 s.append(", (lazy)");
             }
             return s.toString();
+        }
+
+        private static String parentSummary(ATreeNode n) {
+            if (n.getATreeParent() == null) return "null";
+            Edge e = n.getATreeParent().getEdge();
+            if (e == null) return "root";
+            return edgeToString(e); //+ " (cost=" + n.getParent().getCost() + ")";
         }
 
         private static String childSummary(ATreeNode n) {

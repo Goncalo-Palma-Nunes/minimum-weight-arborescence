@@ -225,6 +225,9 @@ public class FullyDynamicArborescenceDeletionTest {
     @Test
     public void testRemoveAndReAdd() {
         dynamicAlgorithm.inferPhylogeny(originalGraph);
+        List<Edge> initialArborescence = new ArrayList<>(dynamicAlgorithm.getCurrentArborescence());
+        System.out.println("Initial Arborescence:");
+        initialArborescence.forEach(System.out::println);
         int initialCost = dynamicAlgorithm.getCurrentArborescence().stream()
             .mapToInt(Edge::getWeight).sum();
         
