@@ -31,7 +31,7 @@ public class FullyDynamicArborescenceLoopedSquaredMotifsTest {
 
     private FullyDynamicArborescence algorithm;
     private DynamicTarjanArborescence dynamicTarjan;
-    private List<ATreeNode> roots;
+    private List<ATreeNode> roots = new ArrayList<>();
 
 
     private List<Node> nodes = new ArrayList<>() {

@@ -93,6 +93,7 @@ public class DynamicTarjanArborescence extends CameriniForest {
         filterRootsToSCCRepresentatives();
 
         System.out.println("Roots = " + this.roots.stream().map(Node::getId).toList());
+        this.aTreeRoots = aTreeRoots != null ? aTreeRoots : new ArrayList<>();
         System.out.println("ATreeRoots = " + this.aTreeRoots.stream().map(n -> n.getEdge() != null ? n.getEdge().getDestination().getId() : null).toList());
         printInEdgeNode();
         printLeaves();
