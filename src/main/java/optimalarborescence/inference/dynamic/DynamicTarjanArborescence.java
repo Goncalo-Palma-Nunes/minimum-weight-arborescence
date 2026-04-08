@@ -249,10 +249,24 @@ public class DynamicTarjanArborescence extends CameriniForest {
                 List<TarjanForestNode> singletonList = new ArrayList<>();
                 singletonList.add(root);
                 cycleEdgeNodes.set(rep, singletonList);
+                // Also populate leaves so getRoots()/expansionPhase work when
+                // precomputedLeaves was null (loaded-from-disk inferPhylogeny path)
+                if (rep < leaves.length && leaves[rep] == null) {
+                    leaves[rep] = root;
+                }
             } else {
                 // C-node: put its ATree children (the previously contracted cycle edges)
                 List<TarjanForestNode> cycleChildren = new ArrayList<>(root.getATreeChildren());
                 cycleEdgeNodes.set(rep, cycleChildren);
+                // Also populate leaves for each cycle member so getRoots()/expansionPhase work
+                for (TarjanForestNode child : cycleChildren) {
+                    if (child.getEdge() != null) {
+                        int destId = child.getEdge().getDestination().getId();
+                        if (destId < leaves.length && leaves[destId] == null) {
+                            leaves[destId] = child;
+                        }
+                    }
+                }
             }
         }
     }
