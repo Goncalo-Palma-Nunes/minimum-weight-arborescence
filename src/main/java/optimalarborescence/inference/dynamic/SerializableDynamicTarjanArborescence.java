@@ -17,7 +17,7 @@ import java.util.Map;
 /**
  * A serializable version of DynamicTarjanArborescence that works with memory-mapped files.
  * 
- * This class enables lazy-loading of edges and ATrees from memory-mapped files.
+ * This class enables lazy-loading of edges from memory-mapped files.
  */
 public class SerializableDynamicTarjanArborescence extends DynamicTarjanArborescence {
 
@@ -87,40 +87,43 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
     }
     
     /**
-     * Constructor for lazy ATree loading with edge lazy-loading.
-     * 
-     * This constructor loads ATree roots without their children, and configures
-     * edge lazy-loading. Children are loaded on-demand when accessed.
-     * 
+     * Constructor for ATree loading with edge lazy-loading.
+     *
+     * This constructor loads the ATree forest from disk and configures
+     * edge lazy-loading from memory-mapped files.
+     *
      * @param baseName Base name for memory-mapped files
      * @param mlstLength Fixed length for MLST data in bytes (unused, kept for compatibility)
      * @param originalGraph The original graph structure (for node list)
      * @throws IOException if file operations fail
      */
-    public SerializableDynamicTarjanArborescence(String baseName, int mlstLength, Graph originalGraph) 
+    public SerializableDynamicTarjanArborescence(String baseName, int mlstLength, Graph originalGraph)
             throws IOException {
-        // Load ATrees lazily (only roots)
-        this(loadATreeRootsLazy(baseName, originalGraph), 
-             new ArrayList<>(), 
-             new HashMap<>(), 
+        this(loadATreeRoots(baseName),
+             new ArrayList<>(),
+             new HashMap<>(),
              originalGraph,
              baseName,
              mlstLength);
     }
-    
+
     /**
-     * Constructor for full lazy loading from memory-mapped files without requiring a Graph instance.
-     * 
+     * Constructor for loading from memory-mapped files without requiring a Graph instance.
+     *
      * This constructor loads the graph structure (nodes only) from memory-mapped files,
-     * then loads ATree roots lazily if they exist. If ATree files don't exist, creates empty ATrees.
-     * Edges and ATree children are loaded on-demand.
-     * This is the most memory-efficient mode and mirrors SerializableCameriniForest's behavior.
-     * 
+     * then loads the ATree forest if it exists. If ATree files don't exist, creates empty ATrees.
+     * Edges are loaded on-demand.
+     *
      * @param baseName Base name for memory-mapped files containing the saved state
      * @throws IOException if file operations fail
      */
     public SerializableDynamicTarjanArborescence(String baseName) throws IOException {
-        this(baseName, 0, createMinimalGraph(baseName));
+        this(loadATreeRoots(baseName),
+             new ArrayList<>(),
+             new HashMap<>(),
+             createMinimalGraph(baseName),
+             baseName,
+             0);
     }
     
     /**
@@ -144,21 +147,17 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
     }
     
     /**
-     * Helper method to load ATree roots lazily.
-     * 
+     * Helper method to load ATree roots eagerly.
+     *
      * Note: This loads the modified graph's node map since ATrees reference
      * nodes from the modified (partially contracted) graph, not the original graph.
      * If ATree files don't exist, returns an empty list (useful for fresh graphs).
      */
-    private static List<ATreeNode> loadATreeRootsLazy(String baseName, Graph graph) throws IOException {
-        // Load node map from the modified graph (saved during setBaseName)
+    private static List<ATreeNode> loadATreeRoots(String baseName) throws IOException {
         Map<Integer, Node> graphNodes = GraphMapper.loadNodeMap(baseName);
-        
-        // Try to load ATrees; if they don't exist, return empty list
         try {
-            return ATreeMapper.loadATreeRootsLazy(baseName, graphNodes);
+            return ATreeMapper.loadATreeForest(baseName, graphNodes);
         } catch (java.io.FileNotFoundException e) {
-            // ATree files don't exist yet - return empty list for fresh graph
             return new ArrayList<>();
         }
     }

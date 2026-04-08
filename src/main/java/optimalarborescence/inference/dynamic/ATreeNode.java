@@ -50,19 +50,6 @@ public class ATreeNode extends TarjanForestNode {
     /** Map of contracted vertices (for c-nodes) */
     private Map<Integer, Integer> contractedVertices;
 
-    // Lazy loading support
-    /** Whether children have been loaded from disk (true for in-memory nodes, false for lazy-loaded nodes before first access) */
-    private boolean childrenLoaded = true;
-    
-    /** File offset for this node in the memory-mapped file (null for in-memory nodes) */
-    private Long nodeOffset;
-    
-    /** Base name for memory-mapped files (null for in-memory nodes) */
-    private String baseName;
-    
-    /** Graph nodes map for reconstructing edges during lazy loading (null for in-memory nodes) */
-    private java.util.Map<Integer, optimalarborescence.graph.Node> graphNodes;
-
     /** Whether this node has been virtually deleted by FullyDynamicArborescence's addEdge method */
     private boolean virtuallyDeleted = false;
 
@@ -82,27 +69,6 @@ public class ATreeNode extends TarjanForestNode {
 
     public ATreeNode(Edge edge, int y, boolean simpleNode, Map<Integer, Integer> contractedVertices) {
         this(edge, y, null, new ArrayList<>(), simpleNode, contractedVertices);
-    }
-
-    /**
-     * Constructor for lazy-loaded ATreeNodes.
-     * Children will be loaded from disk on first access to getATreeChildren().
-     * 
-     * @param edge The edge for this node
-     * @param y Cost of the edge when selected
-     * @param simpleNode Whether this is a simple node or c-node
-     * @param contractedVertices map of contracted vertices (for c-nodes)
-     * @param nodeOffset File offset for this node
-     * @param baseName Base name for memory-mapped files
-     * @param graphNodes Map of node IDs to Node objects for edge reconstruction
-     */
-    public ATreeNode(Edge edge, int y, boolean simpleNode, Map<Integer, Integer> contractedVertices,
-                    long nodeOffset, String baseName, java.util.Map<Integer, optimalarborescence.graph.Node> graphNodes) {
-        this(edge, y, null, new ArrayList<>(), simpleNode, contractedVertices);
-        this.childrenLoaded = false;
-        this.nodeOffset = nodeOffset;
-        this.baseName = baseName;
-        this.graphNodes = graphNodes;
     }
 
     public int getCost() {
@@ -185,35 +151,9 @@ public class ATreeNode extends TarjanForestNode {
     }
 
     public List<ATreeNode> getATreeChildren() {
-        // Lazy load children if not yet loaded
-        if (!childrenLoaded && baseName != null && nodeOffset != null && graphNodes != null) {
-            try {
-                optimalarborescence.memorymapper.ATreeMapper.loadChildren(this, baseName, nodeOffset, graphNodes);
-                childrenLoaded = true;
-            } catch (java.io.IOException e) {
-                throw new RuntimeException("Failed to lazy-load children for node at offset " + nodeOffset, e);
-            }
-        }
-        
         return this.children.stream()
                     .map(this::downCast)
                     .toList();
-    }
-    
-    /**
-     * Check if this node supports lazy loading.
-     * @return true if this node was created for lazy loading
-     */
-    public boolean isLazyLoadable() {
-        return nodeOffset != null && baseName != null;
-    }
-    
-    /**
-     * Check if children have been loaded (for lazy-loaded nodes).
-     * @return true if children are loaded or this is not a lazy-loaded node
-     */
-    public boolean areChildrenLoaded() {
-        return childrenLoaded;
     }
 
 
@@ -324,16 +264,9 @@ public class ATreeNode extends TarjanForestNode {
             s.append(", simple=").append(n.isSimpleNode());
             s.append(", removed=").append(n.isRemove());
             s.append(", parent=").append(parentSummary(n));
-            if (n.isLazyLoadable()) s.append(", lazyLoadable=").append(n.isLazyLoadable());
-            s.append(", childrenLoaded=").append(n.areChildrenLoaded());
             s.append(", virtuallyDeleted=").append(n.isVirtuallyDeleted());
             if (n.getContractedVertices() != null && !n.getContractedVertices().isEmpty()) {
                 s.append(", contracted=").append(n.getContractedVertices().size());
-            }
-            if (n.isLazyLoadable()) {
-                // show limited info about lazy fields if present
-                // nodeOffset and baseName are private; use isLazyLoadable/areChildrenLoaded to infer
-                s.append(", (lazy)");
             }
             return s.toString();
         }
