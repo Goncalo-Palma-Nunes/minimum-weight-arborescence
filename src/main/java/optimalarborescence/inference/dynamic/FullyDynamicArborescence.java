@@ -81,6 +81,26 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         return graph;
     }
 
+    /**
+     * Factory method for creating the algorithm instance used for inference on the
+     * partially contracted graph. Override in subclasses to provide memory-efficient
+     * variants (e.g., disk-based edge access).
+     */
+    protected DynamicTarjanArborescence createDynamicTarjan(
+            List<ATreeNode> aTreeRoots,
+            List<Edge> contractedEdges,
+            Map<Integer, Integer> reducedCosts,
+            Graph originalGraph,
+            Comparator<Edge> edgeComparator,
+            UnionFind wccUf,
+            UnionFindStronglyConnected sccUf,
+            List<TarjanForestNode> precomputedInEdgeNode,
+            List<TarjanForestNode> precomputedLeaves) {
+        return new DynamicTarjanArborescence(
+            aTreeRoots, contractedEdges, reducedCosts, originalGraph,
+            edgeComparator, wccUf, sccUf, precomputedInEdgeNode, precomputedLeaves);
+    }
+
     @Override
     public Graph inferPhylogeny(Graph graph) {
         Graph g = this.getInferenceAlgorithm().inferPhylogeny(graph);
@@ -346,7 +366,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
     }
 
     private List<Edge> firstStaticInference(Graph g) {
-        DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
+        DynamicTarjanArborescence dynamicTarjan = createDynamicTarjan(
             this.getRoots(),
             g.getEdges(),
             new HashMap<>(),
@@ -402,7 +422,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                 Map<Integer, Integer> reductions = computeReductionQuantities();
                 
                 // Initialize DynamicTarjanArborescence with the partially contracted graph
-                DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
+                DynamicTarjanArborescence dynamicTarjan = createDynamicTarjan(
                     V,                  // ATree roots
                     edges,              // Edges from E'
                     reductions,         // Reduced costs for edges
@@ -416,7 +436,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                     this.getIndexedLeaves()
                 );
                 this.camerini = dynamicTarjan; // Update camerini reference
-                
+
                 return dynamicTarjan; // Return the initialized DynamicTarjanArborescence for the caller to run inference on
             }
         }
@@ -543,15 +563,15 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             resetUnionFinds();
             this.computeReductionQuantities();
             // this.leaves.set(edge.getDestination().getId(), dst);
-            DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
+            DynamicTarjanArborescence dynamicTarjan = createDynamicTarjan(
                 new LinkedList<>(this.getRoots()),
-                null, 
-                reductions, 
-                graph, 
-                edgeComparator, 
-                null, 
-                this.sccUf, 
-                new ArrayList<>(this.inEdgeNode), 
+                null,
+                reductions,
+                graph,
+                edgeComparator,
+                null,
+                this.sccUf,
+                new ArrayList<>(this.inEdgeNode),
                 this.getIndexedLeaves());
             this.camerini = dynamicTarjan; // Update camerini reference
             return dynamicTarjan;
@@ -627,7 +647,7 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                     Map<Integer, Integer> reductions = computeReductionQuantities();
                     
                     // Run Edmonds' algorithm over G(V', E' ∪ {e_in})
-                    DynamicTarjanArborescence dynamicTarjan = new DynamicTarjanArborescence(
+                    DynamicTarjanArborescence dynamicTarjan = createDynamicTarjan(
                         V,
                         edgesWithNewEdge,
                         reductions,
