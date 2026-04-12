@@ -7,6 +7,9 @@ import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
 import optimalarborescence.memorymapper.GraphMapper;
+import optimalarborescence.nearestneighbour.NearestNeighbourSearchAlgorithm;
+import optimalarborescence.nearestneighbour.Point;
+import optimalarborescence.distance.DistanceFunction;
 import optimalarborescence.memorymapper.ATreeMapper;
 
 import java.io.IOException;
@@ -30,6 +33,13 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
 
     private String baseName;
     private boolean useMemoryMappedFiles;
+    private boolean onDemand = false;
+    private NearestNeighbourSearchAlgorithm<?> nnAlgorithm = null;
+    private DistanceFunction distanceFunction = null;
+    private int numNeighbors = 0;
+    private boolean symmetric = true;
+    private int[] numExaminedEdges;
+    private boolean[] prevFailure = null;
     private Map<Integer, Node> nodeMap;
 
     /**
@@ -50,6 +60,7 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
               (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight()));
         this.useMemoryMappedFiles = false;
         this.sccComposition = new HashMap<>();
+        initializeArrayFields(originalGraph);
     }
 
     /**
@@ -78,6 +89,7 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
         this.baseName = baseName;
         this.useMemoryMappedFiles = true;
         this.nodeMap = GraphMapper.loadNodeMap(baseName);
+        initializeArrayFields(originalGraph);
 
         initializeSCCCompositionFromATree(aTreeRoots);
     }
@@ -111,8 +123,76 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
 
         this.baseName = baseName;
         this.useMemoryMappedFiles = (baseName != null);
+        initializeArrayFields(originalGraph);
 
         if (this.useMemoryMappedFiles) {
+            initializeSCCCompositionFromATree(aTreeRoots);
+        } else {
+            this.sccComposition = new HashMap<>();
+        }
+    }
+
+    /**
+     * Constructor for on-demand edge computation with optional nearest-neighbor approximation.
+     *
+     * Mirrors the on-demand constructor in SerializableCameriniForest. When onDemand is true,
+     * edge weights are computed on-the-fly instead of being read from pre-stored disk files.
+     * When numNeighbors > 0, approximate NN search is used first, with automatic fallback
+     * to full neighbor enumeration if no valid safe edge is found.
+     *
+     * @param aTreeRoots The ATree forest roots
+     * @param contractedEdges Edges from decomposed contractions
+     * @param reducedCosts Reduction quantities for each vertex
+     * @param originalGraph The original graph (nodes must carry full sequences when onDemand=true)
+     * @param edgeComparator Edge comparator
+     * @param wccUf Pre-computed WCC union-find (may be null)
+     * @param sccUf Pre-computed SCC union-find (may be null)
+     * @param precomputedInEdgeNode Pre-computed inEdgeNode list
+     * @param precomputedLeaves Pre-computed leaves list
+     * @param baseName Base name for memory-mapped node data (must not be null when onDemand=true)
+     * @param onDemand If true, edge weights are computed on-the-fly
+     * @param nnAlgorithm Nearest-neighbour search algorithm (null disables approximation)
+     * @param numNeighbors NN search budget per node (0 means full enumeration)
+     * @param distanceFunction Distance function for edge weight computation
+     * @param symmetric Whether the distance function is symmetric
+     * @throws IOException if memory-mapped node file loading fails
+     */
+    public SerializableDynamicTarjanArborescence(List<ATreeNode> aTreeRoots,
+                                     List<Edge> contractedEdges,
+                                     Map<Integer, Integer> reducedCosts,
+                                     Graph originalGraph,
+                                     Comparator<Edge> edgeComparator,
+                                     UnionFind wccUf,
+                                     UnionFindStronglyConnected sccUf,
+                                     List<TarjanForestNode> precomputedInEdgeNode,
+                                     List<TarjanForestNode> precomputedLeaves,
+                                     String baseName,
+                                     boolean onDemand,
+                                     NearestNeighbourSearchAlgorithm<?> nnAlgorithm,
+                                     int numNeighbors,
+                                     DistanceFunction distanceFunction,
+                                     boolean symmetric) throws IOException {
+        super(aTreeRoots, contractedEdges, reducedCosts, originalGraph,
+              edgeComparator, wccUf, sccUf, precomputedInEdgeNode, precomputedLeaves);
+
+        this.baseName = baseName;
+        this.useMemoryMappedFiles = (baseName != null);
+        this.onDemand = onDemand;
+        this.nnAlgorithm = nnAlgorithm;
+        this.numNeighbors = numNeighbors;
+        this.distanceFunction = distanceFunction;
+        this.symmetric = symmetric;
+
+        int maxNodeId = originalGraph.getNodes().stream().mapToInt(Node::getId).max().orElse(0);
+        this.numExaminedEdges = new int[maxNodeId + 1];
+        if (numNeighbors > 0) {
+            this.prevFailure = new boolean[maxNodeId + 1];
+        }
+
+        if (this.useMemoryMappedFiles) {
+            this.nodeMap = onDemand
+                ? GraphMapper.loadNodeMap(baseName)
+                : GraphMapper.loadNodeIdsOnly(baseName);
             initializeSCCCompositionFromATree(aTreeRoots);
         } else {
             this.sccComposition = new HashMap<>();
@@ -128,6 +208,7 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
               (e1, e2) -> Integer.compare(e1.getWeight(), e2.getWeight()));
         this.useMemoryMappedFiles = false;
         this.sccComposition = new HashMap<>();
+        this.numExaminedEdges = new int[0];
     }
 
     /**
@@ -214,41 +295,88 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
     }
 
     /**
-     * Finds the minimum weight edge entering the SCC of node v, reading from disk.
-     * Skips edges whose source or destination is a virtually removed node.
-     * Skips edges whose source is within the same SCC (intra-SCC edges).
+     * Returns true if running in approximate on-demand mode with nearest-neighbor search.
+     * Mirrors SerializableCameriniForest.isApproximatedOnDemand().
      */
-    private Edge getMinSafeEdge(Node v) throws IOException {
-        int repId = ufSCC.find(v.getId());
-        Set<Integer> nodesInSCC = sccComposition.getOrDefault(repId, Set.of(repId));
+    private boolean isApproximatedOnDemand() {
+        return onDemand && numNeighbors > 0;
+    }
 
+    /**
+     * Initializes numExaminedEdges and prevFailure arrays sized by max node ID.
+     * Must be called after on-demand mode fields are set (numNeighbors in particular).
+     * Uses max node ID rather than node count to handle sparse or non-contiguous IDs safely.
+     */
+    private void initializeArrayFields(Graph graph) {
+        int maxNodeId = graph.getNodes().stream().mapToInt(Node::getId).max().orElse(0);
+        this.numExaminedEdges = new int[maxNodeId + 1];
+        if (this.numNeighbors > 0) {
+            this.prevFailure = new boolean[maxNodeId + 1];
+        }
+    }
+
+    private static Edge buildEdge(Node u, Node v, DistanceFunction distanceFunction) {
+        int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
+        return new Edge(u, v, dist);
+    }
+
+    private Edge getMinSafeEdgeOnDemand(Set<Integer> nodesInSCC) {
         Edge minEdge = null;
-        int[] minRaw = null;
-
         for (Integer nodeId : nodesInSCC) {
-            // Skip loading edges for virtually removed destination nodes
-            if (removedNodes.getOrDefault(nodeId, false)) continue;
 
-            List<Edge> incomingEdges = GraphMapper.getIncomingEdges(baseName, nodeId);
-            for (Edge edge : incomingEdges) {
-                int srcId = edge.getSource().getId();
-                int dstId = edge.getDestination().getId();
+            Node node = nodeMap.get(nodeId);
+            if (numNeighbors > 0 && this.numExaminedEdges[nodeId] < numNeighbors && !prevFailure[sccFind(node).getId()]) {
+                // Compute incoming edges on-the-fly using nearest neighbor search
 
-                // Skip intra-SCC edges
-                if (ufSCC.find(srcId) == ufSCC.find(dstId)) continue;
+                // Slack to add to the number of neighbors, in case the number of examined edges
+                // is already close to the limit, to ensure we get a reasonable number of edges
+                // to examine
+                int slack = numNeighbors - this.numExaminedEdges[nodeId];
+                    
+                // NNSearch
+                @SuppressWarnings("unchecked")
+                List<Point<Object>> neighbors = ((NearestNeighbourSearchAlgorithm<Object>) nnAlgorithm)
+                    .neighbourSearch((Point<Object>) node.getPoint(), numNeighbors + slack);
 
-                // Skip edges from virtually removed sources
-                if (removedNodes.getOrDefault(srcId, false)) continue;
+                for (Point<?> neighbor : neighbors) {
+                    Node otherNode = new Node(neighbor);
+                    if (sccFind(otherNode) == sccFind(node)) {
+                        continue; // Skip edges within the same SCC
+                    }
 
-                int[] raw = new int[]{ edge.getWeight(), srcId, dstId };
-                if (minRaw == null || maxDisjointCmp.compare(raw, minRaw) < 0) {
-                    minRaw = raw;
-                    minEdge = edge;
+                    Edge edge = buildEdge(otherNode, node, distanceFunction);
+                    
+                    // If the new edge's adjusted weight is smaller than the current minimum, update the minimum edge
+                    if (minEdge == null || maxDisjointCmp.compare(new int[]{ edge.getWeight(), edge.getSource().getId(), edge.getDestination().getId() },
+                                            new int[]{ minEdge.getWeight(), minEdge.getSource().getId(), minEdge.getDestination().getId() }) < 0) {
+                        minEdge = edge;
+                    }
+                }
+            }
+            else {
+                // Complete graph. Compute all distances to other nodes
+                for (Node otherNode : nodeMap.values()) {
+                    if (otherNode.getId() != nodeId && sccFind(otherNode) != sccFind(node)) {
+                        Edge edge = buildEdge(otherNode, node, distanceFunction);
+                        if (minEdge == null || maxDisjointCmp.compare(new int[]{ edge.getWeight(), edge.getSource().getId(), edge.getDestination().getId() },
+                                            new int[]{ minEdge.getWeight(), minEdge.getSource().getId(), minEdge.getDestination().getId() }) < 0) {
+                            minEdge = edge;
+                        }
+                    }
                 }
             }
         }
-
         return minEdge;
+    }
+
+
+    private Edge getMinSafeEdge(Node v) throws IOException {
+        Set<Integer> nodesInSCC = sccComposition.getOrDefault(sccFind(v).getId(), Set.of(sccFind(v).getId()));
+        if (onDemand) {
+            return getMinSafeEdgeOnDemand(nodesInSCC);
+        }
+        
+        return GraphMapper.findMinSafeEdgeIncomingToSCC(baseName, ufSCC, nodesInSCC, maxDisjointCmp);    
     }
 
     /**
@@ -268,8 +396,19 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
             }
 
             if (e == null) {
-                rset.add(root);
-                continue;
+                if (isApproximatedOnDemand() && prevFailure != null && !prevFailure[root.getId()]) {
+                    prevFailure[root.getId()] = true;
+                    try {
+                        e = getMinSafeEdge(root);
+                    } catch (IOException retryEx) {
+                        throw new RuntimeException(
+                            "Error accessing memory-mapped files for node " + root.getId(), retryEx);
+                    }
+                }
+                if (e == null) {
+                    rset.add(root);
+                    continue;
+                }
             }
 
             Node u = e.getSource();
@@ -392,6 +531,9 @@ public class SerializableDynamicTarjanArborescence extends DynamicTarjanArboresc
         Graph modifiedGraph = getModifiedGraph();
         GraphMapper.saveGraph(modifiedGraph, mlstLength, baseName);
         saveATreeForest(baseName);
+
+        // Load node map based on current mode
+        this.nodeMap = onDemand ? GraphMapper.loadNodeMap(baseName) : GraphMapper.loadNodeIdsOnly(baseName);
 
         // Initialize sccComposition from ATree state
         initializeSCCCompositionFromATree(getATreeRoots());

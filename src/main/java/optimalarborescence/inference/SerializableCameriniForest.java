@@ -406,23 +406,9 @@ public class SerializableCameriniForest extends CameriniForest {
         return useMemoryMappedFiles;
     }
 
-    private Edge buildEdge(Node u, Node v, DistanceFunction distanceFunction) {
-        if (symmetric) {
-            int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
-            return new Edge(u, v, dist);
-        }
-        else {
-            Edge e;
-            if (u.getPoint().getSequence().getPositionsWithMissingData().size() <= v.getPoint().getSequence().getPositionsWithMissingData().size()) {
-                int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
-                e = new Edge(u, v, dist);
-            }
-            else {
-                int dist = (int) distanceFunction.calculate(v.getPoint().getSequence(), u.getPoint().getSequence());
-                e = new Edge(v, u, dist);
-            }
-            return e;
-        }
+    private static Edge buildEdge(Node u, Node v, DistanceFunction distanceFunction) {
+        int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
+        return new Edge(u, v, dist);
     }
     
     /**

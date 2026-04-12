@@ -2,12 +2,14 @@ package optimalarborescence.inference.dynamic;
 
 import optimalarborescence.datastructure.UnionFind;
 import optimalarborescence.datastructure.UnionFindStronglyConnected;
+import optimalarborescence.distance.DistanceFunction;
 import optimalarborescence.inference.TarjanForestNode;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
 import optimalarborescence.memorymapper.GraphMapper;
 import optimalarborescence.memorymapper.ATreeMapper;
+import optimalarborescence.nearestneighbour.NearestNeighbourSearchAlgorithm;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,6 +33,11 @@ import java.util.Map;
 public class SerializableFullyDynamicArborescence extends FullyDynamicArborescence {
 
     private String baseName;
+    private boolean onDemand = false;
+    private NearestNeighbourSearchAlgorithm<?> nnAlgorithm = null;
+    private int numNeighbors = 0;
+    private DistanceFunction distanceFunction = null;
+    private boolean symmetric = true;
 
     /**
      * Constructor with SerializableDynamicTarjanArborescence for file-based operation.
@@ -87,6 +94,36 @@ public class SerializableFullyDynamicArborescence extends FullyDynamicArborescen
     }
 
     /**
+     * Constructor for loading from memory-mapped files with on-demand edge computation.
+     *
+     * This constructor enables edges to be computed on-the-fly using a distance function
+     * instead of reading pre-stored per-node edge files. When numNeighbors > 0, an
+     * approximate nearest-neighbor search is used first, with automatic fallback to full
+     * neighbor enumeration if no valid safe edge is found.
+     *
+     * @param baseName Base name for memory-mapped files containing the saved state
+     * @param onDemand If true, edge weights are computed on-the-fly
+     * @param nnAlgorithm Nearest-neighbour search algorithm (null disables approximation)
+     * @param numNeighbors NN search budget per node (0 means full enumeration)
+     * @param distanceFunction Distance function for edge weight computation
+     * @param symmetric Whether the distance function is symmetric
+     * @throws IOException if file operations fail
+     */
+    public SerializableFullyDynamicArborescence(String baseName, boolean onDemand,
+            NearestNeighbourSearchAlgorithm<?> nnAlgorithm, int numNeighbors,
+            DistanceFunction distanceFunction, boolean symmetric) throws IOException {
+        this(createMinimalGraph(baseName),
+             loadATreeRoots(baseName),
+             new SerializableDynamicTarjanArborescence(baseName));
+        this.baseName = baseName;
+        this.onDemand = onDemand;
+        this.nnAlgorithm = nnAlgorithm;
+        this.numNeighbors = numNeighbors;
+        this.distanceFunction = distanceFunction;
+        this.symmetric = symmetric;
+    }
+
+    /**
      * Factory override: creates a disk-based SerializableDynamicTarjanArborescence
      * when baseName is set, otherwise falls back to in-memory DynamicTarjanArborescence.
      */
@@ -102,6 +139,18 @@ public class SerializableFullyDynamicArborescence extends FullyDynamicArborescen
             List<TarjanForestNode> precomputedInEdgeNode,
             List<TarjanForestNode> precomputedLeaves) {
         if (baseName != null) {
+            if (onDemand) {
+                try {
+                    return new SerializableDynamicTarjanArborescence(
+                        aTreeRoots, contractedEdges, reducedCosts, originalGraph,
+                        edgeComparator, wccUf, sccUf, precomputedInEdgeNode,
+                        precomputedLeaves, baseName, onDemand, nnAlgorithm,
+                        numNeighbors, distanceFunction, symmetric);
+                } catch (IOException e) {
+                    throw new RuntimeException(
+                        "Error loading node map for on-demand dynamic arborescence", e);
+                }
+            }
             return new SerializableDynamicTarjanArborescence(
                 aTreeRoots, contractedEdges, reducedCosts, originalGraph,
                 edgeComparator, wccUf, sccUf, precomputedInEdgeNode,
