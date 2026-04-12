@@ -364,7 +364,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         }
 
         getGraph().removeEdge(edge);
-        System.out.println("\u001B[35m Removing edge: " + edge + "\u001B[0m");
         if (!this.getCurrentArborescence().contains(edge)) {
 
             ATreeNode contraction = null;
@@ -434,8 +433,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
     }
 
     private DynamicTarjanArborescence addEdgeWithoutInferenceStep(Edge edge) {
-        System.out.println("\u001B[34m Graph prior to edge addition: " + getGraph() + "\u001B[0m");
-        System.out.println("\u001B[35m Adding edge: " + edge + "\u001B[0m");
         getGraph().addEdge(edge);
 
         Node source = edge.getSource();
@@ -478,7 +475,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             // Found a candidate node N which should replace its edge with e_in
             // Determine whether e_in should belong in the "in" cut-set of N
             // by checking if N(source) is in the subtree rooted at N
-            System.out.println("\u001B[36m Candidate for replacement found: " + candidateForRemoval + "\u001B[0m");
             boolean sourceInSubtree = isNodeInSubtree(sourceLeaf, candidateForRemoval);
             
             if (sourceInSubtree) {
@@ -505,24 +501,12 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                     // Note: Must create a new Tarjan instance since it maintains internal state
                     this.currentArborescence = firstStaticInference(this.getGraph());
                 } else {
-                    System.out.println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
                     if (N instanceof ATreeNode) {
-                        System.out.println("Virtually deleting node: " + N);
                         ((ATreeNode) N).setVirtuallyDeleted(true);
-                        System.out.println("Candidate for removal marked as virtually deleted: " + ((ATreeNode) N).isVirtuallyDeleted());
-                    } else {
-                        System.out.println("Candidate for removal is not an ATreeNode, cannot be virtually deleted: " + N);
-                    }
-
-                    // System.out.println("Candidate for removal found: " + candidateForRemoval);
-                    System.out.println("ATree prior to decomposition:");
-                    for (ATreeNode root : this.getRoots()) {
-                        System.out.println(root);
                     }
 
                     // Virtual deletion: recognize G(V', E') without actually removing the edge
                     List<ATreeNode> V = new LinkedList<>(this.getRoots());
-                    System.out.println("V = " + V.stream().map(n -> n.getEdge() != null ? n.getEdge().getDestination().getId() : null).collect(Collectors.toList()));
                     for (ATreeNode root : V) {
                         if (root.getEdge() == removedEdge) {
                             ((ATreeNode) root).setVirtuallyDeleted(true);
@@ -563,7 +547,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         else {
             // No candidate for replacement found
             // Insert edge in the contracted-edges list of the LCA
-            System.out.println("u001B[36m No candidate for replacement found. Adding edge to LCA's contracted edges.\u001B[0m");
             TarjanForestNode lca = destLeaf.LCA(sourceLeaf);
             if (lca instanceof ATreeNode) {
                 ATreeNode lcaATreeNode = (ATreeNode) lca;
@@ -578,7 +561,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
     public List<Edge> addEdge(Edge edge) {
         DynamicTarjanArborescence result = addEdgeWithoutInferenceStep(edge);
         if (result != null) {
-            System.out.println("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
             Graph updatedArborescence = result.inferPhylogeny(this.getGraph());
             this.roots = result.augmentTarjanForestToATree();
             this.currentArborescence = updatedArborescence.getEdges();
@@ -602,10 +584,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
         }
 
         if (needsInference) {
-            // A fresh DTA was created by decompose — its roots are not yet consumed.
-            // Mark v as removed so getAdjustedWeight returns MAX_VALUE for v's edges.
-            // Physical removal happens AFTER inference: the DTA was constructed with v
-            // still in the graph, so sccFind would throw if v is removed prematurely.
             this.camerini.virtuallyRemoveNode(v.getId());
             Graph updatedArborescence = this.camerini.inferPhylogeny(this.getGraph());
             getGraph().removeNode(v);
@@ -614,9 +592,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
                 .filter(e -> e.getSource().getId() != v.getId() && e.getDestination().getId() != v.getId())
                 .collect(Collectors.toList());
         } else {
-            // No arborescence edges were disturbed (all returned null), OR
-            // firstStaticInference already ran (consumed the DTA).
-            // Physical removal must happen before fresh inference so v is excluded.
             getGraph().removeNode(v);
             this.currentArborescence = firstStaticInference(this.getGraph());
         }
@@ -649,10 +624,6 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
             this.roots = this.camerini.augmentTarjanForestToATree();
             this.currentArborescence = updatedArborescence.getEdges();
         } else {
-            // All edges returned null: either firstStaticInference already ran internally
-            // (consumed the DTA), or all edges were non-disruptive. In either case, the new
-            // node still needs at least one edge selected in the arborescence — run fresh
-            // inference to ensure the arborescence includes the new node.
             this.currentArborescence = firstStaticInference(this.getGraph());
         }
 

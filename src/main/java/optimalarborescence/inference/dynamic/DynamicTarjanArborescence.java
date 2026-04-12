@@ -89,28 +89,20 @@ public class DynamicTarjanArborescence extends CameriniForest {
         replaceLeaves(precomputedLeaves);
 
         // Filter roots to SCC representatives to avoid duplicate processing
-        // ATreeRootsToRoots();
         filterRootsToSCCRepresentatives();
 
-        System.out.println("Roots = " + this.roots.stream().map(Node::getId).toList());
         this.aTreeRoots = aTreeRoots != null ? aTreeRoots : new ArrayList<>();
-        System.out.println("ATreeRoots = " + this.aTreeRoots.stream().map(n -> n.getEdge() != null ? n.getEdge().getDestination().getId() : null).toList());
-        printInEdgeNode();
-        printLeaves();
 
         // Pre-populate cycleEdgeNodes from existing ATree state
         populateCycleEdgeNodesFromATree();
-        printCycleEdgeNodes();
 
         // Rebuild max entries from ATree c-node children
         rebuildMaxFromATreeRoots();
-        printMax();
 
         // Pre-merge queues for contracted supernodes so contractionPhase sees all
         // edges entering any cycle member, not just those entering the rep directly.
         preMergeQueuesForSCCs();
 
-        System.out.println("UnionFind SCC: " + ufSCC);
     }
 
     /**
@@ -188,7 +180,6 @@ public class DynamicTarjanArborescence extends CameriniForest {
         if (aTreeRoots == null) return;
 
         this.roots = new ArrayList<>();
-        System.out.println("ATreeRoots = " + aTreeRoots.stream().map(n -> n.getEdge() != null ? n.getEdge().getDestination().getId() : null).toList());
         for (ATreeNode aTreeRoot : aTreeRoots) {
             Edge e = aTreeRoot.getEdge();
             if (e != null) {
@@ -306,20 +297,8 @@ public class DynamicTarjanArborescence extends CameriniForest {
     @Override
     public Graph inferPhylogeny(Graph graph) {
         // Simply run the parent class's algorithm on the modified graph
-        System.out.println("\u001B[35m Graph before inference: " + modifiedGraph + "\u001B[0m");
-        System.out.println("Printing ATree roots before inference:");
-        if (aTreeRoots != null) {
-            for (ATreeNode root : aTreeRoots) {
-                System.out.println("  " + root);
-            }
-        } else {
-            System.out.println("  No ATree roots provided.");
-        }
-        printLeaves();
         Graph result = super.inferPhylogeny(modifiedGraph);
         this.augmentTarjanForestToATree();
-        
-        System.out.println("DynamicTarjanArborescence: completed inference on partially contracted graph");
         
         return result;
     }

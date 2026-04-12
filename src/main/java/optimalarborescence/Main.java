@@ -988,8 +988,6 @@ public class Main {
                     dynamicAlgorithm.addNode(newNode, allEdgesToAdd);
                     allEdgesToAdd.clear(); // Clear for next node
                 }
-                // System.out.println("Adding " + allEdgesToAdd.size() + " edges in batch...");
-                // dynamicAlgorithm.addEdges(allEdgesToAdd);
                 break;
                 
             case REMOVE:
@@ -1001,8 +999,6 @@ public class Main {
                     dynamicAlgorithm.removeNode(nodeToRemove, allEdgesToRemove);
                     allEdgesToRemove.clear(); // Clear for next node
                 }
-                // System.out.println("Removing " + allEdgesToRemove.size() + " edges in batch...");
-                // dynamicAlgorithm.removeEdges(allEdgesToRemove);
                 
                 // Remove nodes from persisted file and the incoming edge files for each of them
                 GraphMapper.removeNodesBatch(nodesToProcess, persistedGraphFile, sequenceLength);

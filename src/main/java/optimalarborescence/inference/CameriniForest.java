@@ -107,57 +107,6 @@ public class CameriniForest extends StaticAlgorithm {
         initializeDataStructures();
     }
 
-    protected void printMax() {
-        System.out.println("Max array:");
-        for (int i = 0; i < max.size(); i++) {
-            Node node = max.get(i);
-            if (node != null) {
-                System.out.println("  Node ID: " + node.getId());
-            } else {
-                System.out.println("  Node ID: null");
-            }
-        }
-    }
-
-    public void printLeaves() {
-        System.out.println("Leaves array:");
-        for (int i = 0; i < leaves.length; i++) {
-            TarjanForestNode node = leaves[i];
-            if (node != null) {
-                System.out.println("\t" + node.toString());
-            } else {
-                System.out.println("  Node ID: " + i + ", Leaf: null");
-            }
-        }
-    }
-
-    protected void printInEdgeNode() {
-        System.out.println("inEdgeNode array:");
-        for (int i = 0; i < inEdgeNode.size(); i++) {
-            TarjanForestNode node = inEdgeNode.get(i);
-            if (node != null) {
-                System.out.println("\t" + node.toString());
-            } else {
-                System.out.println("  Node ID: " + i + ", Edge: null");
-            }
-        }
-    }
-
-    protected void printCycleEdgeNodes() {
-        System.out.println("cycleEdgeNodes:");
-        for (int i = 0; i < cycleEdgeNodes.size(); i++) {
-            List<TarjanForestNode> nodes = cycleEdgeNodes.get(i);
-            if (nodes != null && !nodes.isEmpty()) {
-                System.out.println("  Node ID: " + i);
-                for (TarjanForestNode node : nodes) {
-                    System.out.println("\t" + node.toString());
-                }
-            } else {
-                System.out.println("  Node ID: " + i + ", Cycle Edges: null");
-            }
-        }
-    }
-
     protected void initializeDataStructures() {
         for (Edge e : graph.getEdges()) {
             Node v = e.getDestination();
@@ -314,7 +263,6 @@ public class CameriniForest extends StaticAlgorithm {
             }
             int[] raw = q.extractMin();
             Edge e = new Edge(new Node(raw[1]), new Node(raw[2]), raw[0]);
-            if (e.getDestination().getId() == 2) System.out.println("Processing edge: " + e.getSource().getId() + " -> " + e.getDestination().getId() + " with weight " + e.getWeight());
             while (!emptyQueue(q) && sccFind(e.getSource()) == sccFind(e.getDestination())) {
                 raw = q.extractMin();
                 e = new Edge(new Node(raw[1]), new Node(raw[2]), raw[0]);
@@ -323,7 +271,6 @@ public class CameriniForest extends StaticAlgorithm {
             if (sccFind(e.getSource()) == sccFind(e.getDestination())) {
                 // Both ends of the edge are in the same SCC, skip this edge
                 rset.add(root);
-                if (e.getDestination().getId() == 2) System.out.println("Skipping edge: " + e.getSource().getId() + " -> " + e.getDestination().getId() + " with weight " + e.getWeight() + " because it forms a cycle");
                 continue;
             }
 
@@ -335,10 +282,8 @@ public class CameriniForest extends StaticAlgorithm {
                 // no cycle formed
                 inEdgeNode.set(root.getId(), minNode);
                 wccUnion(u, v);
-                if (e.getDestination().getId() == 2) System.out.println("Adding edge: " + e.getSource().getId() + " -> " + e.getDestination().getId() + " with weight " + e.getWeight());
             }
             else {
-                if (e.getDestination().getId() == 2) System.out.println("Cycle detected when adding edge: " + e.getSource().getId() + " -> " + e.getDestination().getId() + " with weight " + e.getWeight());
                 // store nodes in cycle
                 List<Integer> contractionSet = new ArrayList<>();
                 contractionSet.add(sccFind(v).getId());
@@ -374,7 +319,6 @@ public class CameriniForest extends StaticAlgorithm {
                 int sigma = getAdjustedWeight(maxWeightEdge).intValue();
                 updateReducedCosts(contractionSet, sigma, map);
 
-                System.out.println("Contracting cycle with nodes: " + contractionSet + " and max weight edge: " + maxWeightEdge.toString() + " with adjusted weight " + sigma);
                 for (TarjanForestNode n: edgeNodesInCycle) { // Perform union of the nodes in the cycle
                     sccUnion(n.edge.getSource(), n.edge.getDestination());
                 }
@@ -410,15 +354,11 @@ public class CameriniForest extends StaticAlgorithm {
         TarjanForestNode current = edgeNode;
         while (current != null) {
             current.setRemove(true);
-            System.out.println("\u001B[31mMarking edge " + current.getEdge().toString() + " for removal\u001B[0m");
             // Make all children roots by setting parent to null
             List<TarjanForestNode> children = new ArrayList<>(current.getChildren());
             for (TarjanForestNode child : children) {
                 child.setParent(null);
                 N.add(child);
-                // if (!N.contains(child)) {
-                //     N.add(child);
-                // }
             }
             current = current.getParent();
         }
@@ -426,16 +366,7 @@ public class CameriniForest extends StaticAlgorithm {
 
     protected List<Edge> expansionPhase() {
 
-        System.out.println("\u001B[32m");
         syncMax();
-        printLeaves();
-        printInEdgeNode();
-        printCycleEdgeNodes();
-        printMax();
-        System.out.println("ufSCC: " + ufSCC.toString());
-        System.out.println("\u001B[0m");
-
-
         Set<Integer> R = rset.stream()
             .map(v -> max.get(v.getId()).getId())
             .collect(Collectors.toSet());
@@ -445,12 +376,10 @@ public class CameriniForest extends StaticAlgorithm {
 
         // Process set R first - trace paths from leaves of R nodes
         for (Integer node : R) {
-            System.out.println("\n\nProcessing root node in R: " + node);
             if (leaves[node] != null) {
                 tracePath(leaves[node], N);
             }
         }
-        System.out.println("Finished marking edges for removal\n\n");
 
         // Process set N
         while (!N.isEmpty()) {
@@ -458,22 +387,14 @@ public class CameriniForest extends StaticAlgorithm {
             
             // Skip nodes marked for removal
             if (edgeNode.isRemove() ) {
-                System.out.println("\tSkipping node " + edgeNode.toString() + " because it is marked for removal");
                 continue;
             }
-            else {
-                System.out.println("\tAdding node " + edgeNode.toString() + " to the arborescence");
-            }
-            
             // Add edge to result
             B.add(edgeNode.getEdge());
             
             // Trace path from destination's leaf
             Node v = edgeNode.getEdge().getDestination();
             tracePath(leaves[v.getId()], N);
-            // if (leaves[v.getId()] != null) {
-            //     tracePath(leaves[v.getId()], N);
-            // }
         }
 
         return B;
