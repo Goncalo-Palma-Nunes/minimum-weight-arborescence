@@ -103,4 +103,20 @@ public class UnionFind {
             rank[i] = 1;   // Reset rank to 1
         }
     }
+
+    public void resize(int newSize) {
+        if (newSize >= size) {
+            int[] newParent = new int[newSize + 1];
+            int[] newRank = new int[newSize + 1];
+            System.arraycopy(parent, 0, newParent, 0, size);
+            System.arraycopy(rank, 0, newRank, 0, size);
+            for (int i = size; i <= newSize; i++) {
+                newParent[i] = i; // Each new element is its own parent
+                newRank[i] = 1;   // Each new set has rank 1
+            }
+            parent = newParent;
+            rank = newRank;
+            size = newSize + 1;
+        }
+    }
 }

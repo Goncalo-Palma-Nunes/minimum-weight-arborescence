@@ -383,7 +383,7 @@ public class CameriniForest extends StaticAlgorithm {
                 roots.add(0, rep); // Add representative to roots to be processed again
                 for (Integer node : contractionSet) { // Merge queues involved in the cycle
                     if (rep.getId() != node) {
-                        getQueue(rep).merge(getQueue(getNodes().get(node)));
+                        getQueue(rep).merge(getQueue(new Node(node)));
                     }
                 }
                 updateMax(rep, dst);
