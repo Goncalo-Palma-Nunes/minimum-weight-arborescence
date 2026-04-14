@@ -1,7 +1,12 @@
 package optimalarborescence.inference.dynamic;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.stream.Collectors;
 
 import optimalarborescence.graph.Edge;
 import optimalarborescence.inference.TarjanForestNode;
@@ -36,58 +41,34 @@ public class ATreeNode extends TarjanForestNode {
      * <p>
      * If this is a simple node, this.contractedEdges = null
      * */
-    private List<Edge> contractedEdges; // TODO - removal of edge can be achieved in O(1) time, if we use an endogenous list implementation
+    // private List<Edge> contractedEdges; // TODO - removal of edge can be achieved in O(1) time, if we use an endogenous list implementation
                                         // each edge has associated pointers in the digraph representation, pointing to the next and previous
                                         // elements in the list. See Pollatos (Sec. 4.2) and
                                         // Gabow et al. "Efficient algorithms for finding minimum spanning trees in undirected and directed graphs."
 
-    // Lazy loading support
-    /** Whether children have been loaded from disk (true for in-memory nodes, false for lazy-loaded nodes before first access) */
-    private boolean childrenLoaded = true;
-    
-    /** File offset for this node in the memory-mapped file (null for in-memory nodes) */
-    private Long nodeOffset;
-    
-    /** Base name for memory-mapped files (null for in-memory nodes) */
-    private String baseName;
-    
-    /** Graph nodes map for reconstructing edges during lazy loading (null for in-memory nodes) */
-    private java.util.Map<Integer, optimalarborescence.graph.Node> graphNodes;
 
-    public ATreeNode(Edge edge, int y, ATreeNode parent, List<ATreeNode> children, boolean simpleNode, List<Edge> contractedEdges) {
+    /** Map of contracted vertices (for c-nodes) */
+    private Map<Integer, Integer> contractedVertices;
+
+    /** Whether this node has been virtually deleted by FullyDynamicArborescence's addEdge method */
+    private boolean virtuallyDeleted = false;
+
+    public ATreeNode(Edge edge, int y, ATreeNode parent, List<ATreeNode> children, boolean simpleNode, Map<Integer, Integer> contractedVertices) {
         super(edge);
         this.y = y;
         this.simpleNode = simpleNode;
-        this.contractedEdges = contractedEdges;
+        // this.contractedEdges = contractedEdges;
+        this.contractedVertices = contractedVertices;
+        this.parent = parent;
+        this.children = new ArrayList<>(children);
     }
 
-    public ATreeNode(Edge edge, int y, ATreeNode parent, boolean simpleNode, List<Edge> contractedEdges) {
-        this(edge, y, parent, new ArrayList<>(), simpleNode, contractedEdges);
+    public ATreeNode(Edge edge, int y, ATreeNode parent, boolean simpleNode, Map<Integer, Integer> contractedVertices) {
+        this(edge, y, parent, new ArrayList<>(), simpleNode, contractedVertices);
     }
 
-    public ATreeNode(Edge edge, int y, boolean simpleNode, List<Edge> contractedEdges) {
-        this(edge, y, null, new ArrayList<>(), simpleNode, contractedEdges);
-    }
-
-    /**
-     * Constructor for lazy-loaded ATreeNodes.
-     * Children will be loaded from disk on first access to getATreeChildren().
-     * 
-     * @param edge The edge for this node
-     * @param y Cost of the edge when selected
-     * @param simpleNode Whether this is a simple node or c-node
-     * @param contractedEdges List of contracted edges (for c-nodes)
-     * @param nodeOffset File offset for this node
-     * @param baseName Base name for memory-mapped files
-     * @param graphNodes Map of node IDs to Node objects for edge reconstruction
-     */
-    public ATreeNode(Edge edge, int y, boolean simpleNode, List<Edge> contractedEdges,
-                    long nodeOffset, String baseName, java.util.Map<Integer, optimalarborescence.graph.Node> graphNodes) {
-        this(edge, y, null, new ArrayList<>(), simpleNode, contractedEdges);
-        this.childrenLoaded = false;
-        this.nodeOffset = nodeOffset;
-        this.baseName = baseName;
-        this.graphNodes = graphNodes;
+    public ATreeNode(Edge edge, int y, boolean simpleNode, Map<Integer, Integer> contractedVertices) {
+        this(edge, y, null, new ArrayList<>(), simpleNode, contractedVertices);
     }
 
     public int getCost() {
@@ -98,7 +79,11 @@ public class ATreeNode extends TarjanForestNode {
         this.y = y;
     }
 
-    public ATreeNode getParent() {
+    /**
+     * Returns the parent as an ATreeNode, or null if the parent is not an ATreeNode.
+     * Use this only when you specifically need ATreeNode-typed access to the parent.
+     */
+    public ATreeNode getATreeParent() {
         if (parent instanceof ATreeNode) {
             return (ATreeNode) parent;
         } else {
@@ -128,15 +113,25 @@ public class ATreeNode extends TarjanForestNode {
         return this.edge == null;
     }
 
-    public List<Edge> getContractedEdges() {
-        return contractedEdges;
+    public Map<Integer, Integer> getContractedVertices() {
+        return contractedVertices;
     }
 
-    public void addContractedEdge(Edge edge) {
-        if (this.contractedEdges == null) {
-            this.contractedEdges = new ArrayList<>();
+    public void setContractedVertices(Map<Integer, Integer> contractedVertices) {
+        this.contractedVertices = contractedVertices;
+    }
+
+    public void addContractedEdge(Edge edge) { 
+        if (this.contractedVertices == null) {
+            this.contractedVertices = new HashMap<>();
         }
-        this.contractedEdges.add(edge);
+        // this.contractedVertices.put(edge.getDestination().getId(), edge.getWeight());
+        if (!this.contractedVertices.containsKey(edge.getSource().getId())) {
+            this.contractedVertices.put(edge.getSource().getId(), edge.getSource().getId());
+        }
+        if (!this.contractedVertices.containsKey(edge.getDestination().getId())) {
+            this.contractedVertices.put(edge.getDestination().getId(), edge.getDestination().getId());
+        }
     }
 
     private ATreeNode downCast(TarjanForestNode node) {
@@ -147,36 +142,25 @@ public class ATreeNode extends TarjanForestNode {
         }
     }
 
+    public boolean isVirtuallyDeleted() {
+        return virtuallyDeleted;
+    }
+
+    public void setVirtuallyDeleted(boolean virtuallyDeleted) {
+        this.virtuallyDeleted = virtuallyDeleted;
+    }
+
     public List<ATreeNode> getATreeChildren() {
-        // Lazy load children if not yet loaded
-        if (!childrenLoaded && baseName != null && nodeOffset != null && graphNodes != null) {
-            try {
-                optimalarborescence.memorymapper.ATreeMapper.loadChildren(this, baseName, nodeOffset, graphNodes);
-                childrenLoaded = true;
-            } catch (java.io.IOException e) {
-                throw new RuntimeException("Failed to lazy-load children for node at offset " + nodeOffset, e);
-            }
-        }
-        
         return this.children.stream()
                     .map(this::downCast)
                     .toList();
     }
-    
-    /**
-     * Check if this node supports lazy loading.
-     * @return true if this node was created for lazy loading
-     */
-    public boolean isLazyLoadable() {
-        return nodeOffset != null && baseName != null;
-    }
-    
-    /**
-     * Check if children have been loaded (for lazy-loaded nodes).
-     * @return true if children are loaded or this is not a lazy-loaded node
-     */
-    public boolean areChildrenLoaded() {
-        return childrenLoaded;
+
+
+    public boolean edgeInContractedEdges(Edge edge) {
+        if (this.contractedVertices == null) return false;
+        return this.contractedVertices.containsKey(edge.getSource().getId()) &&
+               this.contractedVertices.containsKey(edge.getDestination().getId());
     }
 
     /** Searches the ATree for a contraction node (c-node) that contains the specified edge.
@@ -188,7 +172,7 @@ public class ATreeNode extends TarjanForestNode {
     public ATreeNode findContractionByEdge(Edge edge, ATreeNode node) {
         if (node == null) return null;
 
-        if (!node.isSimpleNode() && node.getContractedEdges().contains(edge)) return node;
+        if (!node.isSimpleNode() && node.edgeInContractedEdges(edge)) return node;
 
         List<ATreeNode> children = node.children.stream()
                                         .map(this::downCast)
@@ -221,4 +205,101 @@ public class ATreeNode extends TarjanForestNode {
         return null;
     }
 
+    /**
+     * Utility to render an ATreeNode (and its subtree) in a human-readable, recursion-safe form.
+     */
+    public class ATreePrinter {
+
+        public static String toString(ATreeNode root) {
+            return toString(root, 10);
+        }
+
+        public static String toString(ATreeNode root, int maxDepth) {
+            StringBuilder sb = new StringBuilder();
+            Set<ATreeNode> visited = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+            recurse(root, sb, visited, 0, maxDepth);
+            return sb.toString();
+        }
+
+        private static void recurse(ATreeNode node, StringBuilder sb, Set<ATreeNode> visited, int depth, int maxDepth) {
+            if (node == null) return;
+            indent(sb, depth);
+            sb.append(nodeSummary(node)).append('\n');
+
+            if (visited.contains(node)) {
+                indent(sb, depth + 1);
+                sb.append("(already visited)\n");
+                return;
+            }
+            if (depth >= maxDepth) {
+                indent(sb, depth + 1);
+                sb.append("... (max depth)\n");
+                return;
+            }
+
+            visited.add(node);
+
+            List<ATreeNode> children = node.getATreeChildren();
+            if (children == null || children.isEmpty()) {
+                // leaf
+                return;
+            }
+
+            for (ATreeNode child : children) {
+                indent(sb, depth + 1);
+                sb.append("child -> ").append(childSummary(child)).append('\n');
+                recurse(child, sb, visited, depth + 2, maxDepth);
+            }
+        }
+
+        private static String nodeSummary(ATreeNode n) {
+            StringBuilder s = new StringBuilder();
+            Edge e = n.getEdge();
+            if (e == null) {
+                s.append("ATreeNode[root]");
+            } else {
+                s.append("ATreeNode edge=").append(edgeToString(e));
+            }
+            s.append(", cost=").append(n.getCost());
+            s.append(", simple=").append(n.isSimpleNode());
+            s.append(", removed=").append(n.isRemove());
+            s.append(", parent=").append(parentSummary(n));
+            s.append(", virtuallyDeleted=").append(n.isVirtuallyDeleted());
+            if (n.getContractedVertices() != null && !n.getContractedVertices().isEmpty()) {
+                s.append(", contracted=").append(n.getContractedVertices().size());
+            }
+            return s.toString();
+        }
+
+        private static String parentSummary(ATreeNode n) {
+            if (n.getATreeParent() == null) return "null";
+            Edge e = n.getATreeParent().getEdge();
+            if (e == null) return "root";
+            return edgeToString(e); //+ " (cost=" + n.getParent().getCost() + ")";
+        }
+
+        private static String childSummary(ATreeNode n) {
+            Edge e = n.getEdge();
+            if (e == null) return "root";
+            return edgeToString(e) + " (cost=" + n.getCost() + ")";
+        }
+
+        private static String edgeToString(Edge e) {
+            if (e == null) return "null";
+            try {
+                return "(" + e.getSource().getId() + "->" + e.getDestination().getId() + ", w=" + e.getWeight() + ")";
+            } catch (Exception ex) {
+                return e.toString();
+            }
+        }
+
+        private static void indent(StringBuilder sb, int depth) {
+            for (int i = 0; i < depth; i++) sb.append("  ");
+        }
+    }
+
+    @Override
+    public String toString() {
+        return ATreePrinter.toString(this);
+    }
 }

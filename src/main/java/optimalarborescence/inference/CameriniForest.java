@@ -33,7 +33,7 @@ public class CameriniForest extends StaticAlgorithm {
     protected Set<Node> rset;
 
     /** A list of the maximum weight edge for each SCC */
-    private List<Node> max;
+    protected List<Node> max;
 
     /** A list that stores for each representative cycle vertex 𝑣 the list of cycle edge nodes in F */
     protected List<List<TarjanForestNode>> cycleEdgeNodes;
@@ -41,7 +41,7 @@ public class CameriniForest extends StaticAlgorithm {
     /** A union-find data structure to maintain the strongly connected components of 𝐻 */
     protected UnionFindStronglyConnected ufSCC;
 
-    private UnionFind ufWCC;
+    protected UnionFind ufWCC;
 
     protected List<MergeableHeapInterface<int[]>> queues;
 
@@ -153,7 +153,7 @@ public class CameriniForest extends StaticAlgorithm {
         return minNode;
     }
 
-    private List<TarjanForestNode> getCycleEdges(Node v) {
+    protected List<TarjanForestNode> getCycleEdges(Node v) {
         return cycleEdgeNodes.get(sccFind(v).getId());
     }
 
@@ -284,7 +284,6 @@ public class CameriniForest extends StaticAlgorithm {
                 wccUnion(u, v);
             }
             else {
-
                 // store nodes in cycle
                 List<Integer> contractionSet = new ArrayList<>();
                 contractionSet.add(sccFind(v).getId());
@@ -328,12 +327,21 @@ public class CameriniForest extends StaticAlgorithm {
                 roots.add(0, rep); // Add representative to roots to be processed again
                 for (Integer node : contractionSet) { // Merge queues involved in the cycle
                     if (rep.getId() != node) {
-                        getQueue(rep).merge(getQueue(getNodes().get(node)));
+                        getQueue(rep).merge(getQueue(new Node(node)));
                     }
                 }
                 updateMax(rep, dst);
                 // updateMax(dst, rep);
                 cycleEdgeNodes.set(rep.getId(), edgeNodesInCycle);
+            }
+        }
+    }
+
+    private void syncMax() {
+        for (Node node : getNodes()) {
+            Node rep = sccFind(node);
+            if (max.get(node.getId()) != null) {
+                max.set(node.getId(), max.get(rep.getId()));
             }
         }
     }
@@ -351,15 +359,14 @@ public class CameriniForest extends StaticAlgorithm {
             for (TarjanForestNode child : children) {
                 child.setParent(null);
                 N.add(child);
-                // if (!N.contains(child)) {
-                //     N.add(child);
-                // }
             }
             current = current.getParent();
         }
     }
 
     protected List<Edge> expansionPhase() {
+
+        syncMax();
         Set<Integer> R = rset.stream()
             .map(v -> max.get(v.getId()).getId())
             .collect(Collectors.toSet());
@@ -379,19 +386,15 @@ public class CameriniForest extends StaticAlgorithm {
             TarjanForestNode edgeNode = N.remove(0);
             
             // Skip nodes marked for removal
-            if (edgeNode.isRemove()) {
+            if (edgeNode.isRemove() ) {
                 continue;
             }
-            
             // Add edge to result
             B.add(edgeNode.getEdge());
             
             // Trace path from destination's leaf
             Node v = edgeNode.getEdge().getDestination();
             tracePath(leaves[v.getId()], N);
-            // if (leaves[v.getId()] != null) {
-            //     tracePath(leaves[v.getId()], N);
-            // }
         }
 
         return B;

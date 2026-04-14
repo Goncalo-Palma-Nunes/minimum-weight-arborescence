@@ -4,13 +4,14 @@ import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Node;
 import optimalarborescence.inference.dynamic.ATreeNode;
 
+import java.util.HashMap;
+
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -37,16 +38,16 @@ import java.util.Queue;
  *   - parent_offset (8 bytes)
  *   - num_children (4 bytes)
  *   - children_offsets[] (num_children × 8 bytes)
- *   - num_contracted_edges (4 bytes)
- *   - contracted_edges[] (num_contracted_edges × 12 bytes: src, dst, weight)
+ *   - num_contracted_vertices (4 bytes)
+ *   - contracted_vertices[] (num_contracted_vertices × 4 bytes: vertex_id)
  */
 public class ATreeMapper {
-    
-    private static final int BYTES_PER_EDGE = 12; // source(4), dest(4), weight(4)
-    
+
+    private static final int BYTES_PER_VERTEX = 4; // vertex_id(4)
+
     // Fixed-size portion of each node (before variable-length arrays)
-    private static final int NODE_FIXED_SIZE = 32; 
-    // edge_src(4) + edge_dst(4) + edge_weight(4) + cost(4) + parent_offset(8) + num_children(4) + num_contracted(4)
+    private static final int NODE_FIXED_SIZE = 32;
+    // edge_src(4) + edge_dst(4) + edge_weight(4) + cost(4) + parent_offset(8) + num_children(4) + num_contracted_vertices(4)
     
     /**
      * Save an ATree forest to a single memory-mapped file.
@@ -134,10 +135,10 @@ public class ATreeMapper {
             size += children.size() * 8; // 8 bytes per child offset
         }
         
-        // Add space for contracted edges
-        List<Edge> contractedEdges = node.getContractedEdges();
-        if (!node.isSimpleNode() && contractedEdges != null) {
-            size += contractedEdges.size() * BYTES_PER_EDGE;
+        // Add space for contracted vertex IDs
+        Map<Integer, Integer> contractedVertices = node.getContractedVertices();
+        if (!node.isSimpleNode() && contractedVertices != null) {
+            size += contractedVertices.size() * BYTES_PER_VERTEX;
         }
         
         return size;
@@ -165,7 +166,7 @@ public class ATreeMapper {
         mbb.putInt(node.getCost());
         
         // Write parent offset
-        ATreeNode parent = node.getParent();
+        ATreeNode parent = node.getATreeParent();
         long parentOffset = (parent != null && nodeOffsets.containsKey(parent)) 
                           ? nodeOffsets.get(parent) : -1L;
         mbb.putLong(parentOffset);
@@ -183,17 +184,15 @@ public class ATreeMapper {
             }
         }
         
-        // Write contracted edges
-        List<Edge> contractedEdges = node.getContractedEdges();
-        int numContractedEdges = (!node.isSimpleNode() && contractedEdges != null) 
-                                ? contractedEdges.size() : 0;
-        mbb.putInt(numContractedEdges);
-        
-        if (numContractedEdges > 0) {
-            for (Edge contractedEdge : contractedEdges) {
-                mbb.putInt(contractedEdge.getSource().getId());
-                mbb.putInt(contractedEdge.getDestination().getId());
-                mbb.putInt(contractedEdge.getWeight());
+        // Write contracted vertex IDs
+        Map<Integer, Integer> contractedVertices = node.getContractedVertices();
+        int numContractedVertices = (!node.isSimpleNode() && contractedVertices != null)
+                                   ? contractedVertices.size() : 0;
+        mbb.putInt(numContractedVertices);
+
+        if (numContractedVertices > 0) {
+            for (Integer vertexId : contractedVertices.keySet()) {
+                mbb.putInt(vertexId);
             }
         }
     }
@@ -256,158 +255,6 @@ public class ATreeMapper {
     }
     
     /**
-     * Load ATree roots lazily from a memory-mapped file.
-     * Only the root nodes are loaded; their children will be loaded on-demand.
-     * 
-     * @param baseName Base name for input file
-     * @param graphNodes Map of node IDs to Node objects (for edge reconstruction)
-     * @return List of ATree root nodes (with children marked for lazy loading)
-     * @throws IOException if file operations fail
-     */
-    public static List<ATreeNode> loadATreeRootsLazy(String baseName, Map<Integer, Node> graphNodes) 
-            throws IOException {
-        String fileName = baseName + "_atree.dat";
-        
-        try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
-             FileChannel channel = raf.getChannel()) {
-            
-            long fileSize = channel.size();
-            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, fileSize);
-            mbb.order(ByteOrder.nativeOrder());
-            
-            // Read header
-            mbb.getInt(); // numNodes - not needed
-            int numRoots = mbb.getInt();
-            
-            // Read root offsets
-            List<Long> rootOffsets = new ArrayList<>();
-            for (int i = 0; i < numRoots; i++) {
-                rootOffsets.add(mbb.getLong());
-            }
-            
-            // Load only root nodes
-            List<ATreeNode> roots = new ArrayList<>();
-            for (Long rootOffset : rootOffsets) {
-                ATreeNode root = loadSingleNodeLazy(mbb, rootOffset, baseName, graphNodes);
-                if (root != null) {
-                    roots.add(root);
-                }
-            }
-            
-            return roots;
-        }
-    }
-    
-    /**
-     * Load a single node from the file without loading its children.
-     * The node is configured for lazy loading of children.
-     * 
-     * @param mbb Memory-mapped buffer positioned at file start
-     * @param offset Offset of the node to load
-     * @param baseName Base name for the file (stored in node for lazy loading)
-     * @param graphNodes Map of node IDs to Node objects
-     * @return ATreeNode configured for lazy loading of children
-     */
-    private static ATreeNode loadSingleNodeLazy(MappedByteBuffer mbb, long offset,
-                                                String baseName, Map<Integer, Node> graphNodes) {
-        // Position at node start
-        mbb.position((int) offset);
-        
-        // Read fixed-size portion
-        int edgeSrcId = mbb.getInt();
-        int edgeDstId = mbb.getInt();
-        int edgeWeight = mbb.getInt();
-        int cost = mbb.getInt();
-        mbb.getLong(); // parentOffset - skip for roots
-        int numChildren = mbb.getInt();
-        
-        // Skip children offsets
-        mbb.position(mbb.position() + numChildren * 8);
-        
-        // Read contracted edges
-        int numContractedEdges = mbb.getInt();
-        List<Edge> contractedEdges = new ArrayList<>();
-        
-        for (int i = 0; i < numContractedEdges; i++) {
-            int srcId = mbb.getInt();
-            int dstId = mbb.getInt();
-            int weight = mbb.getInt();
-            
-            Node src = graphNodes.get(srcId);
-            Node dst = graphNodes.get(dstId);
-            
-            if (src != null && dst != null) {
-                contractedEdges.add(new Edge(src, dst, weight));
-            }
-        }
-        
-        // Create edge for this node
-        Edge edge = null;
-        if (edgeSrcId != -1 && edgeDstId != -1) {
-            Node src = graphNodes.get(edgeSrcId);
-            Node dst = graphNodes.get(edgeDstId);
-            if (src != null && dst != null) {
-                edge = new Edge(src, dst, edgeWeight);
-            }
-        }
-        
-        // Create node with lazy loading support
-        boolean isSimpleNode = (numContractedEdges == 0);
-        return new ATreeNode(edge, cost, isSimpleNode,
-                           contractedEdges.isEmpty() ? null : contractedEdges,
-                           offset, baseName, graphNodes);
-    }
-    
-    /**
-     * Load the children of a lazy-loaded node.
-     * 
-     * @param parent The parent node whose children should be loaded
-     * @param baseName Base name for the file
-     * @param parentOffset Offset of the parent node in the file
-     * @param graphNodes Map of node IDs to Node objects
-     * @throws IOException if file operations fail
-     */
-    public static void loadChildren(ATreeNode parent, String baseName, long parentOffset,
-                                   Map<Integer, Node> graphNodes) throws IOException {
-        String fileName = baseName + "_atree.dat";
-        
-        try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
-             FileChannel channel = raf.getChannel()) {
-            
-            long fileSize = channel.size();
-            MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, fileSize);
-            mbb.order(ByteOrder.nativeOrder());
-            
-            // Position at parent node
-            mbb.position((int) parentOffset);
-            
-            // Skip to children section
-            mbb.position(mbb.position() + 16); // skip edge data (12) + cost (4)
-            mbb.getLong(); // skip parent offset
-            int numChildren = mbb.getInt();
-            
-            // Read child offsets
-            List<Long> childOffsets = new ArrayList<>();
-            for (int i = 0; i < numChildren; i++) {
-                childOffsets.add(mbb.getLong());
-            }
-            
-            // Load each child as a lazy node
-            List<ATreeNode> children = new ArrayList<>();
-            for (Long childOffset : childOffsets) {
-                ATreeNode child = loadSingleNodeLazy(mbb, childOffset, baseName, graphNodes);
-                if (child != null) {
-                    child.setParent(parent);
-                    children.add(child);
-                }
-            }
-            
-            // Set children on parent
-            parent.setChildren(children);
-        }
-    }
-    
-    /**
      * Find the offset of a node in the loaded nodes map.
      */
     private static long findNodeOffset(Map<Long, ATreeNode> loadedNodes, ATreeNode node) {
@@ -446,23 +293,18 @@ public class ATreeMapper {
             childOffsets.add(mbb.getLong());
         }
         
-        // Read contracted edges
-        int numContractedEdges = mbb.getInt();
-        List<Edge> contractedEdges = new ArrayList<>();
-        
-        for (int i = 0; i < numContractedEdges; i++) {
-            int srcId = mbb.getInt();
-            int dstId = mbb.getInt();
-            int weight = mbb.getInt();
-            
-            Node src = graphNodes.get(srcId);
-            Node dst = graphNodes.get(dstId);
-            
-            if (src != null && dst != null) {
-                contractedEdges.add(new Edge(src, dst, weight));
+        // Read contracted vertex IDs
+        int numContractedVertices = mbb.getInt();
+        Map<Integer, Integer> contractedVertices = null;
+
+        if (numContractedVertices > 0) {
+            contractedVertices = new HashMap<>();
+            for (int i = 0; i < numContractedVertices; i++) {
+                int vertexId = mbb.getInt();
+                contractedVertices.put(vertexId, vertexId);
             }
         }
-        
+
         // Create edge for this node
         Edge edge = null;
         if (edgeSrcId != -1 && edgeDstId != -1) {
@@ -472,11 +314,10 @@ public class ATreeMapper {
                 edge = new Edge(src, dst, edgeWeight);
             }
         }
-        
+
         // Create node (without parent and children initially)
-        boolean isSimpleNode = (numContractedEdges == 0);
-        ATreeNode node = new ATreeNode(edge, cost, isSimpleNode, 
-                                      contractedEdges.isEmpty() ? null : contractedEdges);
+        boolean isSimpleNode = (numContractedVertices == 0);
+        ATreeNode node = new ATreeNode(edge, cost, isSimpleNode, contractedVertices);
         
         // Store in cache
         loadedNodes.put(offset, node);
@@ -507,7 +348,7 @@ public class ATreeMapper {
         int numChildren = mbb.getInt();
         
         // Set parent if not already set
-        if (parentOffset != -1 && node.getParent() == null) {
+        if (parentOffset != -1 && node.getATreeParent() == null) {
             ATreeNode parent = loadedNodes.get(parentOffset);
             if (parent != null) {
                 node.setParent(parent);
@@ -522,7 +363,7 @@ public class ATreeMapper {
             if (child != null) {
                 children.add(child);
                 // Set child's parent to this node if not already set
-                if (child.getParent() == null) {
+                if (child.getATreeParent() == null) {
                     child.setParent(node);
                 }
             }

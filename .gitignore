@@ -53,4 +53,5 @@ database_organism_fetcher.py
 
 # Claude code markdown
 CLAUDE.md
+.claude
 claude*

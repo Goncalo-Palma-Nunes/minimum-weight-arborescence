@@ -76,4 +76,47 @@ public class UnionFind {
             }
         }
     }
+
+
+    /**
+     * Unites the sets containing rep and other, forcing rep to be the root
+     * of the resulting set regardless of rank.
+     *
+     * @param rep The element that should become the representative of the merged set.
+     * @param other The element whose set is merged into rep's set.
+     */
+    public void unionForceRep(int rep, int other) {
+        int rootRep = find(rep);
+        int rootOther = find(other);
+        if (rootRep != rootOther) {
+            parent[rootOther] = rootRep;
+            rank[rootRep] += rank[rootOther];
+        }
+    }
+
+    /**
+     * Clears the UnionFind structure, resetting all elements to be their own parents and ranks to 1.
+     */
+    public void clear() {
+        for (int i = 0; i < size; i++) {
+            parent[i] = i; // Reset each element to be its own parent
+            rank[i] = 1;   // Reset rank to 1
+        }
+    }
+
+    public void resize(int newSize) {
+        if (newSize >= size) {
+            int[] newParent = new int[newSize + 1];
+            int[] newRank = new int[newSize + 1];
+            System.arraycopy(parent, 0, newParent, 0, size);
+            System.arraycopy(rank, 0, newRank, 0, size);
+            for (int i = size; i <= newSize; i++) {
+                newParent[i] = i; // Each new element is its own parent
+                newRank[i] = 1;   // Each new set has rank 1
+            }
+            parent = newParent;
+            rank = newRank;
+            size = newSize + 1;
+        }
+    }
 }
