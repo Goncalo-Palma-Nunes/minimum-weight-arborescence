@@ -602,7 +602,11 @@ public class FullyDynamicArborescence extends OnlineAlgorithm {
     @Override
     public List<Edge> addNode(Node u, List<Edge> edges) {
         if (this.camerini == null || this.getRoots().isEmpty() || this.getCurrentArborescence().isEmpty()) {
-            throw new IllegalArgumentException("Cannot add node: invalid state.");
+            throw new IllegalArgumentException(String.format(
+                "Cannot add node: invalid state (camerini=%s, roots=%d, arborescence=%d). Call inferPhylogeny first.",
+                this.camerini == null ? "null" : "set",
+                this.getRoots().size(),
+                this.getCurrentArborescence().size()));
         }
 
         getGraph().addNode(u);

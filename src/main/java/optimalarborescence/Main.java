@@ -145,7 +145,14 @@ public class Main {
             // NJ always uses the full graph
             numNeighbors = approximatesGraph();
         }
-        List<Point<?>> newPoints = processSequences(sequenceType, inputSequenceFile);
+        int idOffset = 0;
+        if (ADD.equals(operationType) && persistedGraphFile != null) {
+            Map<Integer, Node> existingNodes = GraphMapper.loadNodeMap(persistedGraphFile);
+            if (!existingNodes.isEmpty()) {
+                idOffset = existingNodes.keySet().stream().mapToInt(Integer::intValue).max().getAsInt() + 1;
+            }
+        }
+        List<Point<?>> newPoints = processSequences(sequenceType, inputSequenceFile, idOffset);
         
         // Validate we have enough data points
         if (newPoints.size() < 2) {
@@ -334,7 +341,7 @@ public class Main {
         return " ";
     }
 
-    private static List<Point<?>> processSequences(String sequenceType, String inputFile) {
+    private static List<Point<?>> processSequences(String sequenceType, String inputFile, int idOffset) {
         List<Point<?>> points = new ArrayList<>();
         
         switch (sequenceType) {
@@ -344,7 +351,7 @@ public class Main {
                 List<SequenceTypingData> mlstData = Parser.processedCSVToTypingData(rawMLSTData);
                 for (int i = 0; i < mlstData.size(); i++) {
                     String identifier = Parser.getSTFromProcessedCSVLine(rawMLSTData.get(i));
-                    points.add(new Point<>(i, mlstData.get(i)));
+                    points.add(new Point<>(idOffset + i, mlstData.get(i)));
                 }
                 break;
             case ALLELIC:
@@ -385,7 +392,7 @@ public class Main {
                 List<Node> newNodes = points.stream()
                                             .map(p -> new Node(p.getSequence(), p.getId()))
                                             .toList();
-                addNodesIncrementallyToExactGraph(newNodes, outputFile, points.get(0).getSequence().getLength(), sequenceType, nnAlgorithm);
+                addNodesIncrementallyToExactGraph(newNodes, persistedGraphFile, points.get(0).getSequence().getLength(), sequenceType, nnAlgorithm);
             }
             return persistedGraphFile;
         }
@@ -772,17 +779,17 @@ public class Main {
                 
         // stream and cast dynamicCamerini.getRoots() to List<ATreeNode>
         SerializableFullyDynamicArborescence dynamicAlgorithm = new SerializableFullyDynamicArborescence(persistedGraphFile);
+        dynamicAlgorithm.inferPhylogeny(null); // warm up roots and currentArborescence before any structural changes
         
         switch (operationType) {
             case ADD:
-                // Add nodes to persisted file using batch operation (without edges, they're already computed)
-                GraphMapper.addNodesBatch(nodesToProcess, new HashMap<>(), new HashMap<>(), persistedGraphFile, sequenceLength);
-
+                // Nodes and edges were already written to persistedGraphFile by initializeGraph.
                 // Collect all edges incident to new nodes (both directions), then add in a single batch call
                 List<Edge> allEdgesToAdd = new ArrayList<>();
                 for (Node newNode : nodesToProcess) {
                     allEdgesToAdd.addAll(GraphMapper.getIncomingEdges(persistedGraphFile, newNode.getId()));
                     allEdgesToAdd.addAll(GraphMapper.getOutgoingEdges(persistedGraphFile, newNode.getId()));
+                    System.out.println("Adding node " + newNode.getId() + " with the dynamic algorithm");
                     dynamicAlgorithm.addNode(newNode, allEdgesToAdd);
                     allEdgesToAdd.clear(); // Clear for next node
                 }
@@ -879,7 +886,7 @@ public class Main {
         }
         
         // Load all points from the input file
-        List<Point<?>> allPoints = processSequences(sequenceType, inputSequenceFile);
+        List<Point<?>> allPoints = processSequences(sequenceType, inputSequenceFile, 0);
         
         if (allPoints.size() < 2) {
             throw new IllegalArgumentException("Test mode requires at least 2 points in the input file.");
