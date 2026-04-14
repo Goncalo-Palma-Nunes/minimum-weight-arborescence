@@ -371,6 +371,68 @@ public class EdgeListMapper {
         }
     }
 
+    /** This method assumes that edge arrays are stored by destination ID in ascending order */
+    public static List<Edge> loadEdgeArrayUpToId(String filename, int maxDestId) {
+        try (RandomAccessFile raf = new RandomAccessFile(filename, "r")) {
+
+            FileChannel channel = raf.getChannel();
+            long fileSize = channel.size();
+            long numEdges = (fileSize - HEADER_SIZE) / BYTES_PER_EDGE;
+            
+            List<Edge> edges = new ArrayList<>();
+            if (numEdges == 0) {
+                return edges; // empty array
+            }
+            else if (fileSize < HEADER_SIZE) {
+                throw new IOException("Invalid edge file format");
+            }
+            else if ((fileSize - HEADER_SIZE) % BYTES_PER_EDGE != 0) {
+                throw new IOException("Corrupted edge file: size does not align with edge record size");
+            }
+            
+            long edgesRead = 0;
+            long currentOffset = HEADER_SIZE;
+            
+            while (edgesRead < numEdges) {
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, currentOffset, Math.min(CHUNK_SIZE, fileSize - currentOffset));
+                mbb.order(ByteOrder.nativeOrder());
+                
+                int edgesInChunk = mbb.remaining() / BYTES_PER_EDGE;
+                for (int i = 0; i < edgesInChunk; i++) {
+                    int srcId = mbb.getInt();
+                    int destId = mbb.getInt();
+                    int weight = mbb.getInt();
+                    
+                    if (destId > maxDestId) {
+                        return edges; // stop reading further
+                    }
+                    
+                    Node src = new Node(srcId);
+                    Node dst = new Node(destId);
+                    
+                    edges.add(new Edge(src, dst, weight));
+                    edgesRead++;
+                }
+                
+                currentOffset += mbb.capacity();
+            }
+            
+            return edges;
+        } 
+        catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException("Failed to load edge array from file: " + filename, e);
+        }
+    }
+
+     /**
+     * Write a list of edges to a memory-mapped edge array file. This method overwrites any existing data in the file.
+     * The edges are written in a single batch operation for efficiency.
+     * 
+     * @param filename Path to the edge list file
+     * @param edges List of edges to write to the file
+     * @throws IOException if file operations fail
+     */
     public static void writeEdgeArray(String filename, List<Edge> edges) {
         try (RandomAccessFile raf = new RandomAccessFile(filename, "rw");
              FileChannel channel = raf.getChannel()) {
@@ -596,6 +658,29 @@ public class EdgeListMapper {
         }
         return edges;
     }
+
+    public static List<Edge> getOutgoingEdgesUpToDestId(String filename, int sourceId, int maxDestId) throws IOException {
+        // Get node map
+        String edgeFile = filename;
+        Map<Integer, Node> map = NodeIndexMapper.loadNodes(filename.replace("_edges.dat", "_nodes.dat"));
+
+        List<Edge> edges = new ArrayList<>();
+        // For node in the map
+        for (Node node : map.values()) {
+            if (node.getId() == sourceId || node.getId() > maxDestId) continue;
+            String nodeFileName = edgeFile.replace("_edges.dat", "");
+            nodeFileName += "_edges_node" + node.getId() + ".dat";
+
+            List<Edge> nodeEdges = loadEdgeArray(nodeFileName);
+            for (Edge edge : nodeEdges) {
+                if (edge.getSource().getId() == sourceId) {
+                    edges.add(edge);
+                }
+            }
+        }
+        return edges;
+    }
+
 
     /**
      * Find the minimum weight edge in the file that points to the target node and whose source is in a different strongly connected component.

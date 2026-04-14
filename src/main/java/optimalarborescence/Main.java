@@ -788,8 +788,10 @@ public class Main {
                 List<Edge> allEdgesToAdd = new ArrayList<>();
                 int nodesProcessed = 0;
                 for (Node newNode : nodesToProcess) {
-                    allEdgesToAdd.addAll(GraphMapper.getIncomingEdges(persistedGraphFile, newNode.getId()));
-                    allEdgesToAdd.addAll(GraphMapper.getOutgoingEdges(persistedGraphFile, newNode.getId()));
+                    if (nodesProcessed != 0) {
+                        allEdgesToAdd.addAll(GraphMapper.getIncomingEdgesUpToId(persistedGraphFile, newNode.getId(), nodesProcessed));
+                        allEdgesToAdd.addAll(GraphMapper.getOutgoingEdgesUpToId(persistedGraphFile, newNode.getId(), nodesProcessed));
+                    }
                     System.out.println("Adding node " + newNode.getId() + " with the dynamic algorithm");
                     long startTime = System.currentTimeMillis();
                     dynamicAlgorithm.addNode(newNode, allEdgesToAdd);
