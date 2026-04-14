@@ -786,11 +786,16 @@ public class Main {
                 // Nodes and edges were already written to persistedGraphFile by initializeGraph.
                 // Collect all edges incident to new nodes (both directions), then add in a single batch call
                 List<Edge> allEdgesToAdd = new ArrayList<>();
+                int nodesProcessed = 0;
                 for (Node newNode : nodesToProcess) {
                     allEdgesToAdd.addAll(GraphMapper.getIncomingEdges(persistedGraphFile, newNode.getId()));
                     allEdgesToAdd.addAll(GraphMapper.getOutgoingEdges(persistedGraphFile, newNode.getId()));
                     System.out.println("Adding node " + newNode.getId() + " with the dynamic algorithm");
+                    long startTime = System.currentTimeMillis();
                     dynamicAlgorithm.addNode(newNode, allEdgesToAdd);
+                    nodesProcessed++;
+                    long endTime = System.currentTimeMillis();
+                    logIterationDetails(-1L, endTime - startTime, operationType, 1, nodesProcessed, -1L, outputFile + "_dynamic_camerini_time_log.txt");
                     allEdgesToAdd.clear(); // Clear for next node
                 }
                 break;
