@@ -306,7 +306,7 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
                 
                 if (pointsInBucket != null && !pointsInBucket.isEmpty()) {
                     result.addAll(pointsInBucket.stream()
-                            .filter(p -> p != point && getDistanceFunction().calculate(point.getSequence(), p.getSequence()) <= radius)
+                            .filter(p -> p.getId() != point.getId() && getDistanceFunction().calculate(point.getSequence(), p.getSequence()) <= radius)
                             .filter(p -> !result.contains(p))
                             .limit(numNeighbours - result.size())
                             .collect(Collectors.toList()));

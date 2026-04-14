@@ -202,6 +202,30 @@ public class ParserTest {
         }
     }
 
+    @Test
+    public void testProcessedCSVToTypingDataNormalizesAllMissingRepresentations() {
+        List<Object[]> rawData = new ArrayList<>();
+        rawData.add(new Object[]{"st1", "?", "N", -1L, 0L, "8"});
+
+        List<SequenceTypingData> typingData = Parser.processedCSVToTypingData(rawData);
+
+        assertEquals(1, typingData.size());
+        SequenceTypingData seq = typingData.get(0);
+        assertEquals(5, seq.getLength());
+
+        assertEquals(Long.valueOf(-1L), seq.getElementAt(0));
+        assertEquals(Long.valueOf(-1L), seq.getElementAt(1));
+        assertEquals(Long.valueOf(-1L), seq.getElementAt(2));
+        assertEquals(Long.valueOf(0L), seq.getElementAt(3));
+        assertEquals(Long.valueOf(8L), seq.getElementAt(4));
+
+        assertTrue(seq.isMissingDataAt(0));
+        assertTrue(seq.isMissingDataAt(1));
+        assertTrue(seq.isMissingDataAt(2));
+        assertTrue(seq.isMissingDataAt(3));
+        assertFalse(seq.isMissingDataAt(4));
+    }
+
     private void initializeAllelicProfiles() {
         allelicSequences.add(arcC_1);
         allelicSequences.add(arcC_2);
