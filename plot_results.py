@@ -18,7 +18,11 @@ def detect_type(data):
     return None
 
 
-def plot_files(json_files, output_prefix="plot", title=None):
+def plot_files(json_files, output_prefix="plot", title=None, memory_keys=None, runtime_keys=None):
+    if memory_keys is None:
+        memory_keys = MEMORY_KEYS
+    if runtime_keys is None:
+        runtime_keys = RUNTIME_KEYS
     memory_files = []
     runtime_files = []
 
@@ -38,10 +42,10 @@ def plot_files(json_files, output_prefix="plot", title=None):
         for data in memory_files:
             x = data["timestamps"]
             name = data["name"]
-            for key in MEMORY_KEYS:
+            for key in memory_keys:
                 if key in data:
                     y = [v * BYTES_TO_MIB for v in data[key]]
-                    ax.plot(x, y, label=f"{name} {key}")
+                    ax.plot(x, y, label=f"{name}")# {key}")
         ax.set_xlabel("Timestamp (s)")
         ax.set_ylabel("Memory (MiB)")
         if title is not None:
@@ -59,7 +63,7 @@ def plot_files(json_files, output_prefix="plot", title=None):
         for data in runtime_files:
             x = data["numNodes"]
             name = data["name"]
-            for key in RUNTIME_KEYS:
+            for key in runtime_keys:
                 if key in data:
                     y = [v * MS_TO_MIN for v in data[key]]
                     ax.plot(x, y, label=f"{name} {key}")
@@ -78,12 +82,14 @@ def plot_files(json_files, output_prefix="plot", title=None):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 plot_results.py <file1.json> [file2.json ...] [--output PREFIX] [--title TITLE]")
+        print("Usage: python3 plot_results.py <file1.json> [file2.json ...] [--output PREFIX] [--title TITLE] [--metrics METRIC1 METRIC2 ...]")
         sys.exit(1)
 
     args = sys.argv[1:]
     output_prefix = "plot"
     title = None
+    memory_keys = None
+    runtime_keys = None
 
     if "--output" in args:
         idx = args.index("--output")
@@ -95,7 +101,18 @@ def main():
         title = args[idx + 1]
         args = args[:idx] + args[idx + 2:]
 
-    plot_files(args, output_prefix=output_prefix, title=title)
+    if "--metrics" in args:
+        idx = args.index("--metrics")
+        metrics = []
+        for i in range(idx + 1, len(args)):
+            if args[i].startswith("--"):
+                break
+            metrics.append(args[i])
+        args = args[:idx] + args[idx + 1 + len(metrics):]
+        memory_keys = [m for m in metrics if m in MEMORY_KEYS]
+        runtime_keys = [m for m in metrics if m in RUNTIME_KEYS]
+
+    plot_files(args, output_prefix=output_prefix, title=title, memory_keys=memory_keys, runtime_keys=runtime_keys)
 
 
 if __name__ == "__main__":
