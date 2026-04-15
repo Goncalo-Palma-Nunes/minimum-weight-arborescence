@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 MS_TO_MIN = 1 / (1000 * 60)
 BYTES_TO_MIB = 1 / (1024 * 1024)
 
-MEMORY_KEYS = ["heap_usage", "non_heap_usage", "total_memory"]
+MEMORY_KEYS = ["heap_usage"]#, "non_heap_usage", "total_memory"]
 RUNTIME_KEYS = ["pre_process_times", "Inference time"]
 
 
@@ -18,7 +18,7 @@ def detect_type(data):
     return None
 
 
-def plot_files(json_files, output_prefix="plot"):
+def plot_files(json_files, output_prefix="plot", title=None):
     memory_files = []
     runtime_files = []
 
@@ -44,7 +44,8 @@ def plot_files(json_files, output_prefix="plot"):
                     ax.plot(x, y, label=f"{name} {key}")
         ax.set_xlabel("Timestamp (s)")
         ax.set_ylabel("Memory (MiB)")
-        ax.set_title("Memory Usage")
+        if title is not None:
+            ax.set_title(title)
         ax.legend(fontsize="small", loc="upper left")
         ax.grid(True)
         fig.tight_layout()
@@ -64,7 +65,8 @@ def plot_files(json_files, output_prefix="plot"):
                     ax.plot(x, y, label=f"{name} {key}")
         ax.set_xlabel("Number of nodes (iteration)")
         ax.set_ylabel("Time (minutes)")
-        ax.set_title("Runtime")
+        if title is not None:
+            ax.set_title(title)
         ax.legend(fontsize="small", loc="upper left")
         ax.grid(True)
         fig.tight_layout()
@@ -76,18 +78,24 @@ def plot_files(json_files, output_prefix="plot"):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 plot_results.py <file1.json> [file2.json ...] [--output PREFIX]")
+        print("Usage: python3 plot_results.py <file1.json> [file2.json ...] [--output PREFIX] [--title TITLE]")
         sys.exit(1)
 
     args = sys.argv[1:]
     output_prefix = "plot"
+    title = None
 
     if "--output" in args:
         idx = args.index("--output")
         output_prefix = args[idx + 1]
         args = args[:idx] + args[idx + 2:]
 
-    plot_files(args, output_prefix=output_prefix)
+    if "--title" in args:
+        idx = args.index("--title")
+        title = args[idx + 1]
+        args = args[:idx] + args[idx + 2:]
+
+    plot_files(args, output_prefix=output_prefix, title=title)
 
 
 if __name__ == "__main__":
