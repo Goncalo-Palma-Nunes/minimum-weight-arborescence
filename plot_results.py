@@ -6,6 +6,7 @@ from math import log2
 
 MS_TO_MIN = 1 / (1000 * 60)
 BYTES_TO_MIB = 1 / (1024 * 1024)
+BYTES_TO_GIB = 1 / (1024 * 1024 * 1024)
 
 MEMORY_KEYS = ["heap_usage"]#, "non_heap_usage", "total_memory"]
 RUNTIME_KEYS = ["pre_process_times", "Inference time"]
@@ -23,6 +24,12 @@ def logarithm(n):
         return 0
     return log2(n)
 
+def bytes_to_mib(bytes_value):
+    return bytes_value * BYTES_TO_MIB
+
+def bytes_to_gib(bytes_value):
+    return bytes_value * BYTES_TO_GIB
+
 def transform_x_axis(struct, numNodes_list):
     """Transform x-axis based on complexity function."""
     if struct == "pairingHeap":
@@ -31,7 +38,11 @@ def transform_x_axis(struct, numNodes_list):
         return [n**3 for n in numNodes_list]
 
 
-def plot_files(json_files, output_prefix="plot", title=None, memory_keys=None, runtime_keys=None, struct="stateless"):
+def minutes_to_hours(minutes):
+    return minutes / 60
+
+
+def plot_files(json_files, output_prefix="plot", title=None, memory_keys=None, runtime_keys=None, struct="stateless", time_unit="hours"):
     if memory_keys is None:
         memory_keys = MEMORY_KEYS
     if runtime_keys is None:
@@ -57,7 +68,7 @@ def plot_files(json_files, output_prefix="plot", title=None, memory_keys=None, r
             name = data["name"]
             for key in memory_keys:
                 if key in data:
-                    y = [v * BYTES_TO_MIB for v in data[key]]
+                    y = [bytes_to_mib(v) for v in data[key]]
                     ax.plot(x, y, label=f"{name}")# {key}")
         ax.set_xlabel("Timestamp (s)")
         ax.set_ylabel("Memory (MiB)")
@@ -75,19 +86,27 @@ def plot_files(json_files, output_prefix="plot", title=None, memory_keys=None, r
         fig, ax = plt.subplots(figsize=(10, 6))
         for data in runtime_files:
             x_raw = data["numNodes"]
-            x = transform_x_axis(struct, x_raw)
+            x = x_raw
+            if not "pre_process_times" in data:
+                x = transform_x_axis(struct, x_raw)
             name = data["name"]
             for key in runtime_keys:
                 if key in data:
                     y = [v * MS_TO_MIN for v in data[key]]
-                    ax.plot(x, y, label=f"{name} {key}")
+                    if time_unit == "hours":
+                        print(f"Converting {key} from minutes to hours for {name}")
+                        y = [minutes_to_hours(v) for v in y]
+                    ax.plot(x, y, label=f"{name}") #{key}")
         xlabel = ""
         if struct == "stateless":
             xlabel = "V³"
         else:  # pairingHeap
             xlabel = "V·log(V) + V²"
+        if "pre_process_times" in runtime_keys and len(runtime_keys) == 1:
+            xlabel = "V"
         ax.set_xlabel(xlabel)
-        ax.set_ylabel("Time (minutes)")
+        y_label = "Time (hours)" if time_unit == "hours" else "Time (minutes)"
+        ax.set_ylabel(y_label)
         if title is not None:
             ax.set_title(title)
         ax.legend(fontsize="small", loc="upper left")
@@ -101,7 +120,7 @@ def plot_files(json_files, output_prefix="plot", title=None, memory_keys=None, r
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 plot_results.py <file1.json> [file2.json ...] [--output PREFIX] [--title TITLE] [--metrics METRIC1 METRIC2 ...] [--struct pairingHeap|stateless]")
+        print("Usage: python3 plot_results.py <file1.json> [file2.json ...] [--output PREFIX] [--title TITLE] [--metrics METRIC1 METRIC2 ...] [--struct pairingHeap|stateless] [--time hours|minutes]")
         sys.exit(1)
 
     args = sys.argv[1:]
@@ -110,6 +129,7 @@ def main():
     memory_keys = None
     runtime_keys = None
     struct = "stateless"
+    time_unit = "hours"
 
     if "--output" in args:
         idx = args.index("--output")
@@ -137,7 +157,15 @@ def main():
         struct = args[idx + 1]
         args = args[:idx] + args[idx + 2:]
 
-    plot_files(args, output_prefix=output_prefix, title=title, memory_keys=memory_keys, runtime_keys=runtime_keys, struct=struct)
+    if "--time" in args:
+        idx = args.index("--time")
+        time_unit = args[idx + 1]
+        if time_unit not in ["hours", "minutes"]:
+            print("Error: --time must be 'hours' or 'minutes'")
+            sys.exit(1)
+        args = args[:idx] + args[idx + 2:]
+
+    plot_files(args, output_prefix=output_prefix, title=title, memory_keys=memory_keys, runtime_keys=runtime_keys, struct=struct, time_unit=time_unit)
 
 
 if __name__ == "__main__":
