@@ -2,6 +2,7 @@ import json
 import sys
 import os
 import matplotlib.pyplot as plt
+from math import log2
 
 MS_TO_MIN = 1 / (1000 * 60)
 BYTES_TO_MIB = 1 / (1024 * 1024)
@@ -17,8 +18,20 @@ def detect_type(data):
         return "runtime"
     return None
 
+def logarithm(n):
+    if n <= 0:
+        return 0
+    return log2(n)
 
-def plot_files(json_files, output_prefix="plot", title=None, memory_keys=None, runtime_keys=None):
+def transform_x_axis(struct, numNodes_list):
+    """Transform x-axis based on complexity function."""
+    if struct == "pairingHeap":
+        return [n * logarithm(n) + (n**2) * logarithm(n**2) for n in numNodes_list]
+    else:  # stateless
+        return [n**3 for n in numNodes_list]
+
+
+def plot_files(json_files, output_prefix="plot", title=None, memory_keys=None, runtime_keys=None, struct="stateless"):
     if memory_keys is None:
         memory_keys = MEMORY_KEYS
     if runtime_keys is None:
@@ -61,13 +74,15 @@ def plot_files(json_files, output_prefix="plot", title=None, memory_keys=None, r
     if runtime_files:
         fig, ax = plt.subplots(figsize=(10, 6))
         for data in runtime_files:
-            x = data["numNodes"]
+            x_raw = data["numNodes"]
+            x = transform_x_axis(struct, x_raw)
             name = data["name"]
             for key in runtime_keys:
                 if key in data:
                     y = [v * MS_TO_MIN for v in data[key]]
                     ax.plot(x, y, label=f"{name} {key}")
-        ax.set_xlabel("Number of nodes (iteration)")
+        xlabel = f"Number of nodes (iteration)" if struct == "stateless" else f"Complexity ({struct})"
+        ax.set_xlabel(xlabel)
         ax.set_ylabel("Time (minutes)")
         if title is not None:
             ax.set_title(title)
@@ -82,7 +97,7 @@ def plot_files(json_files, output_prefix="plot", title=None, memory_keys=None, r
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 plot_results.py <file1.json> [file2.json ...] [--output PREFIX] [--title TITLE] [--metrics METRIC1 METRIC2 ...]")
+        print("Usage: python3 plot_results.py <file1.json> [file2.json ...] [--output PREFIX] [--title TITLE] [--metrics METRIC1 METRIC2 ...] [--struct pairingHeap|stateless]")
         sys.exit(1)
 
     args = sys.argv[1:]
@@ -90,6 +105,7 @@ def main():
     title = None
     memory_keys = None
     runtime_keys = None
+    struct = "stateless"
 
     if "--output" in args:
         idx = args.index("--output")
@@ -112,7 +128,12 @@ def main():
         memory_keys = [m for m in metrics if m in MEMORY_KEYS]
         runtime_keys = [m for m in metrics if m in RUNTIME_KEYS]
 
-    plot_files(args, output_prefix=output_prefix, title=title, memory_keys=memory_keys, runtime_keys=runtime_keys)
+    if "--struct" in args:
+        idx = args.index("--struct")
+        struct = args[idx + 1]
+        args = args[:idx] + args[idx + 2:]
+
+    plot_files(args, output_prefix=output_prefix, title=title, memory_keys=memory_keys, runtime_keys=runtime_keys, struct=struct)
 
 
 if __name__ == "__main__":
