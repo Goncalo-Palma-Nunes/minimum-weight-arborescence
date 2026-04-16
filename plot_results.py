@@ -26,7 +26,7 @@ def logarithm(n):
 def transform_x_axis(struct, numNodes_list):
     """Transform x-axis based on complexity function."""
     if struct == "pairingHeap":
-        return [n * logarithm(n) + (n**2) * logarithm(n**2) for n in numNodes_list]
+        return [n * logarithm(n) + (n**2) for n in numNodes_list]
     else:  # stateless
         return [n**3 for n in numNodes_list]
 
@@ -85,7 +85,7 @@ def plot_files(json_files, output_prefix="plot", title=None, memory_keys=None, r
         if struct == "stateless":
             xlabel = "V³"
         else:  # pairingHeap
-            xlabel = "V·log(V) + V²·log(V²)"
+            xlabel = "V·log(V) + V²"
         ax.set_xlabel(xlabel)
         ax.set_ylabel("Time (minutes)")
         if title is not None:
