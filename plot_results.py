@@ -81,7 +81,11 @@ def plot_files(json_files, output_prefix="plot", title=None, memory_keys=None, r
                 if key in data:
                     y = [v * MS_TO_MIN for v in data[key]]
                     ax.plot(x, y, label=f"{name} {key}")
-        xlabel = f"Number of nodes (iteration)" if struct == "stateless" else f"Complexity ({struct})"
+        xlabel = ""
+        if struct == "stateless":
+            xlabel = "V³"
+        else:  # pairingHeap
+            xlabel = "V·log(V) + V²·log(V²)"
         ax.set_xlabel(xlabel)
         ax.set_ylabel("Time (minutes)")
         if title is not None:
