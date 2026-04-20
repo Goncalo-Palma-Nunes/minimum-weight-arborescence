@@ -135,7 +135,9 @@ public class Main {
 
         // Test mode: iteratively add points in batches
         if (operationType.equals(TEST)) {
+            MemoryLogger.start("memory_usage_dynamic.txt");
             runTestMode(sequenceType, inputSequenceFile, outputFile, persistedGraphFile, batchSize, onDemand);
+            MemoryLogger.stop();
             return;
         }
 
@@ -485,6 +487,44 @@ public class Main {
     private static Edge buildEdge(Node u, Node v, String sequenceType, DistanceFunction distanceFunction) {
         int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
         return new Edge(u, v, dist);
+    }
+
+    private static void generateOnDemandGraph(List<Point<?>> points, String outputFile, String sequenceType, NearestNeighbourSearchAlgorithm<?> nnAlgorithm) throws IOException {
+        List<Node> nodes = points.stream()
+                                .map(p -> new Node(p.getSequence(), p.getId()))
+                                .toList();
+        ensureDirectoryExists(outputFile);
+        GraphMapper.saveGraph(nodes, points.get(0).getSequence().getLength(), outputFile);
+
+        if (nnAlgorithm != null) {
+            @SuppressWarnings("unchecked")
+            NearestNeighbourSearchAlgorithm<Object> nnAlgo = (NearestNeighbourSearchAlgorithm<Object>) nnAlgorithm;
+            for (Node node : nodes) {
+                @SuppressWarnings("unchecked")
+                Point<Object> point = (Point<Object>) node.getPoint();
+                nnAlgo.storePoint(point);
+            }
+        }
+    }
+
+    private static void addNodesOnDemand(List<Node> nodesToAdd, String outputFile, String sequenceType, NearestNeighbourSearchAlgorithm<?> nnAlgorithm) throws IOException {
+        // Load existing nodes from file
+        Map<Integer, Node> existingNodeMap = GraphMapper.loadNodeMap(outputFile);
+        List<Node> existingNodes = new ArrayList<>(existingNodeMap.values());
+
+        // Add new nodes to file
+        GraphMapper.addNodesBatch(nodesToAdd, new HashMap<>(), new HashMap<>(), outputFile, existingNodes.get(0).getPoint().getSequence().getLength());
+
+        // Store new nodes in NN algorithm if provided
+        if (nnAlgorithm != null) {
+            @SuppressWarnings("unchecked")
+            NearestNeighbourSearchAlgorithm<Object> nnAlgo = (NearestNeighbourSearchAlgorithm<Object>) nnAlgorithm;
+            for (Node node : nodesToAdd) {
+                @SuppressWarnings("unchecked")
+                Point<Object> point = (Point<Object>) node.getPoint();
+                nnAlgo.storePoint(point);
+            }
+        }
     }
 
 
@@ -992,14 +1032,23 @@ public class Main {
         long startPreProcessTime = System.currentTimeMillis();
         if (isInitial) {
             // Create new graph with initial points using memory-mapped files
-            generateExactGraphIncrementally(points, tempGraphFile, sequenceType, nnAlgorithm);
+            if (onDemand) {
+                generateOnDemandGraph(points, tempGraphFile, sequenceType, nnAlgorithm);
+            }
+            else {
+                generateExactGraphIncrementally(points, tempGraphFile, sequenceType, nnAlgorithm);
+            }
         } else {
             // Add new nodes to existing memory-mapped graph
             List<Node> nodesToAdd = points.stream()
                 .map(p -> new Node(p.getSequence(), p.getId()))
                 .toList();
-
-            addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength, sequenceType, nnAlgorithm);
+            if (onDemand) {
+                addNodesOnDemand(nodesToAdd, tempGraphFile, sequenceType, nnAlgorithm);
+            }
+            else {
+                addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength, sequenceType, nnAlgorithm);
+            }
         }
         long endPreProcessTime = System.currentTimeMillis();
         iterationTimes.set(0, endPreProcessTime - startPreProcessTime);
@@ -1035,15 +1084,28 @@ public class Main {
                                                 int sequenceLength, boolean isInitial) throws IOException {
         SerializableFullyDynamicArborescence dynamicAlgorithm;
         
+        long startPreProcessTime = 0L;
+        long startInferenceTime = 0L;
+        long endInferenceTime = 0L;
+        long endProcessTime = 0L;
         if (isInitial) {
             // Create new graph with initial points using memory-mapped files
+            startPreProcessTime = System.currentTimeMillis();
             generateExactGraphIncrementally(points, tempGraphFile, sequenceType, nnAlgorithm);
 
             // Initialize dynamic algorithm from persisted graph
             dynamicAlgorithm = new SerializableFullyDynamicArborescence(tempGraphFile);
+            endProcessTime = System.currentTimeMillis();
+            startInferenceTime = endProcessTime;
             dynamicAlgorithm.inferPhylogeny(null);
+            endInferenceTime = System.currentTimeMillis();
+
+            logIterationDetails(endProcessTime - startPreProcessTime,
+                 endInferenceTime - startInferenceTime, "add", 
+                 -1, 0, -1, outputFile);
         } else {
             // Load dynamic algorithm from persisted graph
+            startPreProcessTime = System.currentTimeMillis();
             dynamicAlgorithm = new SerializableFullyDynamicArborescence(tempGraphFile);
 
             // Add new nodes to memory-mapped file
@@ -1052,7 +1114,7 @@ public class Main {
                 .toList();
 
             addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength, sequenceType, nnAlgorithm);
-            
+            endProcessTime = System.currentTimeMillis();
             
             // Load node map for edge reconstruction
             // Map<Integer, Node> nodeMap = GraphMapper.loadNodeMap(tempGraphFile);
@@ -1062,7 +1124,12 @@ public class Main {
             for (Node newNode : nodesToAdd) {
                 allEdgesToAdd.addAll(GraphMapper.getIncomingEdges(tempGraphFile, newNode.getId()));
                 allEdgesToAdd.addAll(GraphMapper.getOutgoingEdges(tempGraphFile, newNode.getId()));
+                startInferenceTime = System.currentTimeMillis();
                 dynamicAlgorithm.addNode(newNode, allEdgesToAdd);
+                endInferenceTime = System.currentTimeMillis();
+                logIterationDetails(endProcessTime - startPreProcessTime,
+                    endInferenceTime - startInferenceTime, "add", 
+                    1, newNode.getId(), -1, outputFile);
                 allEdgesToAdd.clear(); // Clear for next node since addNode already adds edges to the algorithm
             }
             // System.out.println("Adding " + allEdgesToAdd.size() + " edges in batch...");

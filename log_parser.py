@@ -12,9 +12,9 @@ def parse_log_file(filepath):
     num_nodes = []
 
     iteration_pattern = re.compile(
-        r"Iteration\s+(\d+).*?Pre-process time \(ms\):\s*(\d+)"
+        r"Iteration\s+(\d+).*?Pre-process time \(ms\):\s*(+?\d+)"
     )
-    inference_pattern = re.compile(r"Inference time \(ms\):\s*(\d+)")
+    inference_pattern = re.compile(r"Inference time \(ms\):\s*(+?\d+)")
 
     with open(filepath, "r") as f:
         lines = f.readlines()
