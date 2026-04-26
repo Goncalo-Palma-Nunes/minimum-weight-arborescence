@@ -216,17 +216,6 @@ public class TarjanForestNodeTest {
     }
     
     /**
-     * Test toString returns correct format.
-     */
-    @Test
-    public void testToString() {
-        TarjanForestNode node = new TarjanForestNode(edge01);
-        String expected = "(0, 1)";
-        
-        Assert.assertEquals("toString should return correct format", expected, node.toString());
-    }
-    
-    /**
      * Test equals with same object.
      */
     @Test

@@ -170,15 +170,15 @@ public class ATreeMapperTest {
         Edge contractedEdge1 = new Edge(graphNodes.get(2), graphNodes.get(3), 4);
         Edge contractedEdge2 = new Edge(graphNodes.get(3), graphNodes.get(4), 2);
         
-        List<Edge> contractedEdges = new ArrayList<>();
-        contractedEdges.add(contractedEdge1);
-        contractedEdges.add(contractedEdge2);
+        Map<Integer, Integer> contractedVertices = new HashMap<>();
+        contractedVertices.put(contractedEdge1.getDestination().getId(), contractedEdge1.getDestination().getId());
+        contractedVertices.put(contractedEdge2.getDestination().getId(), contractedEdge2.getDestination().getId());
         
         // Create root (no edge)
         ATreeNode root = new ATreeNode(null, 0, true, null);
         
         // Create c-node child
-        ATreeNode cNode = new ATreeNode(edge1, 5, root, false, contractedEdges);
+        ATreeNode cNode = new ATreeNode(edge1, 5, root, false, contractedVertices);
         root.setChildren(List.of(cNode));
         
         List<ATreeNode> roots = new ArrayList<>();
@@ -199,19 +199,12 @@ public class ATreeMapperTest {
         ATreeNode loadedCNode = children.get(0);
         
         assertFalse(loadedCNode.isSimpleNode());
-        assertNotNull(loadedCNode.getContractedEdges());
-        assertEquals(2, loadedCNode.getContractedEdges().size());
+        assertNotNull(loadedCNode.getContractedVertices());
+        assertEquals(2, loadedCNode.getContractedVertices().size());
         
-        // Verify contracted edges
-        Edge loaded1 = loadedCNode.getContractedEdges().get(0);
-        assertEquals(2, loaded1.getSource().getId());
-        assertEquals(3, loaded1.getDestination().getId());
-        assertEquals(4, loaded1.getWeight());
-        
-        Edge loaded2 = loadedCNode.getContractedEdges().get(1);
-        assertEquals(3, loaded2.getSource().getId());
-        assertEquals(4, loaded2.getDestination().getId());
-        assertEquals(2, loaded2.getWeight());
+        // Verify contracted vertices
+        assertTrue(loadedCNode.getContractedVertices().containsKey(3));
+        assertTrue(loadedCNode.getContractedVertices().containsKey(4));
     }
     
     /**
@@ -539,14 +532,14 @@ public class ATreeMapperTest {
     @Test
     public void testSaveLoadComplexNodeWith3ContractedEdges() throws IOException {
         // Create contracted edges
-        List<Edge> contractedEdges = new ArrayList<>();
-        contractedEdges.add(new Edge(graphNodes.get(2), graphNodes.get(3), 15));
-        contractedEdges.add(new Edge(graphNodes.get(3), graphNodes.get(4), 20));
-        contractedEdges.add(new Edge(graphNodes.get(4), graphNodes.get(5), 25));
+        Map<Integer, Integer> contractedVertices = new HashMap<>();
+        contractedVertices.put(3, 3);
+        contractedVertices.put(4, 4);
+        contractedVertices.put(5, 5);
         
         // Create a complex root node
         Edge edge = new Edge(graphNodes.get(0), graphNodes.get(1), 30);
-        ATreeNode root = new ATreeNode(edge, 30, false, contractedEdges);
+        ATreeNode root = new ATreeNode(edge, 30, false, contractedVertices);
         
         List<ATreeNode> roots = List.of(root);
         
@@ -564,26 +557,15 @@ public class ATreeMapperTest {
         assertEquals(30, loadedRoot.getCost());
         assertFalse(loadedRoot.isSimpleNode());
         
-        // Verify contracted edges
-        List<Edge> loadedContractedEdges = loadedRoot.getContractedEdges();
-        assertNotNull(loadedContractedEdges);
-        assertEquals(3, loadedContractedEdges.size());
+        // Verify contracted vertices
+        Map<Integer, Integer> loadedContractedVertices = loadedRoot.getContractedVertices();
+        assertNotNull(loadedContractedVertices);
+        assertEquals(3, loadedContractedVertices.size());
         
-        // Check edges (order should be preserved)
-        Edge edge1 = loadedContractedEdges.get(0);
-        assertEquals(2, edge1.getSource().getId());
-        assertEquals(3, edge1.getDestination().getId());
-        assertEquals(15, edge1.getWeight());
-        
-        Edge edge2 = loadedContractedEdges.get(1);
-        assertEquals(3, edge2.getSource().getId());
-        assertEquals(4, edge2.getDestination().getId());
-        assertEquals(20, edge2.getWeight());
-        
-        Edge edge3 = loadedContractedEdges.get(2);
-        assertEquals(4, edge3.getSource().getId());
-        assertEquals(5, edge3.getDestination().getId());
-        assertEquals(25, edge3.getWeight());
+        // Check vertex IDs
+        assertTrue(loadedContractedVertices.containsKey(3));
+        assertTrue(loadedContractedVertices.containsKey(4));
+        assertTrue(loadedContractedVertices.containsKey(5));
     }
     
     /**
@@ -629,9 +611,9 @@ public class ATreeMapperTest {
     @Test
     public void testSaveLoadMixedTreeStructure() throws IOException {
         // Create root (complex node)
-        List<Edge> rootContracted = new ArrayList<>();
-        rootContracted.add(new Edge(graphNodes.get(0), graphNodes.get(1), 5));
-        rootContracted.add(new Edge(graphNodes.get(1), graphNodes.get(2), 6));
+        Map<Integer, Integer> rootContracted = new HashMap<>();
+        rootContracted.put(1, 1);
+        rootContracted.put(2, 2);
         Edge rootEdge = new Edge(graphNodes.get(0), graphNodes.get(2), 100);
         ATreeNode root = new ATreeNode(rootEdge, 100, false, rootContracted);
         
@@ -640,10 +622,10 @@ public class ATreeMapperTest {
         ATreeNode simpleChild = new ATreeNode(simpleChildEdge, 50, true, null);
         simpleChild.setParent(root);
         
-        // Create complex child with contracted edges
-        List<Edge> complexContracted = new ArrayList<>();
-        complexContracted.add(new Edge(graphNodes.get(4), graphNodes.get(5), 10));
-        complexContracted.add(new Edge(graphNodes.get(5), graphNodes.get(6), 15));
+        // Create complex child with contracted vertices
+        Map<Integer, Integer> complexContracted = new HashMap<>();
+        complexContracted.put(5, 5);
+        complexContracted.put(6, 6);
         Edge complexChildEdge = new Edge(graphNodes.get(2), graphNodes.get(4), 75);
         ATreeNode complexChild = new ATreeNode(complexChildEdge, 75, false, complexContracted);
         complexChild.setParent(root);
@@ -672,7 +654,7 @@ public class ATreeMapperTest {
         // Verify root
         assertEquals(100, loadedRoot.getCost());
         assertFalse(loadedRoot.isSimpleNode());
-        assertEquals(2, loadedRoot.getContractedEdges().size());
+        assertEquals(2, loadedRoot.getContractedVertices().size());
         assertEquals(2, loadedRoot.getChildren().size());
         
         // Verify children types
@@ -698,7 +680,7 @@ public class ATreeMapperTest {
             } else {
                 hasComplex = true;
                 assertEquals(75, child.getCost());
-                assertEquals(2, child.getContractedEdges().size());
+                assertEquals(2, child.getContractedVertices().size());
             }
         }
         

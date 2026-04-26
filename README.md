@@ -4,7 +4,7 @@
 
 This repository is part of a master's thesis in Computer Science at Instituto Superior Técnico (University of Lisbon). The thesis' title is "Online methods for analyzing core genomic relationships among 1 billion bacterial pathogens" and it is supervised by professors Alexandre Francisco and Cátia Vaz.
 
-The goal of this thesis is to create a scalable implementation of Edmonds' algorithm for the static minimum weight arborescence problem, as well as a dynamic version of the same algorithm, based on the Augmented Tree data-structure, to efficiently compute and maintain phylogenetic trees for very large graphs.
+The goal of this thesis is to create a scalable implementation of Edmonds' algorithm for the static minimum weight arborescence problem[^1], as well as a dynamic version of the same algorithm, based on the Augmented Tree data-structure[^2], to efficiently compute and maintain phylogenetic trees for very large graphs.
 
 ## Compiling the project
 
@@ -44,7 +44,14 @@ You can also use wild cards to run a set of tests. For example, the following co
 
 ## Accepted file formats
 
-- Fasta files for allelic sequences
-- CSV (with tab delimitors) for typing data
+- Fasta files for sequences of nucleotide bases ('A', 'C', 'G', 'T');
+- CSV (with tab delimitors) for MultiLocus Sequence Typing data.
 
 ## Infering or Updating a Phylogeny
+
+
+
+
+## References:
+[^1]: Edmonds, J. (1967). Optimum branchings. Journal of Research of the National Bureau of Standards Section B Mathematics and Mathematical Physics. https://doi.org/10.6028/JRES.071B.032
+[^2]: Pollatos, G.G., Telelis, O.A., Zissimopoulos, V. (2006). Updating Directed Minimum Cost Spanning Trees. In: Àlvarez, C., Serna, M. (eds) Experimental Algorithms. WEA 2006. Lecture Notes in Computer Science, vol 4007. Springer, Berlin, Heidelberg. https://doi.org/10.1007/11764298_27

@@ -147,11 +147,12 @@ public class FullyDynamicArborescenceInsertionsTest {
             new Edge(nodes.get(2), nodes.get(1), 1),
             new Edge(nodes.get(1), nodes.get(0), 2)
         );
-
-        Assert.assertTrue(isValidArborescence(dynamicAlgorithm.getGraph(), 
-            new Graph(updatedArborescence)));
         int expectedCost = expectedEdgesAfterOptimalInsertion.stream().mapToInt(Edge::getWeight).sum();
         int resultCost = updatedArborescence.stream().mapToInt(Edge::getWeight).sum();
+        printTestResults(updatedArborescence, resultCost, expectedCost);
+
+        Assert.assertTrue("Should be a valid arborescence after optimal edge insertion", isValidArborescence(dynamicAlgorithm.getGraph(), 
+            new Graph(updatedArborescence)));
         Assert.assertEquals("Total cost does not match expected value after optimal edge insertion.",
             expectedCost, resultCost); 
     }
@@ -286,5 +287,14 @@ public class FullyDynamicArborescenceInsertionsTest {
         }
 
         return visited.size() == graph.getNumNodes();
+    }
+
+    private void printTestResults(List<Edge> arborescence, int newCost, int expectedCost) {
+        System.out.println("Current Arborescence:");
+        for (Edge edge : arborescence) {
+            System.out.println(edge);
+        }
+        System.out.println("New cost: " + newCost);
+        System.out.println("Expected cost: " + expectedCost);
     }
 }

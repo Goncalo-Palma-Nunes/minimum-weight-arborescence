@@ -1,8 +1,5 @@
 package optimalarborescence.inference;
 
-import optimalarborescence.datastructure.heap.HeapNode;
-import optimalarborescence.datastructure.heap.MergeableHeapInterface;
-import optimalarborescence.datastructure.heap.PairingHeap;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Node;
@@ -38,7 +35,6 @@ public class SerializableCameriniForest extends CameriniForest {
     private boolean symmetric = true;
     private boolean useMemoryMappedFiles;
     private Map<Integer, Node> nodeMap;
-    private Map<Integer, Boolean> queueInitialized;
     /**
      * Maps SCC representative ID to the set of all node IDs that have been merged into this SCC.
      * Updated during contractionPhase when cycles are detected and nodes are unified.
@@ -71,7 +67,6 @@ public class SerializableCameriniForest extends CameriniForest {
     public SerializableCameriniForest(Graph graph, Comparator<Edge> comparator) {
         super(graph, comparator);
         this.useMemoryMappedFiles = false;
-        this.queueInitialized = new HashMap<>();
         this.sccComposition = new HashMap<>();
         this.numExaminedEdges = new int[graph.getNodes().size()];
         this.prevFailure = new boolean[graph.getNodes().size()];
@@ -95,19 +90,12 @@ public class SerializableCameriniForest extends CameriniForest {
         
         this.baseName = baseName;
         this.useMemoryMappedFiles = true;
-        this.queueInitialized = new HashMap<>();
         this.sccComposition = new HashMap<>();
-        this.numExaminedEdges = new int[graph.getNodes().size()];
-        this.prevFailure = new boolean[graph.getNodes().size()];
-        
-        // Load node map for edge reconstruction during lazy loading
-        this.nodeMap = GraphMapper.loadNodeMap(baseName);
-        
-        // Mark all queues as uninitialized for lazy loading
-        // Note: queues were already created by parent constructor
-        for (int i = 0; i < queues.size(); i++) {
-            queueInitialized.put(i, false);
-        }
+        int maxNodeId0 = graph.getNodes().stream().mapToInt(Node::getId).max().orElse(0);
+        this.numExaminedEdges = new int[maxNodeId0 + 1];
+        this.prevFailure = new boolean[maxNodeId0 + 1];
+
+        this.nodeMap = GraphMapper.loadNodeIdsOnly(baseName);
     }
     
     /**
@@ -123,7 +111,7 @@ public class SerializableCameriniForest extends CameriniForest {
      * @throws IOException if file operations fail
      */
     public SerializableCameriniForest(Comparator<Edge> comparator, String baseName, boolean onDemand, NearestNeighbourSearchAlgorithm<?> nnAlgorithm, int numNeighbors, DistanceFunction distanceFunction, boolean symmetric) throws IOException {
-        super(createMinimalGraph(baseName), comparator);
+        super(createMinimalGraph(baseName, onDemand), comparator);
         
         this.baseName = baseName;
         this.onDemand = onDemand;
@@ -132,34 +120,38 @@ public class SerializableCameriniForest extends CameriniForest {
         this.distanceFunction = distanceFunction;
         this.symmetric = symmetric;
         this.useMemoryMappedFiles = true;
-        this.queueInitialized = new HashMap<>();
         this.sccComposition = new HashMap<>();
-        this.numExaminedEdges = new int[graph.getNodes().size()];
+        int maxNodeId = graph.getNodes().stream().mapToInt(Node::getId).max().orElse(0);
+        this.numExaminedEdges = new int[maxNodeId + 1];
 
         if (numNeighbors > 0) {
-            this.prevFailure = new boolean[graph.getNodes().size()];
+            this.prevFailure = new boolean[maxNodeId + 1];
         }
         
-        // Load node map for edge reconstruction during lazy loading
-        this.nodeMap = GraphMapper.loadNodeMap(baseName);
-        
-        // Mark all queues as uninitialized for lazy loading
-        // Note: queues were already created by parent constructor with empty graph
-        for (int i = 0; i < queues.size(); i++) {
-            queueInitialized.put(i, false);
+        // If onDemand=true: Need full sequences for edge weight computation
+        // If onDemand=false: Only need node IDs (edges pre-computed on disk)
+        if (onDemand) {
+            this.nodeMap = GraphMapper.loadNodeMap(baseName);
+        } else {
+            this.nodeMap = GraphMapper.loadNodeIdsOnly(baseName);
         }
     }
     
     /**
      * Create a minimal graph with only nodes (no edges) from memory-mapped files.
      * This allows the parent constructor to set up data structures without loading edges.
+     * Nodes are loaded with or without sequences depending on whether onDemand mode is enabled.
      * 
      * @param baseName Base name for memory-mapped files
+     * @param onDemand If true, load full sequences; if false, load only IDs
      * @return Graph with nodes but no edges
      * @throws IOException if file operations fail
      */
-    private static Graph createMinimalGraph(String baseName) throws IOException {
-        Map<Integer, Node> nodeMap = GraphMapper.loadNodeMap(baseName);
+    private static Graph createMinimalGraph(String baseName, boolean onDemand) throws IOException {
+        // Load nodes with or without sequences based on whether we need them
+        Map<Integer, Node> nodeMap = onDemand ? 
+            GraphMapper.loadNodeMap(baseName) : 
+            GraphMapper.loadNodeIdsOnly(baseName);
         Graph graph = new Graph(new ArrayList<>());  // Empty edges list
         
         // Add all nodes to the graph
@@ -168,24 +160,6 @@ public class SerializableCameriniForest extends CameriniForest {
         }
         
         return graph;
-    }
-
-    private void clearQueue(MergeableHeapInterface<HeapNode> q, int nodeId) {
-  	    q.clear();
-        queueInitialized.put(nodeId, false);
-    }
-
-
-    private Edge extractMinEdge(MergeableHeapInterface<HeapNode> q) {
-        if (emptyQueue(q)) {
-            return null;
-        }
-        Edge e = q.extractMin().getEdge();
-        while (!emptyQueue(q) && sccFind(e.getSource()) == sccFind(e.getDestination())) {
-            e = q.extractMin().getEdge();
-            this.numExaminedEdges[e.getDestination().getId()]++; // Increment the count of examined edges for the destination node
-        }
-        return e;
     }
 
     private boolean isApproximatedOnDemand() {
@@ -204,27 +178,22 @@ public class SerializableCameriniForest extends CameriniForest {
     private void contractionPhase() {
         while (!roots.isEmpty()) {
                 Node root = roots.remove(0);
-                MergeableHeapInterface<HeapNode> q = getQueue(sccFind(root)); // priority queue of edges entering r
+                Edge e = null;
+                try { e = getMinSafeEdge(root); }
+                catch (IOException ex) { throw new RuntimeException("Error accessing memory-mapped files for node " + root.getId(), ex); }
 
-                if (emptyQueue(q)) {
-                    rset.add(root);
-                    continue;
-                }
-                Edge e = extractMinEdge(q);
+                if (e == null) { // (Equivalent to an "empty queue")
 
-                if (isApproximatedOnDemand() && emptyQueue(q) && sccFind(e.getSource()) == sccFind(e.getDestination())) {
-                    this.prevFailure[root.getId()] = true; // Mark this node as having failed to find an edge in this iteration
-                    clearQueue(q, sccFind(root).getId()); // Clear the queue to free memory and mark for re-initialization
-                    q = getQueue(sccFind(root)); // Re-initialize the queue for this node with the entire list of incoming edges
-                    e = extractMinEdge(q); // Extract the minimum edge again after re-initialization
-                }
+                    if (isApproximatedOnDemand() && !this.prevFailure[root.getId()]) {
 
-
-                if (sccFind(e.getSource()) == sccFind(e.getDestination())) {
-                    // Both ends of the edge are in the same SCC, skip this edge
-                    rset.add(root);
-                    // TODO - dar clear da queue aqui também só por consistência?
-                    continue;
+                        this.prevFailure[root.getId()] = true; // Mark this node as having failed to find an edge in this iteration
+                        try { e = getMinSafeEdge(root); } // Extract the minimum edge considering all neighbors
+                        catch (IOException ex) { throw new RuntimeException("Error accessing memory-mapped files for node " + root.getId(), ex); }
+                    }
+                    if (e == null) { // if it still found nothing or was not running the approximated algorithm
+                        rset.add(root);
+                        continue;
+                    }
                 }
 
                 Node u = e.getSource();
@@ -235,7 +204,6 @@ public class SerializableCameriniForest extends CameriniForest {
                     // no cycle formed
                     inEdgeNode.set(root.getId(), minNode);
                     wccUnion(u, v);
-                    clearQueue(q, sccFind(root).getId()); // Clear the queue to free memory
                 }
                 else {
 
@@ -320,129 +288,72 @@ public class SerializableCameriniForest extends CameriniForest {
                     }
                     
                     roots.add(0, rep); // Add representative to roots to be processed again
-                    for (Integer node : contractionSet) { // Merge queues involved in the cycle
-                        if (rep.getId() != node) {
-                            MergeableHeapInterface<HeapNode> nodeQueue = getQueue(getNodes().get(node));
-                            getQueue(rep).merge(nodeQueue);
-                            // Clear the merged queue to free memory
-                            clearQueue(nodeQueue, node);
-                        }
-                    }
                     updateMax(rep, dst);
                     cycleEdgeNodes.set(rep.getId(), edgeNodesInCycle);
                 }
         }
         
     }
-    
-    /**
-     * Override getQueue to lazily initialize queues on first access.
-     * This loads incoming edges from the memory-mapped file only when needed.
-     * 
-     * @param v The node whose incoming edge queue to retrieve
-     * @return The heap/queue containing incoming edges for node v
-     */
-    @Override
-    protected MergeableHeapInterface<HeapNode> getQueue(Node v) {
-        if (!useMemoryMappedFiles) {
-            // Use parent's implementation for in-memory operation
-            return super.getQueue(v);
-        }
-        
-        int nodeId = v.getId();
-        
-        // Initialize queue on first access
-        if (!queueInitialized.getOrDefault(nodeId, false)) {
-            try {
-                initializeQueueForNode(v);
-                queueInitialized.put(nodeId, true);
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to initialize queue for node " + nodeId, e);
-            }
-        }
-        
-        return queues.get(nodeId);
-    }
-    
-    /**
-     * Initialize the queue for a specific node by loading its incoming edges from disk.
-     * If the node is part of an SCC, loads edges for all nodes in the SCC.
-     * Uses preloaded offset cache and EdgeLoader.
-     * 
-     * @param v The node whose incoming edges to load
-     * @throws IOException if file operations fail
-     */
-    private void initializeQueueForNode(Node v) throws IOException {
-        // Find the SCC representative for this node
-        Node rep = sccFind(v);
-        int repId = rep.getId();
-        
-        // Determine which nodes' edges need to be loaded
-        Set<Integer> nodesToLoad;
-        if (sccComposition.containsKey(repId)) {
-            // This is an SCC representative with merged queues
-            // Load edges for all nodes in this SCC
-            nodesToLoad = sccComposition.get(repId);
-        } else {
-            // This node is not part of any SCC (or is a singleton SCC)
-            // Load only its own edges
-            nodesToLoad = new HashSet<>();
-            nodesToLoad.add(repId);
-        }
-        
-        // Get the queue for the representative (this is the merged queue)
-        MergeableHeapInterface<HeapNode> queue = queues.get(repId);
-        
-        
-        // Load and insert edges for all nodes in the SCC
-        List<Edge> incomingEdges = new ArrayList<>();
-        for (Integer nodeId : nodesToLoad) {
-            // List<Edge> incomingEdges = new ArrayList<>();
-            if (onDemand) {
-                Node node = nodeMap.get(nodeId);
-                if (numNeighbors > 0 && this.numExaminedEdges[nodeId] < numNeighbors && !prevFailure[sccFind(node).getId()]) {
-                    // Compute incoming edges on-the-fly using nearest neighbor search
 
-                    // Slack to add to the number of neighbors, in case the number of examined edges
-                    // is already close to the limit, to ensure we get a reasonable number of edges
-                    // to examine
-                    int slack = numNeighbors - this.numExaminedEdges[nodeId];
+    private Edge getMinSafeEdgeOnDemand(Set<Integer> nodesInSCC) {
+        Edge minEdge = null;
+        for (Integer nodeId : nodesInSCC) {
+
+            Node node = nodeMap.get(nodeId);
+            if (numNeighbors > 0 && this.numExaminedEdges[nodeId] < numNeighbors && !prevFailure[sccFind(node).getId()]) {
+                // Compute incoming edges on-the-fly using nearest neighbor search
+
+                // Slack to add to the number of neighbors, in case the number of examined edges
+                // is already close to the limit, to ensure we get a reasonable number of edges
+                // to examine
+                int slack = numNeighbors - this.numExaminedEdges[nodeId];
                     
-                    // NNSearch
-                    @SuppressWarnings("unchecked")
-                    List<Point<Object>> neighbors = ((NearestNeighbourSearchAlgorithm<Object>) nnAlgorithm)
-                        .neighbourSearch((Point<Object>) node.getPoint(), numNeighbors + slack);
+                // NNSearch
+                @SuppressWarnings("unchecked")
+                List<Point<Object>> neighbors = ((NearestNeighbourSearchAlgorithm<Object>) nnAlgorithm)
+                    .neighbourSearch((Point<Object>) node.getPoint(), numNeighbors + slack);
 
-                    for (Point<?> neighbor : neighbors) {
-                        Node otherNode = new Node(neighbor);
-                        Edge edge = buildEdge(otherNode, node, distanceFunction);
-                        if (edge.getDestination().getId() == nodeId) {
-                            incomingEdges.add(edge);
-                        }
+                this.numExaminedEdges[nodeId] += neighbors.size();
+
+                for (Point<?> neighbor : neighbors) {
+                    Node otherNode = new Node(neighbor);
+                    if (sccFind(otherNode) == sccFind(node)) {
+                        continue; // Skip edges within the same SCC
+                    }
+
+                    Edge edge = buildEdge(otherNode, node, distanceFunction);
+
+                    // If the new edge's adjusted weight is smaller than the current minimum, update the minimum edge
+                    if (minEdge == null || maxDisjointCmp.compare(new int[]{ edge.getWeight(), edge.getSource().getId(), edge.getDestination().getId() },
+                                            new int[]{ minEdge.getWeight(), minEdge.getSource().getId(), minEdge.getDestination().getId() }) < 0) {
+                        minEdge = edge;
                     }
                 }
-                else {
-                    // Complete graph. Compute all distances to other nodes
-                    for (Node otherNode : nodeMap.values()) {
-                        if (otherNode.getId() != nodeId) {
-                            Edge edge = buildEdge(otherNode, node, distanceFunction);
-                            if (edge.getDestination().getId() == nodeId) {
-                                incomingEdges.add(edge);
-                            }
-                        }
-                    }
-                }
-
             }
             else {
-                incomingEdges = GraphMapper.loadIncidentEdges(baseName, nodeId);
-            }
-            
-            // Insert all edges into the representative's queue
-            for (Edge edge : incomingEdges) {
-                queue.insert(new HeapNode(edge, null, null));
+                // Complete graph. Compute all distances to other nodes
+                for (Node otherNode : nodeMap.values()) {
+                    if (otherNode.getId() != nodeId && sccFind(otherNode) != sccFind(node)) {
+                        Edge edge = buildEdge(otherNode, node, distanceFunction);
+                        if (minEdge == null || maxDisjointCmp.compare(new int[]{ edge.getWeight(), edge.getSource().getId(), edge.getDestination().getId() },
+                                            new int[]{ minEdge.getWeight(), minEdge.getSource().getId(), minEdge.getDestination().getId() }) < 0) {
+                            minEdge = edge;
+                        }
+                    }
+                }
             }
         }
+        return minEdge;
+    }
+
+
+    private Edge getMinSafeEdge(Node v) throws IOException {
+        Set<Integer> nodesInSCC = sccComposition.getOrDefault(sccFind(v).getId(), Set.of(sccFind(v).getId()));
+        if (onDemand) {
+            return getMinSafeEdgeOnDemand(nodesInSCC);
+        }
+        
+        return GraphMapper.findMinSafeEdgeIncomingToSCC(baseName, ufSCC, nodesInSCC, maxDisjointCmp);    
     }
     
     /**
@@ -473,19 +384,16 @@ public class SerializableCameriniForest extends CameriniForest {
         
         this.baseName = baseName;
         this.useMemoryMappedFiles = true;
-        this.queueInitialized = new HashMap<>();
         this.sccComposition = new HashMap<>();
         
         // Save graph to memory-mapped files
         GraphMapper.saveGraph(graph, sequenceLength, baseName);
         
-        // Load node map from saved files - TODO acho que não preciso disto
-        this.nodeMap = GraphMapper.loadNodeMap(baseName);
-        
-        // Clear all queues and mark for lazy initialization
-        for (int i = 0; i < queues.size(); i++) {
-            queues.set(i, new PairingHeap(maxDisjointCmp));
-            queueInitialized.put(i, false);
+        // Load node map - only load full sequences if onDemand mode requires them
+        if (onDemand) {
+            this.nodeMap = GraphMapper.loadNodeMap(baseName);
+        } else {
+            this.nodeMap = GraphMapper.loadNodeIdsOnly(baseName);
         }
     }
     
@@ -498,23 +406,9 @@ public class SerializableCameriniForest extends CameriniForest {
         return useMemoryMappedFiles;
     }
 
-    private Edge buildEdge(Node u, Node v, DistanceFunction distanceFunction) {
-        if (symmetric) {
-            int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
-            return new Edge(u, v, dist);
-        }
-        else {
-            Edge e;
-            if (u.getPoint().getSequence().getPositionsWithMissingData().size() <= v.getPoint().getSequence().getPositionsWithMissingData().size()) {
-                int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
-                e = new Edge(u, v, dist);
-            }
-            else {
-                int dist = (int) distanceFunction.calculate(v.getPoint().getSequence(), u.getPoint().getSequence());
-                e = new Edge(v, u, dist);
-            }
-            return e;
-        }
+    private static Edge buildEdge(Node u, Node v, DistanceFunction distanceFunction) {
+        int dist = (int) distanceFunction.calculate(u.getPoint().getSequence(), v.getPoint().getSequence());
+        return new Edge(u, v, dist);
     }
     
     /**
@@ -537,6 +431,9 @@ public class SerializableCameriniForest extends CameriniForest {
     
     @Override
     public Graph inferPhylogeny(Graph graph) {
+        if (!useMemoryMappedFiles) {
+            return super.inferPhylogeny(graph);
+        }
         contractionPhase();
         List<Edge> forest = expansionPhase();
         return new Graph(forest);

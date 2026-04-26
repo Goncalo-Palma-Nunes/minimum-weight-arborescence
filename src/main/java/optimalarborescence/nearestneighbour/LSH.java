@@ -18,8 +18,6 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.JavaSerializer;
 
-import org.apache.commons.math3.util.CombinatoricsUtils;
-
 import optimalarborescence.distance.DistanceFunction;
 import optimalarborescence.distance.HammingDistance;
 import optimalarborescence.sequences.Sequence;
@@ -135,6 +133,29 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
         generateHashes();
     }
 
+    /**
+     * Constructs an LSH instance with the specified number of hash functions and buckets, using the provided highest entropy indices for hash generation.
+     * @param widthConcatenatedHashes 
+     * @param numTables 
+     * @param minHashIndex 
+     * @param maxHashIndex 
+     * @param distanceFunction
+     * @param radius
+     * @param highestEntropyIndices
+     */
+    public LSH(int widthConcatenatedHashes, int numTables, int minHashIndex,
+                int maxHashIndex, DistanceFunction distanceFunction,
+                float radius, List<Integer> highestEntropyIndices) {
+        super(distanceFunction);
+        this.widthConcatenatedHashes = widthConcatenatedHashes;
+        this.numTables = numTables;
+        this.minHashIndex = minHashIndex;
+        this.maxHashIndex = maxHashIndex;
+        this.radius = radius;
+
+        validLSH();
+        generateHashes(highestEntropyIndices);
+    }
 
     private void validLSH() {
         if (widthConcatenatedHashes <= 0 || numTables <= 0 || radius <= 0) {
@@ -146,12 +167,39 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
             throw new IllegalArgumentException("Invalid hash index range.");
         }
 
-        int maxNumTables = (int) (CombinatoricsUtils.factorial(sequenceSize) / 
-                            (CombinatoricsUtils.factorial(widthConcatenatedHashes) * CombinatoricsUtils.factorial(sequenceSize - widthConcatenatedHashes))
-                            );
-        if (numTables > Integer.MAX_VALUE || numTables > maxNumTables) {
+        if (widthConcatenatedHashes > sequenceSize) {
+            throw new IllegalArgumentException("Number of concatenated hashes cannot exceed sequence size.");
+        }
+
+        if (!hasEnoughUniqueHashCombinations(sequenceSize, widthConcatenatedHashes, numTables)) {
             throw new IllegalArgumentException("Too many hash tables.");
         }
+    }
+
+    private static boolean hasEnoughUniqueHashCombinations(int n, int k, int requiredTables) {
+        if (requiredTables <= 0) {
+            return false;
+        }
+        if (k < 0 || k > n) {
+            return false;
+        }
+
+        k = Math.min(k, n - k);
+        if (k == 0) {
+            return requiredTables <= 1;
+        }
+
+        double logRequired = Math.log(requiredTables);
+        double logCombinations = 0.0;
+
+        for (int i = 1; i <= k; i++) {
+            logCombinations += Math.log(n - k + i) - Math.log(i);
+            if (logCombinations >= logRequired) {
+                return true;
+            }
+        }
+
+        return logCombinations >= logRequired;
     }
 
     /****************************************
@@ -185,6 +233,36 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
                 tablesCreated++;
             }
         }
+    }
+
+    private void generateHashes(List<Integer> highestEntropyIndices) {
+        Random r = new Random();
+        r.setSeed(SEED);
+
+        /* Generate numTables concatenated hashes and the respective buckets */
+        Set<Set<Integer>> uniqueHashes = new HashSet<>(); // Used to prevent repeated concatenated hashes
+        int tablesCreated = 0;
+        while (tablesCreated < this.numTables) {
+            Set<Hash<T>> hashes = new TreeSet<>(); // Used to prevent repeated indices within a concatenated hash
+            Set<Integer> indices = new TreeSet<>();
+
+            /* Each concatenated hash is obtained by concatenating widthConcatenatedHashes
+             * hamming hashes uniformly sampled */
+            while (hashes.size() < this.widthConcatenatedHashes) {
+                // sample a random index from the highest entropy indices
+                int index = highestEntropyIndices.get(r.nextInt(highestEntropyIndices.size()));
+                boolean added = hashes.add(new Hash<T>(index)); // TreeSet so it won't add if it is already there
+                if (added) { indices.add(index); }
+            }
+
+            if (!uniqueHashes.contains(indices)) {
+                uniqueHashes.add(indices);
+                concatenatedHashes.add(hashes);
+                tables.add(new Hashtable<>());
+                tablesCreated++;
+            }
+        }
+
     }
 
     private List<T> computeHash(Set<Hash<T>> concatenatedHash, Point<T> p) {
@@ -228,7 +306,7 @@ public class LSH<T> extends NearestNeighbourSearchAlgorithm<T> {
                 
                 if (pointsInBucket != null && !pointsInBucket.isEmpty()) {
                     result.addAll(pointsInBucket.stream()
-                            .filter(p -> p != point && getDistanceFunction().calculate(point.getSequence(), p.getSequence()) <= radius)
+                            .filter(p -> p.getId() != point.getId() && getDistanceFunction().calculate(point.getSequence(), p.getSequence()) <= radius)
                             .filter(p -> !result.contains(p))
                             .limit(numNeighbours - result.size())
                             .collect(Collectors.toList()));

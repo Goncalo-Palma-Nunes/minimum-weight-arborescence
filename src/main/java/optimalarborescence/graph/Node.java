@@ -69,16 +69,24 @@ public class Node implements Serializable, Comparable<Node> {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         Node other = (Node) obj;
-        return this.pointID == other.pointID && ((this.point == null && other.point == null) || this.point.equals(other.point));
+        // If either node is a mock node (point == null), compare by ID only.
+        // Two nodes with the same ID represent the same vertex regardless of profile data.
+        if (this.point == null || other.point == null) {
+            return this.pointID == other.pointID;
+        }
+        return this.pointID == other.pointID && this.point.equals(other.point);
     }
 
     @Override
     public String toString() {
         String neighborStr = neighbors.keySet().stream()
-            .map(n -> n.getMLSTdata().toString())
+            //.filter(n -> n.getPoint() != null && n.getPoint().getSequence() != null)
+            //.map(n -> n.getMLSTdata().toString())
+            .map(n -> "Node" + n.getId()) // Use node IDs for neighbors
             .collect(Collectors.joining(", "));
+
         return "Node {" +
-                "Sequence='" + point.getSequence().toString() + '\'' +
+                "Sequence='" + ((point != null && point.getSequence() != null) ? point.getSequence().toString() : "null") + '\'' +
                 ", neighbors=[" + neighborStr + "]" +
                 ", pointID=" + pointID +
                 " }";

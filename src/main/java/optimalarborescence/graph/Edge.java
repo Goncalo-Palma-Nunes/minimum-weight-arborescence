@@ -83,5 +83,5 @@ public class Edge implements Serializable, Comparable<Edge> {
                this.destination.equals(other.destination) &&
                this.weight == other.weight;
     
-            }
+    }
 }

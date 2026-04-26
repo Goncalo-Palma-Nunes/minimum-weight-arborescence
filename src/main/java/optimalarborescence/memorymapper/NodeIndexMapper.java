@@ -237,6 +237,70 @@ public class NodeIndexMapper {
 
     
     /**
+     * Load only node IDs without sequence data from memory-mapped file.
+     * This is much more memory-efficient when sequence data is not needed
+     * (e.g., when using pre-computed edges from disk).
+     * 
+     * Memory savings: ~50 bytes per node → ~5 MB for 100k nodes vs ~4.8 GB with sequences
+     * 
+     * @param fileName Path to the node data file
+     * @return Map of node ID to lightweight Node object (ID only, no sequence)
+     * @throws IOException if file operations fail
+     */
+    public static Map<Integer, Node> loadNodeIdsOnly(String fileName) throws IOException {
+        Map<Integer, Node> nodeMap = new HashMap<>();
+        
+        try (RandomAccessFile raf = new RandomAccessFile(fileName, "r");
+             FileChannel channel = raf.getChannel()) {
+            
+            long fileSize = channel.size();
+            if (fileSize < HEADER_SIZE) {
+                throw new IOException("Invalid file format: file too small for header");
+            }
+            
+            // Read header to get node count and data structure info
+            MappedByteBuffer headerBuf = channel.map(FileChannel.MapMode.READ_ONLY, 0, HEADER_SIZE);
+            headerBuf.order(ByteOrder.nativeOrder());
+            int numNodes = headerBuf.getInt();
+            int mlstLength = headerBuf.getInt();
+            byte sequenceType = headerBuf.get();
+            
+            int bytesPerElement = (sequenceType == SEQUENCE_TYPE_ALLELIC_PROFILE) ? 1 : Long.BYTES;
+            int entrySize = NODE_ID_BYTES + mlstLength * bytesPerElement;
+            
+            // Read only node IDs, skip sequence data
+            int nodesPerChunk = (int)(MAX_MAPPING_SIZE / entrySize);
+            if (nodesPerChunk == 0) nodesPerChunk = 1;
+            
+            for (int i = 0; i < numNodes; i += nodesPerChunk) {
+                int endIdx = Math.min(i + nodesPerChunk, numNodes);
+                int chunkSize = endIdx - i;
+                
+                long[] bounds = getChunkBounds(i, chunkSize, entrySize, fileSize);
+                long position = bounds[0];
+                long size = bounds[1];
+                
+                MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_ONLY, position, size);
+                mbb.order(ByteOrder.nativeOrder());
+                
+                // Read only node IDs, skip sequence bytes
+                for (int j = i; j < endIdx; j++) {
+                    // Read node ID
+                    int nodeId = mbb.getInt();
+                    
+                    // Skip MLST data - we don't need it
+                    mbb.position(mbb.position() + mlstLength * bytesPerElement);
+                    
+                    // Create lightweight node with ID only (no sequence)
+                    nodeMap.put(nodeId, new Node(nodeId));
+                }
+            }
+        }
+        
+        return nodeMap;
+    }
+    
+    /**
      * Load graph nodes from memory-mapped file.
      * 
      * @param fileName Path to the node data file

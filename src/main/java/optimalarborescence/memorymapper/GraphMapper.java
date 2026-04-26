@@ -3,14 +3,17 @@ package optimalarborescence.memorymapper;
 import optimalarborescence.graph.Edge;
 import optimalarborescence.graph.Graph;
 import optimalarborescence.graph.Node;
+import optimalarborescence.datastructure.UnionFindStronglyConnected;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.HashMap;
+import java.util.function.Consumer;
 
 /**
  * GraphMapper provides high-level methods to save and load entire graphs
@@ -116,6 +119,20 @@ public class GraphMapper {
     public static Map<Integer, Node> loadNodeMap(String baseName) throws IOException {
         String nodeFile = baseName + "_nodes.dat";
         return NodeIndexMapper.loadNodes(nodeFile);
+    }
+    
+    /**
+     * Load only node IDs without sequence data from memory-mapped file.
+     * Much more memory-efficient when sequences are not needed for computation.
+     * Use this when edges are pre-computed and stored on disk.
+     * 
+     * @param baseName Base name for files
+     * @return Map of node ID to lightweight Node object (ID only)
+     * @throws IOException if file operations fail
+     */
+    public static Map<Integer, Node> loadNodeIdsOnly(String baseName) throws IOException {
+        String nodeFile = baseName + "_nodes.dat";
+        return NodeIndexMapper.loadNodeIdsOnly(nodeFile);
     }
     
     
@@ -274,6 +291,18 @@ public class GraphMapper {
         String edgeFile = baseName + "_edges_node" + nodeId + ".dat";
         return EdgeListMapper.loadEdgeArray(edgeFile);
     }
+    
+    /**
+     * Stream edges incident to a specific node directly to a consumer.
+     * 
+     * @param baseName Base name for the graph files
+     * @param nodeId ID of the node whose incident edges to stream
+     * @param edgeConsumer Function to process each edge as it's read
+     */
+    public static void streamIncidentEdges(String baseName, int nodeId, Consumer<Edge> edgeConsumer) {
+        String edgeFile = baseName + "_edges_node" + nodeId + ".dat";
+        EdgeListMapper.streamEdges(edgeFile, edgeConsumer);
+    }
 
     public static void saveArborescence(List<Edge> phylogeny, String baseName) throws IOException {
         String edgeFile = baseName + "_phylogeny_edges.dat";
@@ -288,5 +317,23 @@ public class GraphMapper {
     public static void removeOutgoingEdges(String baseName, int sourceId) throws IOException {
         String edgeFile = baseName + "_edges.dat";
         EdgeListMapper.removeOutgoingEdges(edgeFile, sourceId);
+    }
+
+    public static Edge findMinSafeEdgeIncomingToSCC(String baseName, UnionFindStronglyConnected uf,
+                                                     Set<Integer> sccNodes, Comparator<int[]> cmp) throws IOException {
+        String edgeFile = baseName + "_edges.dat";
+
+        Edge currBest = null;
+        for (Integer nodeId : sccNodes) {
+            Edge e = EdgeListMapper.findMinSafeEdgeInFile(edgeFile, nodeId, uf, cmp);
+            if (e != null) {
+                if (currBest == null || cmp.compare(
+                        new int[]{ e.getWeight(), e.getSource().getId(), e.getDestination().getId() },
+                        new int[]{ currBest.getWeight(), currBest.getSource().getId(), currBest.getDestination().getId() }) < 0) {
+                    currBest = e;
+                }
+            }
+        }
+        return currBest;
     }
 }

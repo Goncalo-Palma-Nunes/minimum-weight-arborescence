@@ -21,8 +21,7 @@ import org.junit.After;
 import org.junit.Test;
 
 /**
- * Tests for lazy ATree loading functionality.
- * Demonstrates Option 4: Lazy ATree loading for consecutive dynamic operations.
+ * Tests for ATree save/load round-trip and dynamic operations after reloading from disk.
  */
 public class LazyATreeLoadingTest {
     private static final String TEST_BASE_NAME = "test_lazy_atree";
@@ -73,115 +72,103 @@ public class LazyATreeLoadingTest {
     }
 
     @Test
-    public void testLazyATreeLoadingAfterSave() throws IOException {
+    public void testATreeLoadingAfterSave() throws IOException {
         // Step 1: Run algorithm in-memory and save state
         List<ATreeNode> roots = new ArrayList<>();
-        SerializableDynamicTarjanArborescence camerini = 
+        SerializableDynamicTarjanArborescence camerini =
             new SerializableDynamicTarjanArborescence(
                 roots, new ArrayList<>(), new HashMap<>(), originalGraph);
-        SerializableFullyDynamicArborescence algo = 
+        SerializableFullyDynamicArborescence algo =
             new SerializableFullyDynamicArborescence(originalGraph, roots, camerini);
 
         algo.inferPhylogeny(originalGraph);
-        System.out.println("After inferPhylogeny, roots size: " + camerini.getATreeRoots().size());
-        
+
         // Enable file-based mode - this saves ATrees AND modified graph
         camerini.setBaseName(TEST_BASE_NAME, MLST_LENGTH);
-        System.out.println("After setBaseName, roots size: " + camerini.getATreeRoots().size());
-        
+
         // Verify ATree file was created
-        Assert.assertTrue("ATree file should exist", 
+        Assert.assertTrue("ATree file should exist",
             Files.exists(Paths.get(TEST_BASE_NAME + "_atree.dat")));
-        
-        // Step 2: Load with lazy ATree loading
-        SerializableDynamicTarjanArborescence lazyAlgo = 
+
+        // Step 2: Load from disk
+        SerializableDynamicTarjanArborescence loadedAlgo =
             new SerializableDynamicTarjanArborescence(TEST_BASE_NAME, MLST_LENGTH, originalGraph);
-        
-        List<ATreeNode> lazyRoots = lazyAlgo.getATreeRoots();
-        System.out.println("After loading, lazyRoots size: " + (lazyRoots != null ? lazyRoots.size() : "null"));
-        
+
+        List<ATreeNode> loadedRoots = loadedAlgo.getATreeRoots();
+
         // Verify roots are loaded
-        Assert.assertNotNull("Roots should be loaded", lazyRoots);
-        Assert.assertTrue("Should have at least one root", lazyRoots.size() > 0);
-        
-        // Verify roots are configured for lazy loading
-        for (ATreeNode root : lazyRoots) {
-            Assert.assertTrue("Root should be lazy-loadable", root.isLazyLoadable());
-            Assert.assertFalse("Children should not be loaded yet", root.areChildrenLoaded());
+        Assert.assertNotNull("Roots should be loaded", loadedRoots);
+        Assert.assertTrue("Should have at least one root", loadedRoots.size() > 0);
+
+        // Verify roots loaded eagerly with their full subtree
+        for (ATreeNode root : loadedRoots) {
+            Assert.assertNotNull("Root should be a valid node", root);
+            if (!root.isSimpleNode()) {
+                Assert.assertFalse("C-node root should have children loaded",
+                    root.getATreeChildren().isEmpty());
+            }
         }
     }
 
     @Test
-    public void testLazyChildrenLoading() throws IOException {
+    public void testEagerChildrenLoading() throws IOException {
         // Step 1: Create and save state
         List<ATreeNode> roots = new ArrayList<>();
-        SerializableDynamicTarjanArborescence camerini = 
+        SerializableDynamicTarjanArborescence camerini =
             new SerializableDynamicTarjanArborescence(
                 roots, new ArrayList<>(), new HashMap<>(), originalGraph);
-        SerializableFullyDynamicArborescence algo = 
+        SerializableFullyDynamicArborescence algo =
             new SerializableFullyDynamicArborescence(originalGraph, roots, camerini);
 
         algo.inferPhylogeny(originalGraph);
         camerini.setBaseName(TEST_BASE_NAME, MLST_LENGTH);
-        
-        // Step 2: Load lazily
-        SerializableDynamicTarjanArborescence lazyAlgo = 
+
+        // Step 2: Load from disk
+        SerializableDynamicTarjanArborescence loadedAlgo =
             new SerializableDynamicTarjanArborescence(TEST_BASE_NAME, MLST_LENGTH, originalGraph);
-        
-        List<ATreeNode> lazyRoots = lazyAlgo.getATreeRoots();
-        
-        // Find a root with children
-        ATreeNode rootWithChildren = null;
-        for (ATreeNode root : lazyRoots) {
-            if (!root.areChildrenLoaded()) {
-                rootWithChildren = root;
-                break;
-            }
-        }
-        
-        if (rootWithChildren != null) {
-            // Access children - should trigger lazy loading
-            rootWithChildren.getATreeChildren(); // Triggers lazy loading
-            
-            // Verify children are now loaded
-            Assert.assertTrue("Children should be loaded after access", 
-                rootWithChildren.areChildrenLoaded());
+
+        List<ATreeNode> loadedRoots = loadedAlgo.getATreeRoots();
+
+        // All children should already be available after eager loading
+        for (ATreeNode root : loadedRoots) {
+            List<ATreeNode> children = root.getATreeChildren();
+            Assert.assertNotNull("Children list should not be null", children);
         }
     }
 
     @Test
-    public void testDynamicOperationsWithLazyATrees() throws IOException {
+    public void testDynamicOperationsWithReloadedATrees() throws IOException {
         // Step 1: Create initial solution and save
         List<ATreeNode> roots = new ArrayList<>();
-        SerializableDynamicTarjanArborescence camerini = 
+        SerializableDynamicTarjanArborescence camerini =
             new SerializableDynamicTarjanArborescence(
                 roots, new ArrayList<>(), new HashMap<>(), originalGraph);
-        SerializableFullyDynamicArborescence dynamic = 
+        SerializableFullyDynamicArborescence dynamic =
             new SerializableFullyDynamicArborescence(originalGraph, roots, camerini);
 
         dynamic.inferPhylogeny(originalGraph);
         camerini.setBaseName(TEST_BASE_NAME, MLST_LENGTH);
-        
+
         int initialCost = dynamic.getCurrentArborescence().stream()
             .mapToInt(Edge::getWeight).sum();
-        
-        // Step 2: Perform dynamic operation (this will trigger lazy loading of affected ATrees)
+
+        // Step 2: Perform dynamic operation (this will use reloaded ATrees)
         List<Edge> resultAfterDelete = dynamic.removeEdge(edges.get(5)); // Remove 3->2
         int costAfterDelete = resultAfterDelete.stream().mapToInt(Edge::getWeight).sum();
-        
+
         // Verify operation succeeded
         Assert.assertNotEquals("Cost should change after deletion", initialCost, costAfterDelete);
         Assert.assertEquals("Should still have 3 edges", 3, resultAfterDelete.size());
     }
 
     @Test
-    public void testInMemoryVsLazyATreeConsistency() throws IOException {
+    public void testInMemoryVsReloadedATreeConsistency() throws IOException {
         // Test 1: Completely in-memory
         List<ATreeNode> roots1 = new ArrayList<>();
-        SerializableDynamicTarjanArborescence inMemoryCamerini = 
+        SerializableDynamicTarjanArborescence inMemoryCamerini =
             new SerializableDynamicTarjanArborescence(
                 roots1, new ArrayList<>(), new HashMap<>(), originalGraph);
-        SerializableFullyDynamicArborescence inMemoryDynamic = 
+        SerializableFullyDynamicArborescence inMemoryDynamic =
             new SerializableFullyDynamicArborescence(originalGraph, roots1, inMemoryCamerini);
 
         inMemoryDynamic.inferPhylogeny(originalGraph);
@@ -189,16 +176,16 @@ public class LazyATreeLoadingTest {
         int inMemoryCost = inMemoryDynamic.getCurrentArborescence().stream()
             .mapToInt(Edge::getWeight).sum();
 
-        // Test 2: With lazy ATree loading
+        // Test 2: With ATree save/reload
         List<ATreeNode> roots2 = new ArrayList<>();
-        SerializableDynamicTarjanArborescence hybridCamerini = 
+        SerializableDynamicTarjanArborescence hybridCamerini =
             new SerializableDynamicTarjanArborescence(
                 roots2, new ArrayList<>(), new HashMap<>(), originalGraph);
-        SerializableFullyDynamicArborescence hybridDynamic = 
+        SerializableFullyDynamicArborescence hybridDynamic =
             new SerializableFullyDynamicArborescence(originalGraph, roots2, hybridCamerini);
 
         hybridDynamic.inferPhylogeny(originalGraph);
-        hybridCamerini.setBaseName(TEST_BASE_NAME, MLST_LENGTH); // Enable lazy loading
+        hybridCamerini.setBaseName(TEST_BASE_NAME, MLST_LENGTH); // Save to disk
         hybridDynamic.removeEdge(edges.get(5)); // Remove 3->2
         int hybridCost = hybridDynamic.getCurrentArborescence().stream()
             .mapToInt(Edge::getWeight).sum();

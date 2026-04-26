@@ -118,12 +118,7 @@ public class Parser {
                 Object[] typingDataSequence = new Object[nextRecord.length];
                 typingDataSequence[0] = sequenceType.trim();
                 for (int i = 1; i < nextRecord.length; i++) {
-                    // check if record can be parsed to long
-                    try {
-                        typingDataSequence[i] = Long.parseLong(nextRecord[i]);
-                    } catch (NumberFormatException e) {
-                        typingDataSequence[i] = -1L; // or any other default value for missing data
-                    }
+                    typingDataSequence[i] = SequenceTypingData.normalizeAlleleValue(nextRecord[i]);
                 }
                 typingDataList.add(typingDataSequence);
             }
@@ -150,7 +145,7 @@ public class Parser {
             // Extract only the allelic columns (skip ST at index 0)
             Long[] alleles = new Long[fullArray.length - 1];
             for (int j = 1; j < fullArray.length; j++) {
-                alleles[j - 1] = (Long) fullArray[j];
+                alleles[j - 1] = SequenceTypingData.normalizeAlleleValue(fullArray[j]);
             }
             typingDataList.add(new SequenceTypingData(alleles, alleles.length));
         }
@@ -190,16 +185,7 @@ public class Parser {
                 Long[] alleles = new Long[nextRecord.length - 1];
                 
                 for (int i = 1; i < nextRecord.length; i++) {
-                    // Check if the value is '?' (missing data)
-                    if (nextRecord[i].trim().equals("?")) {
-                        alleles[i - 1] = -1L; // Use -1 to represent missing data
-                    } else {
-                        try {
-                            alleles[i - 1] = Long.parseLong(nextRecord[i].trim());
-                        } catch (NumberFormatException e) {
-                            alleles[i - 1] = -1L; // Use -1 for any unparseable data
-                        }
-                    }
+                    alleles[i - 1] = SequenceTypingData.normalizeAlleleValue(nextRecord[i]);
                 }
                 
                 typingDataList.add(new SequenceTypingData(alleles, alleles.length));
