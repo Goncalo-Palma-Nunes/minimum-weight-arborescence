@@ -465,22 +465,12 @@ public class Main {
 
 
         System.out.println("Building LSH with default parameters: comparing the " + 1300 + " highest entropy positions, using 1 hash table, and a maximum distance of 1671).");
-        int numComparedPositions = 1300;
-        int numHashTables = 1;
+        int numHashParameters = 1300;
+        int numHashes = 1;
         int maxDistance = 1671;
         DistanceFunction distanceFunction = SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance();
-        List<Integer> highestEntropyIndices;
-        try {
-            highestEntropyIndices = EntropyParser.parseTopEntropies("/scratch/gn/entropy_sorted.json", numComparedPositions);
-        }
-        catch (IOException e) {
-            highestEntropyIndices = new ArrayList<>();
-            for (int i = 0; i < numComparedPositions; i++) {
-                highestEntropyIndices.add(i);
-            }
-        }
 
-        return new LSH<>(numComparedPositions, numHashTables, 0, sequenceLength - 1, distanceFunction, maxDistance, highestEntropyIndices);
+        return new LSH<>(numHashParameters, numHashes, 0, sequenceLength - 1, distanceFunction, maxDistance);
     }
 
 
