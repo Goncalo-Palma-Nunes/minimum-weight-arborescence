@@ -148,6 +148,10 @@ public class GraphMapper {
         return EdgeListMapper.loadEdgeArray(baseName + "_edges_node" + nodeId + ".dat");
     }
 
+    public static List<Edge> getIncomingEdgesUpToId(String baseName, int nodeId, int maxSourceId) throws IOException {
+        return EdgeListMapper.loadEdgeArrayUpToId(baseName + "_edges_node" + nodeId + ".dat", maxSourceId);
+    }
+
     /**
      * Add a single node and its incident edges to the graph files.
      *
@@ -312,6 +316,11 @@ public class GraphMapper {
     public static List<Edge> getOutgoingEdges(String baseName, int sourceId) throws IOException {
         String edgeFile = baseName + "_edges.dat";
         return EdgeListMapper.getOutgoingEdges(edgeFile, sourceId);
+    }
+
+    public static List<Edge> getOutgoingEdgesUpToId(String baseName, int sourceId, int maxDestId) throws IOException {
+        String edgeFile = baseName + "_edges.dat";
+        return EdgeListMapper.getOutgoingEdgesUpToDestId(edgeFile, sourceId, maxDestId);
     }
 
     public static void removeOutgoingEdges(String baseName, int sourceId) throws IOException {
