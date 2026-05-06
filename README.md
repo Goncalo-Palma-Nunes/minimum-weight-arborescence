@@ -9,7 +9,9 @@ This library can handle phylogenetic datasets with and without missing data. Whe
 A Locality-Sensitive Hashing[^4] heuristic is also available, when running Edmonds' algorithm with the on demand computation of edges. When using this heuristic, only a subset of a *taxon*'s approximate nearest neighbors (according to a given distance function) are considered before computing any edges. In addition, this heuristic also considers only a subset the dataset's *loci* for these similarity queries. When this heuristic fails to find a valid neighbor to continue Edmonds' algorithm, the algorithm falls back to computing all edges. **Using a Locality-Sensitive Hashing heuristic can produce sub-optimal trees**.
 
 Notes:
+
 \* A Minimum Weight Arborescence is sometimes called an Optimum Branching or Directed Minimum Spanning Tree in the algorithms and combinatorial optimization literatures.
+
 \*\* Given an input dataset with genomic data, that dataset can be manipulated as a complete graph by mapping *taxa* to nodes and the evolutionary distance between them as edges. 
 
 ## Data Types and Input Files
