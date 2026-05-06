@@ -2,14 +2,15 @@
 
 ## About
 
-This repository offers a scalable framework for the efficient computation and update of phylogenetic trees. Phylogenetic trees can be computed with this library by running one of several algorithms for the Minimum Weight Arborescence problem[^1][^*]. Two different implementations of Edmonds' static algorithm[^1] are provided: one that exploits memory-mapped files to store a phylogenetic graph[^**] and another implementation where the graph's edges are computed on demand. An additional legacy implementation, where each node's incidence edge set is kept in a pairing heap[^3] still exists in the PLACEHOLDER branch, although it is far less memory and time efficient than the other available implementations.
+This repository offers a scalable framework for the efficient computation and update of phylogenetic trees. Phylogenetic trees can be computed with this library by running one of several algorithms for the Minimum Weight Arborescence problem[^1]\*. Two different implementations of Edmonds' static algorithm[^1] are provided: one that exploits memory-mapped files to store a phylogenetic graph\*\* and another implementation where the graph's edges are computed on demand. An additional legacy implementation, where each node's incidence edge set is kept in a pairing heap[^3] still exists in the PLACEHOLDER branch, although it is far less memory and time efficient than the other available implementations.
 
 This library can handle phylogenetic datasets with and without missing data. When a dataset has no missing data, the available implementations of Edmonds' algorithm behave, in essence, as a classical greedy algorithm for the Minimum Spanning Tree (MST) problem, but with additional overhead. At this moment, there is currently no available implementation of a MST algorithm for when there is no missing data.
 
 A Locality-Sensitive Hashing[^4] heuristic is also available, when running Edmonds' algorithm with the on demand computation of edges. When using this heuristic, only a subset of a *taxon*'s approximate nearest neighbors (according to a given distance function) are considered before computing any edges. In addition, this heuristic also considers only a subset the dataset's *loci* for these similarity queries. When this heuristic fails to find a valid neighbor to continue Edmonds' algorithm, the algorithm falls back to computing all edges. **Using a Locality-Sensitive Hashing heuristic can produce sub-optimal trees**.
 
-[^*]: A Minimum Weight Arborescence is sometimes called an Optimum Branching or Directed Minimum Spanning Tree in the algorithms and combinatorial optimization literatures.
-[^**]: Given an input dataset with genomic data, that dataset can be manipulated as a complete graph by mapping *taxa* to nodes and the evolutionary distance between them as edges. 
+Notes:
+\* A Minimum Weight Arborescence is sometimes called an Optimum Branching or Directed Minimum Spanning Tree in the algorithms and combinatorial optimization literatures.
+\*\* Given an input dataset with genomic data, that dataset can be manipulated as a complete graph by mapping *taxa* to nodes and the evolutionary distance between them as edges. 
 
 ## Data Types and Input Files
 
@@ -30,8 +31,7 @@ d(u, v, i) =
 \begin{cases}
     1 & 
     \begin{aligned}
-    & \text{if $v[i]$ has missing} \\ & \text{data and $u[i]$ does not}    
-    \end{aligned}\\
+    & \text{if $v[i]$ has missing data and $u[i]$ does not,} \\
     1 & \text{if } u[i] \not = v[i],\\
     0 & \text{otherwise }
 \end{cases}
