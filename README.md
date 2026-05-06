@@ -31,9 +31,7 @@ For asymetric graphs, namely those representing datasets **with missing data**, 
 $$
 d(u, v, i) =
 \begin{cases}
-    1 & 
-    \begin{aligned}
-    & \text{if $v[i]$ has missing data and $u[i]$ does not,} \\
+    1 & \text{if $v[i]$ has missing data and $u[i]$ does not,} \\
     1 & \text{if } u[i] \not = v[i],\\
     0 & \text{otherwise }
 \end{cases}
