@@ -70,23 +70,23 @@ The basic invocation grammar for the Main.java compiled class is the following:
 - <input_sequence_file>: The relative or absolute path a CSV or FASTA file with the input sequences;
 - <operation_type>: Type of dynamic graph operation to be performed. It can take the values ```add```, ```remove```, ```update```. For testing purposes, there is an additional option ```test```, which incrementally inserts a new *taxon* and performs a phylogenetic inference step until all the sequences in the <input_sequence_file> are inserted;
 - <output_file>: The base path to where the output files should be written. At least two output files are always generated: a Node Index memory-mapped file for the sequences and an Edge Array memory-mapped file for the computed arborescence. If the --on-demand flag is not used and <operation_type> is ```add```, several other edge array files (one per new *taxon*) are created. Each such file stores the edges incident on that file's respective node/*taxon*;
-- <persisted_graph_file>: The base path to the output files of a previously computed phylogenetic inference run;
+- <persisted_graph_file>: The base path to the output files of a previously computed phylogenetic inference run. It is **not** the path to an arborescence, but the path and base name for the series of memory-mapped files associated with a previous inference run (that run's <output_file>). **When the operation to be performed is an update or remove, this parameter is mandatory**;
 - --on-demand: A boolean flag to signal that Edmonds' contraction phase should compute edge weights on demand, instead of querying them from memory-mapped files. This flag can be useful for large datasets, when disk space is a limited resource. However, this is **significantly slower** than building and querying memory-mapped edge array files.
 
 After invocation, the user is prompted for the following parameters:
 
-- k: A positive integer to represent the maximum initial neighborhood size of a node for the LSH heuristic. If $$k=0$$, then no LSH heuristic is used to approximate the graph's distance matrix and the complete N x N graph (where N is the number of *taxa*) is used;
-- Algorithm type: The type of inference algorithm to be executed. It can take the value ```static``` to execute just Edmonds' algorithm or ```dynamic``` to use an ATree on top of Edmonds' static algorithm;
+- $$k$$: A positive integer to represent the maximum initial neighborhood size of a node for the LSH heuristic. If $$k=0$$, then no LSH heuristic is used to approximate the graph's distance matrix and the complete N x N graph (where N is the number of *taxa*) is used;
+- $$algorithmType$$: The type of inference algorithm to be executed. It can take the value ```static``` to execute just Edmonds' algorithm or ```dynamic``` to use an ATree on top of Edmonds' static algorithm;
 
 If $$k > 0$$ (if the distance matrix is to be approximated) the user is also prompted for the initialization parameters for an auxiliary data-structure (currently, the only supported one is a LSH struct)
 
-- searchAlgorithm: The approximate nearest neighbor search algorithm to be used. Currently, the only possible option is ```lsh```
+- $$searchAlgorithm$$: The approximate nearest neighbor search algorithm to be used. Currently, the only possible option is ```lsh```
 
 # LSH Initialization Parameters
 
-- numHashParameters: The number of parameters used to initialize the hash functions. It can only take the value of a positive integer and must be at most the number of positions (number of *loci* or nucleotide positions) in the dataset's sequences. The numHashParameters defines the number of sequence positions that are considered during similarity queries between two sequences;
-- numHashFunctions: The number of unique hash functions used for the LSH heuristic:
-- maxDistance: The maximum distance at which two sequences are still considered neighbors. If $$distance(x, y) > maxDistance$$, then sequences $$x$$ and $$y$$ are not considered to be neighbors (with regard to edge weight computations) by the LSH heuristic, even if they are matched by one or more hash functions.
+- $$numHashParameters$$: The number of parameters used to initialize the hash functions. It can only take the value of a positive integer and must be at most the number of positions (number of *loci* or nucleotide positions) in the dataset's sequences. The numHashParameters defines the number of sequence positions that are considered during similarity queries between two sequences;
+- $$numHashFunctions$$: The number of unique hash functions used for the LSH heuristic:
+- $$maxDistance$$: The maximum distance at which two sequences are still considered neighbors. If $$distance(x, y) > maxDistance$$, then sequences $$x$$ and $$y$$ are not considered to be neighbors (with regard to edge weight computations) by the LSH heuristic, even if they are matched by one or more hash functions.
 
 ## Executing Main.java
 
@@ -102,21 +102,25 @@ With java:
 
 The examples in this section use java instead of mvn to execute our main program.
 
-Infering an initial phylogenetic tree using memory-mapped edge arrays for Edmonds' static algorithm:
+- Infering an initial phylogenetic tree with queries to memory-mapped edge arrays:
 
-TODO
+`java -cp out:lib/* optimalarborescence.Main mlst --missing-data /path/to/input.csv /path/to/output add`
 
-Infering an initial phylogenetic tree using on demand computation of edges for Edmonds' static algorithm:
+- Infering an initial phylogenetic tree with on demand edge computations:
 
-java -cp out:lib/* optimalarborescence.Main mlst-missing-data <input_file> <output_file> <operation> 2>&1 | tee ../scratch0/test_100k_static_memory_mapped.lo
+`java -cp out:lib/* optimalarborescence.Main mlst --missing-data /path/to/input.csv /path/to/output add --on-demand`
 
-Adding *taxa* to a previously computed phylogenetic tree using one of the static implementations of Edmonds' algorithm:
+- Adding *taxa* to a previously computed phylogenetic tree:
 
-TODO
+`java -cp out:lib/* optimalarborescence.Main mlst --missing-data /path/to/input.csv /path/to/output add /path/to/previously/computed/tree`
 
-Adding *taxa* to a previously computed tree using an extension of the dynamic algorithm by Pollatos et al.[^2]:
+- Removing *taxa* from a previously computed phylogenetic tree. The sequences in ```/path/to/input.csv``` are the sequences to be removed from ```/path/to/previously/computed/tree```. This last parameter (```/path/to/previously/computed/tree```) is non-optional during *taxa* removal operations.
 
-TODO
+`java -cp out:lib/* optimalarborescence.Main mlst --missing-data /path/to/input.csv /path/to/output remove /path/to/previously/computed/tree`
+
+- Updating *taxa* sequences from a previously computed phylogenetic tree. The sequences in ```/path/to/input.csv``` are the sequences to be updated from ```/path/to/previously/computed/tree```. This last parameter (```/path/to/previously/computed/tree```) is non-optional during *taxa* removal operations.
+
+`java -cp out:lib/* optimalarborescence.Main mlst --missing-data /path/to/input.csv /path/to/output update /path/to/previously/computed/tree`
 
 ## Executing a specific program
 
