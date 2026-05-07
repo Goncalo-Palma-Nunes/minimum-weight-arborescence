@@ -37,9 +37,37 @@ d(u, v, i) =
 \end{cases}
 $$
 
+## Packaging the project into a .jar
+
 ## Compiling the project
 
+With maven:
+
 `mvn compile`
+
+With javac (compiles classes to a lib/ folder):
+
+`javac -d out -cp "lib/*" --release 21 $(find src/main/java -name "*.java")`
+
+## Executing Main.java
+
+With maven:
+
+`mvn exec:java -Dexec.mainClass="optimalarborescence.Main"`
+
+With java:
+
+`java -cp "out:lib/*" optimalarborescence.Main <input-paramters>`
+
+# Examples
+
+Infering an initial phylogenetic tree using memory-mapped edge arrays for Edmonds' static algorithm:
+
+Infering an initial phylogenetic tree using on demand computation of edges for Edmonds' static algorithm:
+
+Adding *taxa* to a previously computed phylogenetic tree using one of the static implementations of Edmonds' algorithm:
+
+Adding *taxa* to a previously computed tree using an extension of the dynamic algorithm by Pollatos et al.[^2]:
 
 ## Executing a specific program
 
@@ -72,15 +100,6 @@ If you just want to run a specific unit test from the a class of tests `<TestCla
 You can also use wild cards to run a set of tests. For example, the following command runs all the tests for the dynamic implementation of the minimum weight arborescence algorithm, by running all the tests whose class name starts with *FullyDynamic*:
 
 `mvn test -Dtest="FullyDyanmic*"`
-
-## Accepted file formats
-
-- Fasta files for sequences of nucleotide bases ('A', 'C', 'G', 'T');
-- CSV (with tab delimitors) for MultiLocus Sequence Typing data.
-
-## Infering or Updating a Phylogeny
-
-
 
 
 ## References:
