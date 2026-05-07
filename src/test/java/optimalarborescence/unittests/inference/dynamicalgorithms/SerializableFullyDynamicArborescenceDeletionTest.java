@@ -27,7 +27,7 @@ import org.junit.Test;
  */
 public class SerializableFullyDynamicArborescenceDeletionTest {
 
-    private static final String TEST_BASE_NAME = "test_serializable_deletion";
+    private static final String TEST_BASE_NAME = "target/test_serializable_deletion";
     private static final int MLST_LENGTH = 100;
 
     private static AllelicProfile createProfile(String alleles) {

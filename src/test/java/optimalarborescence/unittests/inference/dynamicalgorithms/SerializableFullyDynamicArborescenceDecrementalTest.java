@@ -30,7 +30,7 @@ import org.junit.Test;
  * Based on SerializableFullyDynamicArborescenceIncrementalTest.
  */
 public class SerializableFullyDynamicArborescenceDecrementalTest {
-    private static final String TEST_BASE_NAME = "test_serializable_decremental";
+    private static final String TEST_BASE_NAME = "target/test_serializable_decremental";
     private static final int MLST_LENGTH = 100;
 
     private static AllelicProfile createProfile(String alleles) {

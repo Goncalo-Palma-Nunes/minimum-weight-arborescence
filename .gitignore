@@ -37,6 +37,10 @@ target/
 *.dat
 graph.dat
 
+# local python files
+*.pyc
+__pycache__/
+
 # text files
 *.txt
 

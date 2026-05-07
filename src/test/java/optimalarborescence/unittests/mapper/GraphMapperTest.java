@@ -24,7 +24,7 @@ import static org.junit.Assert.*;
  */
 public class GraphMapperTest {
 
-    private static final String TEST_BASE_NAME = "test_graph_mapper";
+    private static final String TEST_BASE_NAME = "target/test_graph_mapper";
     private static final int MLST_LENGTH = 7;
     
     private List<Node> testNodes;

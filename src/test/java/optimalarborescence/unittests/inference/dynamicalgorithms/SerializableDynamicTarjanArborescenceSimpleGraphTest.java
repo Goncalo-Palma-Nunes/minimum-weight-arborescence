@@ -25,7 +25,7 @@ import org.junit.Test;
  */
 public class SerializableDynamicTarjanArborescenceSimpleGraphTest {
 
-    private static final String TEST_BASE_NAME = "test_serializable_simple";
+    private static final String TEST_BASE_NAME = "target/test_serializable_simple";
     private static final int MLST_LENGTH = 100;
 
     private static AllelicProfile createProfile(String alleles) {

@@ -26,7 +26,7 @@ import org.junit.Test;
  */
 public class SerializableDynamicTarjanArborescenceLoopedSquaredMotifsTest {
 
-    private static final String TEST_BASE_NAME = "test_serializable_looped";
+    private static final String TEST_BASE_NAME = "target/test_serializable_looped";
     private static final int MLST_LENGTH = 100;
 
     private static AllelicProfile createProfile(String alleles) {

@@ -24,7 +24,7 @@ import org.junit.Test;
  * Tests for ATree save/load round-trip and dynamic operations after reloading from disk.
  */
 public class LazyATreeLoadingTest {
-    private static final String TEST_BASE_NAME = "test_lazy_atree";
+    private static final String TEST_BASE_NAME = "target/test_lazy_atree";
     private static final int MLST_LENGTH = 100;
 
     private static AllelicProfile createProfile(String alleles) {
