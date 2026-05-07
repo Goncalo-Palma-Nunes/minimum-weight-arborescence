@@ -57,6 +57,37 @@ With javac (compiles classes to a lib/ folder):
 
 `javac -d out -cp "lib/*" --release 21 $(find src/main/java -name "*.java")`
 
+## Input Parameters
+
+The basic invocation grammar for the Main.java compiled class is the following:
+
+`java -jar OptimalArborescence.jar <sequence_type> [--missing-data] <input_sequence_file> <output_file> <operation_type> [<persisted_graph_file>] [--on-demand]`
+
+**Parameters between squared brackets are optional**.
+
+- <sequence_type>: Defines the type of data to be processed: ```mlst``` for typing data or ```nucleotide``` for nucleotide sequences;
+- --missing-data: A boolean flag to signal that the input file has missing data;
+- <input_sequence_file>: The relative or absolute path a CSV or FASTA file with the input sequences;
+- <operation_type>: Type of dynamic graph operation to be performed. It can take the values ```add```, ```remove```, ```update```. For testing purposes, there is an additional option ```test```, which incrementally inserts a new *taxon* and performs a phylogenetic inference step until all the sequences in the <input_sequence_file> are inserted;
+- <output_file>: The base path to where the output files should be written. At least two output files are always generated: a Node Index memory-mapped file for the sequences and an Edge Array memory-mapped file for the computed arborescence. If the --on-demand flag is not used and <operation_type> is ```add```, several other edge array files (one per new *taxon*) are created. Each such file stores the edges incident on that file's respective node/*taxon*;
+- <persisted_graph_file>: The base path to the output files of a previously computed phylogenetic inference run;
+- --on-demand: A boolean flag to signal that Edmonds' contraction phase should compute edge weights on demand, instead of querying them from memory-mapped files. This flag can be useful for large datasets, when disk space is a limited resource. However, this is **significantly slower** than building and querying memory-mapped edge array files.
+
+After invocation, the user is prompted for the following parameters:
+
+- k: A positive integer to represent the maximum initial neighborhood size of a node for the LSH heuristic. If $$k=0$$, then no LSH heuristic is used to approximate the graph's distance matrix and the complete N x N graph (where N is the number of *taxa*) is used;
+- Algorithm type: The type of inference algorithm to be executed. It can take the value ```static``` to execute just Edmonds' algorithm or ```dynamic``` to use an ATree on top of Edmonds' static algorithm;
+
+If $$k > 0$$ (if the distance matrix is to be approximated) the user is also prompted for the initialization parameters for an auxiliary data-structure (currently, the only supported one is a LSH struct)
+
+- searchAlgorithm: The approximate nearest neighbor search algorithm to be used. Currently, the only possible option is ```lsh```
+
+# LSH Initialization Parameters
+
+- numHashParameters:
+- numHashFunctions:
+- maxDistance:
+
 ## Executing Main.java
 
 With maven:
@@ -69,13 +100,15 @@ With java:
 
 # Examples
 
+The examples in this section use java instead of mvn to execute our main program.
+
 Infering an initial phylogenetic tree using memory-mapped edge arrays for Edmonds' static algorithm:
 
 TODO
 
 Infering an initial phylogenetic tree using on demand computation of edges for Edmonds' static algorithm:
 
-TODO
+java -cp out:lib/* optimalarborescence.Main mlst-missing-data <input_file> <output_file> <operation> 2>&1 | tee ../scratch0/test_100k_static_memory_mapped.lo
 
 Adding *taxa* to a previously computed phylogenetic tree using one of the static implementations of Edmonds' algorithm:
 
@@ -121,10 +154,8 @@ You can also use wild cards to run a set of tests. For example, the following co
 
 `mvn test -Dtest="FullyDyanmic*"`
 
-
 ## References:
 [^1]: Edmonds, J. (1967). Optimum branchings. Journal of Research of the National Bureau of Standards Section B Mathematics and Mathematical Physics. https://doi.org/10.6028/JRES.071B.032
 [^2]: Pollatos, G.G., Telelis, O.A., Zissimopoulos, V. (2006). Updating Directed Minimum Cost Spanning Trees. In: Àlvarez, C., Serna, M. (eds) Experimental Algorithms. WEA 2006. Lecture Notes in Computer Science, vol 4007. Springer, Berlin, Heidelberg. https://doi.org/10.1007/11764298_27
 [^3]: Fredman, Michael L., Robert Sedgewick, Daniel D. Sleator, and Robert E. Tarjan. ‘The Pairing Heap: A New Form of Self-Adjusting Heap’. Algorithmica 1, no. 1 (1986): 111–29. https://doi.org/10.1007/BF01840439.
 [^4]: Piotr Indyk and Rajeev Motwani. 1998. Approximate nearest neighbors: towards removing the curse of dimensionality. In Proceedings of the thirtieth annual ACM symposium on Theory of computing (STOC '98). Association for Computing Machinery, New York, NY, USA, 604–613. https://doi.org/10.1145/276698.276876
-
