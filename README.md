@@ -39,6 +39,14 @@ $$
 
 ## Packaging the project into a .jar
 
+This project can be packaged with maven into an executable .jar by running:
+
+`mvn clean package`
+
+This generates a file called OptimalArborescence.jar in the target/ directory. This file can then be run with:
+
+`java -jar target/OptimalArborescence.jar`
+
 ## Compiling the project
 
 With maven:
@@ -63,11 +71,23 @@ With java:
 
 Infering an initial phylogenetic tree using memory-mapped edge arrays for Edmonds' static algorithm:
 
+TODO
+
 Infering an initial phylogenetic tree using on demand computation of edges for Edmonds' static algorithm:
+
+TODO
 
 Adding *taxa* to a previously computed phylogenetic tree using one of the static implementations of Edmonds' algorithm:
 
+TODO
+
 Adding *taxa* to a previously computed tree using an extension of the dynamic algorithm by Pollatos et al.[^2]:
+
+TODO
+
+## How to run with Locality-Sensitive Hashing
+
+TODO
 
 ## Executing a specific program
 
