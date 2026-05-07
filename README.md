@@ -84,7 +84,7 @@ If $$k > 0$$ (if the distance matrix is to be approximated) the user is also pro
 
 # LSH Initialization Parameters
 
-- $$numHashParameters$$: The number of parameters used to initialize the hash functions. It can only take the value of a positive integer and must be at most the number of positions (number of *loci* or nucleotide positions) in the dataset's sequences. The numHashParameters defines the number of sequence positions that are considered during similarity queries between two sequences;
+- $$numHashParameters$$: The number of parameters used to initialize the hash functions. It can only take the value of a positive integer and must be at most the number of positions (number of *loci* or nucleotide positions) in the dataset's sequences. The $$numHashParameters$$ defines the number of sequence positions that are considered during similarity queries between two sequences;
 - $$numHashFunctions$$: The number of unique hash functions used for the LSH heuristic:
 - $$maxDistance$$: The maximum distance at which two sequences are still considered neighbors. If $$distance(x, y) > maxDistance$$, then sequences $$x$$ and $$y$$ are not considered to be neighbors (with regard to edge weight computations) by the LSH heuristic, even if they are matched by one or more hash functions.
 
