@@ -92,7 +92,7 @@ If $$k > 0$$ (if the distance matrix is to be approximated) the user is also pro
 
 With maven:
 
-`mvn exec:java -Dexec.mainClass="optimalarborescence.Main"`
+`mvn exec:java -Dexec.mainClass="optimalarborescence.Main" -Dexec.args="<input-parameters>"`
 
 With java:
 
