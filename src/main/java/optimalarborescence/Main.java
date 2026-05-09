@@ -39,11 +39,9 @@ import javax.management.RuntimeErrorException;
 
 public class Main {
 
-    private static final String MLST_SYMMETRIC = "mlst-symmetric";
-    private static final String MLST_MISSING_DATA = "mlst-missing-data";
-    private static final String ALLELIC = "allelic";
-    private static final List<String> SEQUENCE_TYPE = List.of(MLST_SYMMETRIC, MLST_MISSING_DATA, ALLELIC);
-    private static final List<String> SYMMETRIC_DATA = List.of(MLST_SYMMETRIC, ALLELIC);
+    private static final String MLST = "mlst";
+    private static final String NUCLEOTIDE = "nucleotide";
+    private static final List<String> SEQUENCE_TYPE = List.of(MLST, NUCLEOTIDE);
     private static final String STATIC_ALGORITHM = "static";
     private static final String DYNAMIC_ALGORITHM = "dynamic";
     private static final String NEIGHBOR_JOINING = "neighborJoining";
@@ -75,14 +73,24 @@ public class Main {
             effectiveArgsLength = args.length - 1;
         }
         
-        if (effectiveArgsLength < 4 || effectiveArgsLength > 6) {
-            System.err.println("Wrong Invocation: java -jar OptimalArborescence.jar <sequence_type> <input_sequence_file> <output_file> <operation_type> [<persisted_graph_file>] [<batch_size>] [--on-demand]\nWhere:\n\t- <sequence_type> is either 'mlst-symmetric', 'mlst-missing-data', or 'allelic'\n\t- <input_sequence_file> is the path to the input sequence file\n\t- <output_file> is the path to the output file\n\t- <operation_type> is either 'add', 'remove', 'update', or 'test'\n\t- <persisted_graph_file> is an optional path to a persisted graph file to continue from a previous run\n\t- <batch_size> is an optional positive integer for test mode only, specifying how many points to add in each batch (only for static and neighborJoining algorithms)\n\t the '--on-demand' flag tells the program to compute edge distances on demand, instead of storing them explicitly in a memory mapped file.");
+        // Check for --missing-data flag (position 1, immediately after sequenceType)
+        boolean missingData = false;
+        int missingDataOffset = 0;
+        if (args.length > 1 && args[1].equals("--missing-data")) {
+            missingData = true;
+            missingDataOffset = 1;
+            effectiveArgsLength--;
+        }
+        
+        if (effectiveArgsLength < 4 || effectiveArgsLength > 7) {
+            System.err.println("Wrong Invocation: java -jar OptimalArborescence.jar <sequence_type> [--missing-data] <input_sequence_file> <output_file> <operation_type> [<persisted_graph_file>] [<batch_size>] [--on-demand]\nWhere:\n\t- <sequence_type> is either 'mlst' or 'nucleotide'\n\t- [--missing-data] is an optional flag to use DirectionalHammingDistance for edge calculations (default: HammingDistance)\n\t- <input_sequence_file> is the path to the input sequence file\n\t- <output_file> is the path to the output file\n\t- <operation_type> is either 'add', 'remove', 'update', or 'test'\n\t- <persisted_graph_file> is an optional path to a persisted graph file to continue from a previous run\n\t- <batch_size> is an optional positive integer for test mode only, specifying how many points to add in each batch (only for static and neighborJoining algorithms)\n\t- '--on-demand' flag tells the program to compute edge distances on demand, instead of storing them explicitly in a memory mapped file.");
             System.exit(1);
         }
         String sequenceType = args[0];
         sequenceType = sequenceType.toLowerCase();
-        String inputSequenceFile = args[1]; String outputFile = args[2];
-        String operationType = args[3].toLowerCase();
+        String inputSequenceFile = args[1 + missingDataOffset]; 
+        String outputFile = args[2 + missingDataOffset];
+        String operationType = args[3 + missingDataOffset].toLowerCase();
         
         String persistedGraphFile = null;
         Integer batchSize = null;
@@ -90,43 +98,43 @@ public class Main {
         PhylogeneticData g = null;
         
         if (effectiveArgsLength >= 5) {
-            // Determine if arg[4] is persisted graph file or batch size for test mode
+            // Determine if arg[4 + missingDataOffset] is persisted graph file or batch size for test mode
             if (operationType.equals(TEST)) {
-                // For test mode, arg[4] could be either persisted file or batch size
+                // For test mode, arg[4 + missingDataOffset] could be either persisted file or batch size
                 try {
-                    batchSize = Integer.parseInt(args[4]);
+                    batchSize = Integer.parseInt(args[4 + missingDataOffset]);
                     if (batchSize <= 0) {
                         throw new IllegalArgumentException("Batch size must be a positive integer.");
                     }
                     // If there's a 6th argument, it's invalid for test mode
-                    if (effectiveArgsLength == 6) {
+                    if (effectiveArgsLength == 7) {
                         throw new IllegalArgumentException("Test mode accepts only batch_size parameter, not persisted_graph_file.");
                     }
                 } catch (NumberFormatException e) {
-                    // If arg[4] is not a number, treat it as persisted graph file (for backward compatibility)
-                    persistedGraphFile = args[4];
+                    // If arg[4 + missingDataOffset] is not a number, treat it as persisted graph file (for backward compatibility)
+                    persistedGraphFile = args[4 + missingDataOffset];
                     if (!fileExists(persistedGraphFile)) {
                         throw new FileNotFoundException("Persisted graph file does not exist: " + persistedGraphFile);
                     }
-                    // Check if arg[5] exists and is batch size
-                    if (effectiveArgsLength == 6) {
+                    // Check if arg[5 + missingDataOffset] exists and is batch size
+                    if (effectiveArgsLength == 7) {
                         try {
-                            batchSize = Integer.parseInt(args[5]);
+                            batchSize = Integer.parseInt(args[5 + missingDataOffset]);
                             if (batchSize <= 0) {
                                 throw new IllegalArgumentException("Batch size must be a positive integer.");
                             }
                         } catch (NumberFormatException e2) {
-                            throw new IllegalArgumentException("Invalid batch size parameter: " + args[5]);
+                            throw new IllegalArgumentException("Invalid batch size parameter: " + args[5 + missingDataOffset]);
                         }
                     }
                 }
             } else {
-                // For non-test modes, arg[4] is persisted graph file
-                persistedGraphFile = args[4];
+                // For non-test modes, arg[4 + missingDataOffset] is persisted graph file
+                persistedGraphFile = args[4 + missingDataOffset];
                 if (!fileExists(persistedGraphFile)) {
                     throw new FileNotFoundException("Persisted graph file does not exist: " + persistedGraphFile);
                 }
-                if (effectiveArgsLength == 6) {
+                if (effectiveArgsLength == 7) {
                     throw new IllegalArgumentException("Batch size parameter is only valid for test mode.");
                 }
             }
@@ -136,7 +144,7 @@ public class Main {
         // Test mode: iteratively add points in batches
         if (operationType.equals(TEST)) {
             MemoryLogger.start("memory_usage_dynamic.txt");
-            runTestMode(sequenceType, inputSequenceFile, outputFile, persistedGraphFile, batchSize, onDemand);
+            runTestMode(sequenceType, inputSequenceFile, outputFile, persistedGraphFile, batchSize, onDemand, missingData);
             MemoryLogger.stop();
             return;
         }
@@ -174,25 +182,25 @@ public class Main {
         NearestNeighbourSearchAlgorithm<?> nnAlgorithm = null;
         if (numNeighbors > 0) {
             sequenceLength = newPoints.get(0).getSequence().getLength();
-            nnAlgorithm = selectNNAlgorithm(sequenceType, sequenceLength, persistedGraphFile);
+            nnAlgorithm = selectNNAlgorithm(sequenceType, sequenceLength, persistedGraphFile, missingData);
             outputFile += "_approx_" + numNeighbors;
         }
         else { outputFile += "_exact"; }
         if (onDemand) { outputFile += "_ondemand"; }
 
         long startTime = System.currentTimeMillis();
-        persistedGraphFile = initializeGraph(sequenceType, inputSequenceFile, numNeighbors, persistedGraphFile, nnAlgorithm, newPoints, algorithmType, operationType, outputFile, onDemand);
+        persistedGraphFile = initializeGraph(sequenceType, inputSequenceFile, numNeighbors, persistedGraphFile, nnAlgorithm, newPoints, algorithmType, operationType, outputFile, onDemand, missingData);
 
         
         List<Edge> phylogeny = null;
         switch (algorithmType) {
             case STATIC_ALGORITHM:
                 outputFile += "_static_camerini";
-                phylogeny = runStaticCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, operationType, onDemand, nnAlgorithm);
+                phylogeny = runStaticCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, operationType, onDemand, nnAlgorithm, missingData);
                 break;
             case DYNAMIC_ALGORITHM:
                 outputFile += "_dynamic_camerini";
-                phylogeny = runDynamicCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, operationType);
+                phylogeny = runDynamicCameriniAlgorithm(sequenceType, inputSequenceFile, outputFile, numNeighbors, newPoints, persistedGraphFile, operationType, missingData);
                 break;
             case NEIGHBOR_JOINING:
                 throw new NotImplementedException("Neighbor Joining algorithm is not implemented yet.");
@@ -347,8 +355,7 @@ public class Main {
         List<Point<?>> points = new ArrayList<>();
         
         switch (sequenceType) {
-            case MLST_SYMMETRIC:
-            case MLST_MISSING_DATA:
+            case MLST:
                 List<Object[]> rawMLSTData = Parser.readCSVLines(inputFile);
                 List<SequenceTypingData> mlstData = Parser.processedCSVToTypingData(rawMLSTData);
                 for (int i = 0; i < mlstData.size(); i++) {
@@ -356,16 +363,16 @@ public class Main {
                     points.add(new Point<>(idOffset + i, mlstData.get(i)));
                 }
                 break;
-            case ALLELIC:
+            case NUCLEOTIDE:
                 // TO DO - implementar
-                throw new NotImplementedException("Handling of allelic sequences has not been implemented yet.");
-                // List<AllelicProfile> allelicProfiles = Parser.fastaToAllelicProfiles(inputFile);
+                throw new NotImplementedException("Handling of nucleotide sequences has not been implemented yet.");
+                // List<nucleotideProfile> nucleotideProfiles = Parser.fastaTonucleotideProfiles(inputFile);
 
                 // // Nota - estes IDs estão inválidos para os perfis alélicos
                 // // - Criar IDs sequencialmete, se for a 1ª execução do algoritmo
                 // // - Ou extrair do grafo persistido, se for uma continuação
-                // for (int i = 0; i < allelicProfiles.size(); i++) {
-                //     points.add(new Point<>(i, allelicProfiles.get(i)));
+                // for (int i = 0; i < nucleotideProfiles.size(); i++) {
+                //     points.add(new Point<>(i, nucleotideProfiles.get(i)));
                 // }
                 // break;
             default:
@@ -377,7 +384,7 @@ public class Main {
     private static String initializeGraph(String sequenceType, String inputFile, 
                                         int numNeighbors, String persistedGraphFile,
                                         NearestNeighbourSearchAlgorithm<?> nnAlgorithm, List<Point<?>> points,
-                                        String algorithmType, String operationType, String outputFile, boolean onDemand) throws IOException {
+                                        String algorithmType, String operationType, String outputFile, boolean onDemand, boolean missingData) throws IOException {
         if (onDemand) {
             // Save graph with nodes only, no edges
             GraphMapper.saveGraph(points.stream().
@@ -394,7 +401,7 @@ public class Main {
                 List<Node> newNodes = points.stream()
                                             .map(p -> new Node(p.getSequence(), p.getId()))
                                             .toList();
-                addNodesIncrementallyToExactGraph(newNodes, persistedGraphFile, points.get(0).getSequence().getLength(), sequenceType, nnAlgorithm);
+                addNodesIncrementallyToExactGraph(newNodes, persistedGraphFile, points.get(0).getSequence().getLength(), sequenceType, nnAlgorithm, missingData);
             }
             return persistedGraphFile;
         }
@@ -406,7 +413,7 @@ public class Main {
         else { // exact graph
             // Use incremental construction to avoid memory overflow
             String tempFile = outputFile + "_building";
-            generateExactGraphIncrementally(points, tempFile, sequenceType, nnAlgorithm);
+            generateExactGraphIncrementally(points, tempFile, sequenceType, nnAlgorithm, missingData);
             return tempFile;
         }
     }
@@ -415,7 +422,7 @@ public class Main {
         return NN_ALGORITHMS.contains(response);
     }
 
-    private static NearestNeighbourSearchAlgorithm<?> selectNNAlgorithm(String sequenceType, int sequenceLength, String persistedGraphFile) throws IOException {
+    private static NearestNeighbourSearchAlgorithm<?> selectNNAlgorithm(String sequenceType, int sequenceLength, String persistedGraphFile, boolean missingData) throws IOException {
         System.out.println("Select the Nearest Neighbour Search Algorithm:\n'"+ LSH + "' for Locality Sensitive Hashing\nEnter " + EXIT + " to quit.");
         String response = "";
         BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
@@ -447,7 +454,7 @@ public class Main {
                             break; // proceed to build new LSH
                         }
                     }
-                    return buildLSH(sequenceLength, sequenceType);
+                    return buildLSH(sequenceLength, sequenceType, missingData);
                 case EXIT:
                     System.out.println("Exiting the program.");
                     System.exit(0);
@@ -459,7 +466,7 @@ public class Main {
         return null;
     }
 
-    private static LSH<?> buildLSH(int sequenceLength, String sequenceType) {
+    private static LSH<?> buildLSH(int sequenceLength, String sequenceType, boolean missingData) {
         // System.out.println("Enter a sequence of positive integers for the amount of compared sequence positions, the number of hash tables, and the maximum distance between two points:\n\tFormat: <num_compared_positions> <num_hash_tables> <max_distance>\n\tExample: 10 5 3\n\tEnter " + EXIT + " to quit.\n");
         // String response = "";
 
@@ -468,7 +475,7 @@ public class Main {
         int numHashParameters = 1300;
         int numHashes = 1;
         int maxDistance = 1671;
-        DistanceFunction distanceFunction = SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance();
+        DistanceFunction distanceFunction = missingData ? new DirectionalHammingDistance() : new HammingDistance();
 
         return new LSH<>(numHashParameters, numHashes, 0, sequenceLength - 1, distanceFunction, maxDistance);
     }
@@ -529,7 +536,7 @@ public class Main {
      * @param outputFile Path for the memory-mapped graph file
      */
     private static void generateExactGraphIncrementally(List<Point<?>> points, String outputFile, String sequenceType,
-                                                         NearestNeighbourSearchAlgorithm<?> nnAlgorithm) throws IOException {
+                                                         NearestNeighbourSearchAlgorithm<?> nnAlgorithm, boolean missingData) throws IOException {
         if (points.size() < 2) {
             throw new IllegalArgumentException(
                 "At least 2 points are required to build a graph. Found: " + points.size() + " points. " +
@@ -538,7 +545,7 @@ public class Main {
         }
         
         int sequenceLength = points.get(0).getSequence().getLength();
-        DistanceFunction distanceFunction = SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance();
+        DistanceFunction distanceFunction = missingData ? new DirectionalHammingDistance() : new HammingDistance();
         
         // Initialize with first 2 nodes
         List<Node> initialNodes = new ArrayList<>();
@@ -641,7 +648,7 @@ public class Main {
                     // List<Edge> nodeKEdges = nodeEdgesMap.get(nodeK);
                     List<Edge> nodeKEdges = batchEdgeLists.get(k);
                     Edge incoming = buildEdge(nodeK, nodeJ, sequenceType, distanceFunction);
-                    if (!SYMMETRIC_DATA.contains(sequenceType)) {
+                    if (missingData) {
                         // For directional data, add edges in both directions
                          Edge outgoing = buildEdge(nodeJ, nodeK, sequenceType, distanceFunction);
                             nodeKEdges.add(outgoing);
@@ -691,15 +698,16 @@ public class Main {
      * @param sequenceLength Length of sequences (for serialization)
      * @param sequenceType The sequence type string
      * @param nnAlgorithm Optional NN algorithm to populate with each new node (may be null)
+     * @param missingData Whether to use DirectionalHammingDistance (true) or HammingDistance (false)
      */
     private static void addNodesIncrementallyToExactGraph(List<Node> nodesToAdd,
                                                           String outputFile, int sequenceLength, String sequenceType,
-                                                          NearestNeighbourSearchAlgorithm<?> nnAlgorithm) throws IOException {
+                                                          NearestNeighbourSearchAlgorithm<?> nnAlgorithm, boolean missingData) throws IOException {
         if (nodesToAdd.isEmpty()) {
             return;
         }
 
-        DistanceFunction distanceFunction = SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance();
+        DistanceFunction distanceFunction = missingData ? new DirectionalHammingDistance() : new HammingDistance();
 
         System.out.println("Adding " + nodesToAdd.size() + " nodes incrementally...");
 
@@ -770,7 +778,7 @@ public class Main {
         }
     }
 
-    private static List<Edge> runStaticCameriniAlgorithm(String sequenceType, String inputFile, String outputFile, int numNeighbors, List<Point<?>> points, String persistedGraphFile, String operationType, boolean onDemand, NearestNeighbourSearchAlgorithm<?> nnAlgorithm) throws IOException {
+    private static List<Edge> runStaticCameriniAlgorithm(String sequenceType, String inputFile, String outputFile, int numNeighbors, List<Point<?>> points, String persistedGraphFile, String operationType, boolean onDemand, NearestNeighbourSearchAlgorithm<?> nnAlgorithm, boolean missingData) throws IOException {
 
         List<Node> nodesToProcess = null;
         nodesToProcess = points.stream().map(p -> new Node(p.getSequence(), p.getId())).toList();
@@ -792,13 +800,13 @@ public class Main {
         if (persistedGraphFile == null) {
             throw new IllegalArgumentException("Persisted graph file must be provided for Static Camerini Algorithm.");
         }
-        DistanceFunction distanceFunction = SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance();
-        CameriniForest camerini = new SerializableCameriniForest(EDGE_COMPARATOR, persistedGraphFile, onDemand, nnAlgorithm, numNeighbors, distanceFunction, SYMMETRIC_DATA.contains(sequenceType));
+        DistanceFunction distanceFunction = missingData ? new DirectionalHammingDistance() : new HammingDistance();
+        CameriniForest camerini = new SerializableCameriniForest(EDGE_COMPARATOR, persistedGraphFile, onDemand, nnAlgorithm, numNeighbors, distanceFunction, !missingData);
         
         return camerini.inferPhylogeny(null).getEdges();
     }
 
-    private static List<Edge> runDynamicCameriniAlgorithm(String sequenceType, String inputFile, String outputFile, int numNeighbors, List<Point<?>> points, String persistedGraphFile, String operationType) throws IOException {
+    private static List<Edge> runDynamicCameriniAlgorithm(String sequenceType, String inputFile, String outputFile, int numNeighbors, List<Point<?>> points, String persistedGraphFile, String operationType, boolean missingData) throws IOException {
         // Get sequence length from any point
         int sequenceLength = points.get(0).getSequence().getLength();
         
@@ -907,7 +915,7 @@ public class Main {
         );
     }
 
-    private static void runTestMode(String sequenceType, String inputSequenceFile, String outputFile, String persistedGraphFile, Integer batchSize, boolean onDemand) throws FileNotFoundException, IOException {
+    private static void runTestMode(String sequenceType, String inputSequenceFile, String outputFile, String persistedGraphFile, Integer batchSize, boolean onDemand, boolean missingData) throws FileNotFoundException, IOException {
         System.out.println("Running in TEST mode: adding points in batches...");
         
         // Get user parameters
@@ -934,7 +942,7 @@ public class Main {
         // Set up NN algorithm if using approximate graph
         NearestNeighbourSearchAlgorithm<?> nnAlgorithm = null;
         if (numNeighbors > 0) {
-            nnAlgorithm = selectNNAlgorithm(sequenceType, sequenceLength, null);
+            nnAlgorithm = selectNNAlgorithm(sequenceType, sequenceLength, null, missingData);
             outputFile += "_approx_" + numNeighbors;
         } else {
             outputFile += "_exact";
@@ -965,10 +973,10 @@ public class Main {
         List<Long> iterationTimes = new ArrayList<>(List.of(0L, 0L)); // [preProcessTime, inferenceTime]
         switch (algorithmType) {
             case STATIC_ALGORITHM:
-                phylogeny = runStaticTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, true, onDemand, iterationTimes);
+                phylogeny = runStaticTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, true, onDemand, iterationTimes, missingData);
                 break;
             case DYNAMIC_ALGORITHM:
-                phylogeny = runDynamicTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, true);
+                phylogeny = runDynamicTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, true, missingData);
                 break;
             case NEIGHBOR_JOINING:
                 phylogeny = runNJTestIteration(sequenceType, initialPoints, tempGraphFile, outputFile, sequenceLength, true);
@@ -992,10 +1000,10 @@ public class Main {
             
             switch (algorithmType) {
                 case STATIC_ALGORITHM:
-                    phylogeny = runStaticTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, false, onDemand, iterationTimes);
+                    phylogeny = runStaticTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, false, onDemand, iterationTimes, missingData);
                     break;
                 case DYNAMIC_ALGORITHM:
-                    phylogeny = runDynamicTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, false);
+                    phylogeny = runDynamicTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, numNeighbors, nnAlgorithm, sequenceLength, false, missingData);
                     break;
                 case NEIGHBOR_JOINING:
                     phylogeny = runNJTestIteration(sequenceType, batchPoints, tempGraphFile, outputFile, sequenceLength, false);
@@ -1018,7 +1026,7 @@ public class Main {
                                                String outputFile, int numNeighbors, 
                                                NearestNeighbourSearchAlgorithm<?> nnAlgorithm, 
                                                int sequenceLength, boolean isInitial, boolean onDemand,
-                                               List<Long> iterationTimes) throws IOException {
+                                               List<Long> iterationTimes, boolean missingData) throws IOException {
         long startPreProcessTime = System.currentTimeMillis();
         if (isInitial) {
             // Create new graph with initial points using memory-mapped files
@@ -1026,7 +1034,7 @@ public class Main {
                 generateOnDemandGraph(points, tempGraphFile, sequenceType, nnAlgorithm);
             }
             else {
-                generateExactGraphIncrementally(points, tempGraphFile, sequenceType, nnAlgorithm);
+                generateExactGraphIncrementally(points, tempGraphFile, sequenceType, nnAlgorithm, missingData);
             }
         } else {
             // Add new nodes to existing memory-mapped graph
@@ -1037,7 +1045,7 @@ public class Main {
                 addNodesOnDemand(nodesToAdd, tempGraphFile, sequenceType, nnAlgorithm);
             }
             else {
-                addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength, sequenceType, nnAlgorithm);
+                addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength, sequenceType, nnAlgorithm, missingData);
             }
         }
         long endPreProcessTime = System.currentTimeMillis();
@@ -1046,8 +1054,8 @@ public class Main {
         // Infer phylogeny using SerializableCameriniForest for lazy loading from memory-mapped files
         long startInferenceTime = System.currentTimeMillis();
         CameriniForest camerini = new SerializableCameriniForest(EDGE_COMPARATOR, tempGraphFile, onDemand, nnAlgorithm, numNeighbors,
-                SYMMETRIC_DATA.contains(sequenceType) ? new HammingDistance() : new DirectionalHammingDistance(),
-                SYMMETRIC_DATA.contains(sequenceType));
+                missingData ? new DirectionalHammingDistance() : new HammingDistance(),
+                !missingData);
         List<Edge> phylogeny = camerini.inferPhylogeny(null).getEdges();
         long endInferenceTime = System.currentTimeMillis();
         iterationTimes.set(1, endInferenceTime - startInferenceTime);
@@ -1071,7 +1079,7 @@ public class Main {
     private static List<Edge> runDynamicTestIteration(String sequenceType, List<Point<?>> points, String tempGraphFile,
                                                 String outputFile, int numNeighbors,
                                                 NearestNeighbourSearchAlgorithm<?> nnAlgorithm,
-                                                int sequenceLength, boolean isInitial) throws IOException {
+                                                int sequenceLength, boolean isInitial, boolean missingData) throws IOException {
         SerializableFullyDynamicArborescence dynamicAlgorithm;
         
         long startPreProcessTime = 0L;
@@ -1081,7 +1089,7 @@ public class Main {
         if (isInitial) {
             // Create new graph with initial points using memory-mapped files
             startPreProcessTime = System.currentTimeMillis();
-            generateExactGraphIncrementally(points, tempGraphFile, sequenceType, nnAlgorithm);
+            generateExactGraphIncrementally(points, tempGraphFile, sequenceType, nnAlgorithm, missingData);
 
             // Initialize dynamic algorithm from persisted graph
             dynamicAlgorithm = new SerializableFullyDynamicArborescence(tempGraphFile);
@@ -1103,7 +1111,7 @@ public class Main {
                 .map(p -> new Node(p.getSequence(), p.getId()))
                 .toList();
 
-            addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength, sequenceType, nnAlgorithm);
+            addNodesIncrementallyToExactGraph(nodesToAdd, tempGraphFile, sequenceLength, sequenceType, nnAlgorithm, missingData);
             endProcessTime = System.currentTimeMillis();
             
             // Load node map for edge reconstruction
