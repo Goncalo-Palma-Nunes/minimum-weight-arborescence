@@ -171,8 +171,8 @@ public class Main {
             System.err.println("  - Minimum required: 2");
             System.err.println("\nPossible causes:");
             System.err.println("  1. CSV file has too few valid rows");
-            System.err.println("  2. Most rows were skipped due to validation errors (check warnings above)");
-            System.err.println("  3. File format is incorrect (expecting tab-separated values)");
+            System.err.println("  2. Most rows were skipped due to validation errors (check warnings above, if there are any)");
+            System.err.println("  3. File format is incorrect (e.g., wrong delimiter, missing headers, etc.)");
             System.err.println("\nPlease check your input file: " + inputSequenceFile);
             System.exit(1);
         }
@@ -364,17 +364,24 @@ public class Main {
                 }
                 break;
             case NUCLEOTIDE:
-                // TO DO - implementar
-                throw new NotImplementedException("Handling of nucleotide sequences has not been implemented yet.");
-                // List<nucleotideProfile> nucleotideProfiles = Parser.fastaTonucleotideProfiles(inputFile);
+                // Parse FASTA into allelic profiles using the Parser helper
+                List<AllelicProfile> nucleotideProfiles = Parser.fastaToAllelicProfiles(inputFile);
 
-                // // Nota - estes IDs estão inválidos para os perfis alélicos
-                // // - Criar IDs sequencialmete, se for a 1ª execução do algoritmo
-                // // - Ou extrair do grafo persistido, se for uma continuação
-                // for (int i = 0; i < nucleotideProfiles.size(); i++) {
-                //     points.add(new Point<>(i, nucleotideProfiles.get(i)));
-                // }
-                // break;
+                // If no profiles were parsed, return empty points (caller will handle insufficient data)
+                if (nucleotideProfiles.isEmpty()) {
+                    break;
+                }
+
+                // Verify all profiles have the same length to avoid downstream indexing errors
+                int expectedLen = nucleotideProfiles.get(0).getLength();
+                for (int i = 0; i < nucleotideProfiles.size(); i++) {
+                    AllelicProfile profile = nucleotideProfiles.get(i);
+                    if (profile.getLength() != expectedLen) {
+                        throw new IllegalArgumentException("Inconsistent nucleotide sequence lengths in input file: " + inputFile);
+                    }
+                    points.add(new Point<>(idOffset + i, profile));
+                }
+                break;
             default:
                 throw new IllegalArgumentException("Unsupported sequence type: " + sequenceType);
         }
