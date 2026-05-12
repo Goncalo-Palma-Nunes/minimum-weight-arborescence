@@ -26,7 +26,7 @@ There are currently *two* available distance functions to compute edge weights.
 
 For symmetric graphs, namely those representing datasets **without missing data**, we use the classic Hamming distance function.
 
-For asymetric graphs, namely those representing datasets **with missing data**, we use a modified Hamming distance. This asymmetric hamming distance is defined as the sum over all sequence positions between two *taxa* of the following function:
+For asymmetric graphs, namely those representing datasets **with missing data**, we use a modified Hamming distance. This asymmetric hamming distance is defined as the sum over all sequence positions between two *taxa* of the following function:
 
 $$
 d(u, v, i) =
